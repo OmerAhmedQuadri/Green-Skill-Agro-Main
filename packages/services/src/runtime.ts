@@ -1,6 +1,7 @@
 import { loadConfig } from '@gsa/config';
 import { type BranchId } from '@gsa/core';
 import { createDb, type Db, schema } from '@gsa/db';
+import { createS3BlobStore, type BlobStore } from './media';
 import { asc } from 'drizzle-orm';
 
 let db: Db | undefined;
@@ -25,4 +26,23 @@ export async function defaultBranchId(): Promise<BranchId> {
   if (!branch) throw new Error('No branch exists — run the reference-data sync (pnpm db:sync)');
   branchId = branch.id as BranchId;
   return branchId;
+}
+
+let blobStore: BlobStore | undefined;
+
+/** Cloudflare R2 via the S3 API (ADR-0020). Tests replace it with the in-memory store. */
+export function getBlobStore(): BlobStore {
+  if (!blobStore) {
+    const c = loadConfig();
+    blobStore = createS3BlobStore({
+      endpoint: c.S3_ENDPOINT, region: c.S3_REGION, bucket: c.S3_BUCKET,
+      accessKeyId: c.S3_ACCESS_KEY, secretAccessKey: c.S3_SECRET_KEY,
+    });
+  }
+  return blobStore;
+}
+
+/** Test seam: swap in an in-memory store. */
+export function setBlobStore(store: BlobStore): void {
+  blobStore = store;
 }

@@ -12,7 +12,8 @@
     "test": "vitest run --passWithNoTests",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "sync": "tsx --env-file=../../.env src/scripts/sync.ts",
-    "seed": "tsx --env-file=../../.env src/scripts/seed.ts"
+    "seed": "tsx --env-file=../../.env src/scripts/seed.ts",
+    "test:r2": "vitest run --config vitest.r2.config.ts"
   },
   "dependencies": {
     "@gsa/config": "workspace:*",
@@ -20,6 +21,7 @@
     "@gsa/core": "workspace:*",
     "@gsa/db": "workspace:*",
     "@node-rs/argon2": "2.2.1",
+    "aws4fetch": "1.0.20",
     "drizzle-orm": "0.45.2"
   },
   "devDependencies": {
