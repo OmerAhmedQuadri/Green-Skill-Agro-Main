@@ -34,6 +34,7 @@ export const ResetPasswordRequest = z.object({
 export const Me = z.object({
   id: z.uuid(), role: Role, name: z.string(), email: z.string().nullable(), phone: z.string().nullable(),
   locale: Locale, mustChangePassword: z.boolean(), permissions: z.array(z.string()),
+  toggles: z.record(z.string(), z.boolean()),
 });
 
 export const UpdateMeRequest = z.object({ locale: Locale });

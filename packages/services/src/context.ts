@@ -30,3 +30,6 @@ export function authorizeAny(ctx: Ctx, permissions: readonly PermissionCode[]): 
     throw new DomainError('FORBIDDEN', { permission: permissions[0] });
   }
 }
+
+/** An update's input: any field may be omitted or explicitly undefined (exactOptionalPropertyTypes). */
+export type Patch<T> = { [K in keyof T]?: T[K] | undefined };

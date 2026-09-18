@@ -1,7 +1,7 @@
 import { bilingualName, DomainError, type CategoryId, type SubCategoryId } from '@gsa/core';
 import { schema } from '@gsa/db';
 import { and, asc, eq } from 'drizzle-orm';
-import { authorize, authorizeAny, type Ctx } from '../context';
+import { authorize, authorizeAny, type Ctx, type Patch } from '../context';
 import { audit, inTx, mapUniqueViolations, snapshot, type Executor } from '../platform';
 import { getDb } from '../runtime';
 import { CATALOGUE_READERS } from './access';
@@ -63,7 +63,7 @@ export async function createCategory(ctx: Ctx, input: CategoryInput): Promise<Ca
 }
 
 export async function updateCategory(
-  ctx: Ctx, id: string, input: Partial<CategoryInput> & { version: number; isActive?: boolean | undefined },
+  ctx: Ctx, id: string, input: Patch<CategoryInput> & { version: number; isActive?: boolean | undefined },
 ): Promise<Category> {
   authorize(ctx, 'catalogue.manage_structure');
   return inTx(ctx, async (tx) => {
@@ -105,7 +105,7 @@ export async function createSubCategory(ctx: Ctx, categoryId: string, input: Sub
 }
 
 export async function updateSubCategory(
-  ctx: Ctx, id: string, input: Partial<SubCategoryInput> & { version: number; isActive?: boolean | undefined },
+  ctx: Ctx, id: string, input: Patch<SubCategoryInput> & { version: number; isActive?: boolean | undefined },
 ): Promise<Category> {
   authorize(ctx, 'catalogue.manage_structure');
   return inTx(ctx, async (tx) => {

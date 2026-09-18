@@ -6,7 +6,7 @@ import {
 } from '@gsa/core';
 import { schema } from '@gsa/db';
 import { and, asc, eq, exists, gt, ilike, inArray, or, sql, type SQL } from 'drizzle-orm';
-import { authorize, authorizeAny, type Ctx } from '../context';
+import { authorize, authorizeAny, type Ctx, type Patch } from '../context';
 import {
   audit, decodeCursor, encodeCursor, inTx, likePattern, mapUniqueViolations, pageLimit, snapshot, type Executor,
 } from '../platform';
@@ -206,7 +206,7 @@ async function assertVendor(db: Executor, vendorId: string | null) {
   if (!vendor.isActive) throw new DomainError('REFERENCE_INACTIVE', { entity: 'vendor', id: vendorId });
 }
 
-function attributesFor(template: Template, input: Partial<ProductFields>) {
+function attributesFor(template: Template, input: Patch<ProductFields>) {
   const shelfLife = input.shelfLifeMonths ?? null;
   if (shelfLife !== null && (!Number.isInteger(shelfLife) || shelfLife < 1 || shelfLife > 240)) {
     throw new DomainError('ATTRIBUTE_REQUIRED', { attribute: 'SHELF_LIFE' });
@@ -244,7 +244,7 @@ export async function createProduct(ctx: Ctx, input: ProductFields & { productTy
 
 /** The product type is fixed: its template shaped the varieties and SKUs beneath. */
 export async function updateProduct(
-  ctx: Ctx, id: string, input: Partial<ProductFields> & { version: number; isActive?: boolean | undefined },
+  ctx: Ctx, id: string, input: Patch<ProductFields> & { version: number; isActive?: boolean | undefined },
 ): Promise<ProductDetail> {
   authorize(ctx, 'catalogue.manage_products');
   return inTx(ctx, async (tx) => {

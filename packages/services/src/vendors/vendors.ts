@@ -3,7 +3,7 @@ import {
 } from '@gsa/core';
 import { schema } from '@gsa/db';
 import { and, asc, eq, gt, ilike, or, type SQL } from 'drizzle-orm';
-import { authorize, type Ctx } from '../context';
+import { authorize, type Ctx, type Patch } from '../context';
 import {
   audit, decodeCursor, encodeCursor, inTx, likePattern, mapUniqueViolations, pageLimit, snapshot,
 } from '../platform';
@@ -106,7 +106,7 @@ export async function createVendor(ctx: Ctx, input: Fields & { code: string }): 
 
 /** The code is the vendor's identity on every product that names it, so it cannot change. */
 export async function updateVendor(
-  ctx: Ctx, id: string, input: Partial<Fields> & { version: number; isActive?: boolean | undefined },
+  ctx: Ctx, id: string, input: Patch<Fields> & { version: number; isActive?: boolean | undefined },
 ): Promise<Vendor> {
   authorize(ctx, 'vendors.manage');
   return inTx(ctx, async (tx) => {

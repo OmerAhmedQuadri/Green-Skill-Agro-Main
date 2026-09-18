@@ -44,6 +44,8 @@ build/
 coverage/
 playwright-report/
 test-results/
+# Playwright sessions signed in once per run (e2e/global-setup.ts): live session cookies
+.auth/
 
 # Turborepo
 .turbo/

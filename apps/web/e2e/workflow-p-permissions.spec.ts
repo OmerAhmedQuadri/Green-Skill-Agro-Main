@@ -1,7 +1,7 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 import ar from '../src/messages/ar.json' with { type: 'json' };
 import en from '../src/messages/en.json' with { type: 'json' };
-import { signIn } from './helpers';
+import { sessionPage } from './helpers';
 
 /**
  * Workflow P — configuring a manager's access (WORKFLOWS.md), and the M0 exit
@@ -9,15 +9,11 @@ import { signIn } from './helpers';
  * the Arabic run clicks the real Arabic text.
  */
 for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
-  test(`Workflow P (${locale}) — USR-005, USR-007, USR-008, USR-010, USR-014: an Admin configures a manager; the manager's console follows`, async ({ page, browser, baseURL }) => {
+  test(`Workflow P (${locale}) — USR-005, USR-007, USR-008, USR-010, USR-014: an Admin configures a manager; the manager's console follows`, async ({ browser, baseURL }) => {
     const origin = baseURL ?? '';
-    const setLocale = (p: Page, l: 'en' | 'ar') =>
-      p.request.patch('/api/v1/me', { headers: { origin, 'idempotency-key': crypto.randomUUID() }, data: { locale: l } });
 
     // The Admin works in this run's language.
-    await signIn(page, 'admin@dev.local');
-    await setLocale(page, locale);
-    await page.context().addCookies([{ name: 'NEXT_LOCALE', value: locale, url: origin }]);
+    const page = await sessionPage(browser, 'admin@dev.local', locale, origin);
 
     // A new manager, created through the API so the temporary password is at hand.
     const unique = String(Date.now());
@@ -65,6 +61,5 @@ for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
     await expect(manager.getByRole('link', { name: m.nav.users })).toHaveCount(0);
     expect((await manager.goto('/console/users'))?.status()).toBe(404);
 
-    await setLocale(page, 'en'); // leave the Admin as found
   });
 }

@@ -1,8 +1,8 @@
-import { presetOverrides, PRESET_DEFAULTS, type Role } from '@gsa/core';
+import { effectivePermissions, presetOverrides, PRESET_DEFAULTS, type Role, type UserId } from '@gsa/core';
 import { schema } from '@gsa/db';
 import { eq } from 'drizzle-orm';
 import { hashPassword } from '../identity';
-import { syncReferenceData } from '../reference-data';
+import { loadSampleCatalogue, syncReferenceData } from '../reference-data';
 import { closeDb, defaultBranchId, getDb } from '../runtime';
 
 // Development accounts only (DEVELOPMENT §7). Never production; never UI-v1's demo credentials (ADR-0014).
@@ -41,4 +41,12 @@ for (const account of ACCOUNTS) {
   console.log(`${existing ? 'exists ' : 'created'}  ${account.role.padEnd(11)} ${account.email}`);
 }
 console.log('password: DEV_SEED_PASSWORD from .env');
+
+// MIG-006: the synthetic sample catalogue, loaded as the Super Admin so it is validated and audited like any change.
+if (!grantorId) throw new Error('no Super Admin seeded');
+const sample = await loadSampleCatalogue({
+  user: { id: grantorId as UserId, role: 'SUPER_ADMIN' }, permissions: effectivePermissions('SUPER_ADMIN', new Map()),
+  now: new Date(), requestId: 'dev-seed', locale: 'en', branchId, ip: null,
+}, { withProducts: true });
+console.log(sample.loaded ? 'created  sample catalogue' : 'exists   sample catalogue');
 await closeDb();
