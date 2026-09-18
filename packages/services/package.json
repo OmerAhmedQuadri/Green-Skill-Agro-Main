@@ -8,17 +8,25 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p .",
+    "lint": "eslint .",
     "test": "vitest run --passWithNoTests",
-    "lint": "eslint ."
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "sync": "tsx --env-file=../../.env src/scripts/sync.ts",
+    "seed": "tsx --env-file=../../.env src/scripts/seed.ts"
   },
   "dependencies": {
+    "@gsa/config": "workspace:*",
+    "@gsa/contracts": "workspace:*",
     "@gsa/core": "workspace:*",
     "@gsa/db": "workspace:*",
-    "@gsa/contracts": "workspace:*",
-    "@gsa/config": "workspace:*"
+    "@node-rs/argon2": "2.2.1",
+    "drizzle-orm": "0.45.2"
   },
   "devDependencies": {
+    "@gsa/eslint-config": "workspace:*",
     "@gsa/tsconfig": "workspace:*",
-    "@gsa/eslint-config": "workspace:*"
+    "@types/pg": "8.23.1",
+    "pg": "8.23.0",
+    "tsx": "4.23.13"
   }
 }

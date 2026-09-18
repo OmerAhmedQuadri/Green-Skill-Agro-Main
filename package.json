@@ -14,7 +14,9 @@
     "check": "turbo run lint typecheck test",
     "db:generate": "pnpm --filter @gsa/db generate",
     "db:migrate": "pnpm --filter @gsa/db migrate",
-    "db:seed": "pnpm --filter @gsa/db seed"
+    "db:seed": "pnpm --filter @gsa/services seed",
+    "test:integration": "turbo run test:integration",
+    "db:sync": "pnpm --filter @gsa/services sync"
   },
   "devDependencies": {
     "@types/node": "24.13.5",

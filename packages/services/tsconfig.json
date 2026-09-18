@@ -1,4 +1,4 @@
 {
   "extends": "@gsa/tsconfig/base.json",
-  "include": ["src"]
+  "include": ["src", "test", "*.config.ts"]
 }

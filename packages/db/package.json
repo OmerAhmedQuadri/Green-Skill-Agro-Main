@@ -10,7 +10,6 @@
     "typecheck": "tsc --noEmit -p .",
     "generate": "drizzle-kit generate",
     "migrate": "tsx --env-file=../../.env src/migrate.ts",
-    "seed": "tsx --env-file=../../.env src/seed.ts",
     "lint": "eslint ."
   },
   "dependencies": {

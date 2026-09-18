@@ -2,6 +2,7 @@ import js from '@eslint/js';
 import { defineConfig } from 'eslint/config';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
+import { crossContext } from './layers.js';
 
 /**
  * Shared rules for every package (CONVENTIONS §1). Rules cite the decision
@@ -31,6 +32,11 @@ export function base({ tsconfigRootDir, restrictedImports = [] }) {
     },
     // The layer rule governs application code, not tooling files (eslint/next/drizzle configs).
     { files: ['src/**/*.{ts,tsx}'], rules: { 'no-restricted-imports': ['error', { patterns: restrictedImports }] } },
+    // Tests may reach shared test helpers and context internals; the package layering still applies.
+    {
+      files: ['src/**/*.test.{ts,tsx}'],
+      rules: { 'no-restricted-imports': ['error', { patterns: restrictedImports.filter((p) => p !== crossContext) }] },
+    },
     { files: ['**/*.js', '**/*.mjs'], extends: [tseslint.configs.disableTypeChecked] },
   );
 }
