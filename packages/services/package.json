@@ -1,0 +1,15 @@
+{
+  "name": "@gsa/services",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": { "typecheck": "tsc --noEmit -p .", "test": "vitest run --passWithNoTests" },
+  "dependencies": {
+    "@gsa/core": "workspace:*",
+    "@gsa/db": "workspace:*",
+    "@gsa/contracts": "workspace:*",
+    "@gsa/config": "workspace:*"
+  },
+  "devDependencies": { "@gsa/tsconfig": "workspace:*" }
+}

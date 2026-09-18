@@ -1,0 +1,21 @@
+{
+  "name": "@gsa/worker",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch --env-file=../../.env src/index.ts",
+    "start": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit -p ."
+  },
+  "dependencies": {
+    "@gsa/config": "workspace:*",
+    "@gsa/core": "workspace:*",
+    "@gsa/services": "workspace:*",
+    "pg-boss": "12.33.2"
+  },
+  "devDependencies": {
+    "@gsa/tsconfig": "workspace:*",
+    "tsx": "4.23.13"
+  }
+}
