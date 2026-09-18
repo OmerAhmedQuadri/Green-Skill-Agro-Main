@@ -21,6 +21,9 @@ export function createMemoryBlobStore() {
       const object = objects.get(key);
       return Promise.resolve(object ? { size: object.body.byteLength, contentType: object.contentType } : null);
     },
+    readPrefix(key, bytes) {
+      return Promise.resolve(objects.get(key)?.body.slice(0, bytes) ?? new Uint8Array());
+    },
     put(key, body, contentType) {
       objects.set(key, { body: typeof body === 'string' ? new TextEncoder().encode(body) : body, contentType });
       return Promise.resolve();
@@ -34,5 +37,6 @@ export function createMemoryBlobStore() {
     ...store,
     completeUpload: (key: string, body: Uint8Array<ArrayBuffer>, contentType: string) => { objects.set(key, { body, contentType }); },
     keys: () => [...objects.keys()],
+    clear: () => { objects.clear(); },
   };
 }

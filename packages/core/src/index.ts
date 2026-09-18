@@ -4,3 +4,4 @@ export * from './units';
 export * from './time';
 export * from './ids';
 export * from './identity';
+export * from './media';

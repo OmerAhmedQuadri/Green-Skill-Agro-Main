@@ -253,6 +253,11 @@
     "VALIDATION_FAILED": "Some details are missing or invalid.",
     "INTERNAL_ERROR": "Something went wrong on our side. Please try again.",
     "CSRF_ORIGIN_MISMATCH": "This request was blocked for your security. Reload the page.",
-    "NETWORK_ERROR": "No connection. Check your network and try again."
+    "NETWORK_ERROR": "No connection. Check your network and try again.",
+    "MEDIA_TYPE_NOT_ALLOWED": "This kind of file can't be used here.",
+    "MEDIA_TOO_LARGE": "That file is too large. The limit is 10 MB.",
+    "MEDIA_NOT_UPLOADED": "The photo hasn't finished uploading. Try again.",
+    "MEDIA_REJECTED": "That file was rejected — it isn't the kind of file it claims to be. Take the photo again.",
+    "UPLOAD_FAILED": "The photo couldn't be uploaded. Check your connection and try again."
   }
 }

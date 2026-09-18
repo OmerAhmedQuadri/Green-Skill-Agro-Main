@@ -59,6 +59,12 @@ export function createS3BlobStore(settings: S3Settings): BlobStore {
       return { size: Number(response.headers.get('content-length') ?? 0), contentType: response.headers.get('content-type') };
     },
 
+    async readPrefix(key, bytes) {
+      const response = await client.fetch(objectUrl(key), { headers: { range: `bytes=0-${bytes - 1}` } });
+      ensureStatus(response, 'GET range', (s) => s === 206 || s === 200);
+      return new Uint8Array(await response.arrayBuffer()).slice(0, bytes);
+    },
+
     async put(key, body, contentType) {
       const response = await client.fetch(objectUrl(key), { method: 'PUT', body, headers: { 'content-type': contentType } });
       ensureStatus(response, 'PUT', (s) => s === 200);

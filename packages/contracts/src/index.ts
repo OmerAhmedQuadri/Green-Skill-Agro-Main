@@ -16,3 +16,4 @@ export const page = <T extends z.ZodType>(item: T) =>
   z.object({ items: z.array(item), nextCursor: z.string().nullable() });
 
 export * as identity from './identity';
+export * as media from './media';

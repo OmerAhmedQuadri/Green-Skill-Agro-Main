@@ -30,7 +30,11 @@ export type ErrorCode =
   | 'IDEMPOTENCY_KEY_REUSED'
   | 'IDEMPOTENCY_KEY_REQUIRED'
   | 'SIGN_IN_IDENTIFIER_REQUIRED'
-  | 'PRESET_NOT_APPLICABLE';
+  | 'PRESET_NOT_APPLICABLE'
+  | 'MEDIA_TYPE_NOT_ALLOWED'
+  | 'MEDIA_TOO_LARGE'
+  | 'MEDIA_NOT_UPLOADED'
+  | 'MEDIA_REJECTED';
 
 export class DomainError extends Error {
   readonly code: ErrorCode;

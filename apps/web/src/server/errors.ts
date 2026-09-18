@@ -33,6 +33,10 @@ const STATUS: Record<ErrorCode, number> = {
   CANNOT_DEACTIVATE_SELF: 422,
   IDEMPOTENCY_KEY_REUSED: 422,
   IDEMPOTENCY_KEY_REQUIRED: 428,
+  MEDIA_TYPE_NOT_ALLOWED: 422,
+  MEDIA_TOO_LARGE: 422,
+  MEDIA_NOT_UPLOADED: 409,
+  MEDIA_REJECTED: 422,
 };
 
 export function problem(status: number, code: string, requestId: string, details?: Record<string, unknown>, headers?: HeadersInit): Response {

@@ -40,6 +40,12 @@ describe('R2 contract (ADR-0020)', () => {
     expect(new Uint8Array(await get.arrayBuffer())).toEqual(jpeg);
   });
 
+  it('SECURITY §5: the first bytes can be read for magic-byte checks', async () => {
+    const k = key('prefix.jpg');
+    await store.put(k, jpeg, 'image/jpeg');
+    expect(await store.readPrefix(k, 4)).toEqual(jpeg.slice(0, 4));
+  });
+
   it('SECURITY §5: a presigned upload is pinned to its content type', async () => {
     const k = key('pinned.jpg');
     const upload = await store.presignUpload(k, 'image/jpeg', 300, new Date());

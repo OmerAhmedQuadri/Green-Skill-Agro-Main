@@ -1,5 +1,6 @@
 import { loadConfig } from '@gsa/config';
 import { BUSINESS_TIME_ZONE } from '@gsa/core';
+import { media } from '@gsa/services';
 import { PgBoss } from 'pg-boss';
 
 /**
@@ -20,6 +21,14 @@ await boss.schedule('system.heartbeat', '* * * * *', null, { tz: BUSINESS_TIME_Z
 await boss.work('system.heartbeat', ([job]) => {
   console.log(`[worker] heartbeat ${job?.id ?? ''} at ${new Date().toISOString()}`);
   return Promise.resolve();
+});
+
+// ARCHITECTURE §6.5: purge photos past retention (OQ-009) and abandoned uploads. Idempotent.
+await boss.createQueue('media.retention');
+await boss.schedule('media.retention', '0 4 * * *', null, { tz: BUSINESS_TIME_ZONE });
+await boss.work('media.retention', async () => {
+  const result = await media.purgeMedia(new Date());
+  console.log(`[worker] media.retention purged ${result.expired} expired, ${result.abandoned} abandoned`);
 });
 
 console.log('[worker] started');
