@@ -56,3 +56,10 @@ export function assertWholePacks(quantity: Quantity, sku: SkuUnits): void {
     throw new DomainError('PART_PACK_NOT_ALLOWED', { quantity });
   }
 }
+
+/** A held position in packs. Internal positions are always whole packs (STK-015); anything else is a bug. */
+export function packsHeld(quantity: Quantity, sku: SkuUnits): PackCount {
+  const packs = toPacks(quantity, sku);
+  if (!packs.isInteger()) throw new DomainError('PART_PACK_NOT_ALLOWED', { quantity });
+  return packCount(packs.toNumber());
+}

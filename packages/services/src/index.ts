@@ -10,3 +10,5 @@ export * from './reference-data';
 export * as catalogue from './catalogue';
 export * as vendors from './vendors';
 export * as pricing from './pricing';
+export * as inventory from './inventory';
+export * as procurement from './procurement';

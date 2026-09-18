@@ -15,4 +15,10 @@ export const keys = {
   toggles: ['feature-toggles'] as const,
   ceilings: ['ceilings'] as const,
   commissionRates: ['commission-rates'] as const,
+  purchaseOrders: (filter?: object) => (filter ? ['purchase-orders', filter] as const : ['purchase-orders'] as const),
+  purchaseOrder: (id: string) => ['purchase-order', id] as const,
+  incoming: ['incoming'] as const,
+  stock: (filter?: object) => (filter ? ['stock', filter] as const : ['stock'] as const),
+  skuStock: (id: string) => ['sku-stock', id] as const,
+  lots: (lot: string) => ['lots', lot] as const,
 };

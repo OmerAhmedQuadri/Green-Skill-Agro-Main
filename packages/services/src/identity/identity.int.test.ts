@@ -180,12 +180,15 @@ describe('Phase 1 has no branch scoping (USR-012, ADR-0004)', () => {
     // from code; and what the whole company shares — the product catalogue,
     // the vendor register, prices and system configuration (DATA-MODEL §1.5).
     // A branch-specific price list later is a nullable column, an addition.
+    // Lines and events belong to a parent that carries the branch; the
+    // document counter is keyed by series, and a branch can be part of the key.
     const exempt = new Set([
       'branches', 'sessions', 'user_permissions', 'permissions', 'permission_presets',
       'permission_preset_grants', 'rate_limits', 'idempotency_keys', 'password_reset_tokens',
       'categories', 'sub_categories', 'product_types', 'product_type_attributes', 'products', 'varieties', 'skus',
       'vendors', 'price_lists', 'price_list_items', 'sku_discount_ceilings',
       'system_settings', 'feature_toggles', 'ceilings', 'commission_rates',
+      'purchase_order_lines', 'purchase_order_events', 'goods_receipt_lines', 'document_sequences',
     ]);
     const rows = await ownerQuery<{ table_name: string; has_branch: boolean }>(`
       select t.table_name, bool_or(c.column_name = 'branch_id') as has_branch

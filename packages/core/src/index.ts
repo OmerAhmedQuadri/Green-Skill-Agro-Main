@@ -8,3 +8,5 @@ export * from './media';
 export * from './catalogue';
 export * from './pricing';
 export * from './system';
+export * from './inventory';
+export * from './procurement';

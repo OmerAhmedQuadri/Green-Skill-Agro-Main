@@ -14,7 +14,7 @@ export async function signIn(page: Page, identifier: string): Promise<void> {
 }
 
 /** Accounts signed in once by the global setup and shared by every spec. */
-export const SESSIONS = ['admin@dev.local', 'warehouse@dev.local'] as const;
+export const SESSIONS = ['admin@dev.local', 'warehouse@dev.local', 'manager@dev.local'] as const;
 export type SessionAccount = (typeof SESSIONS)[number];
 export const sessionFile = (account: SessionAccount) => `.auth/${account.replace(/[^a-z]/g, '-')}.json`;
 

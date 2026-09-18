@@ -17,3 +17,6 @@ export type VarietyId = Id<'Variety'>;
 export type SkuId = Id<'Sku'>;
 export type VendorId = Id<'Vendor'>;
 export type PriceListId = Id<'PriceList'>;
+export type BatchId = Id<'Batch'>;
+export type PurchaseOrderId = Id<'PurchaseOrder'>;
+export type GoodsReceiptId = Id<'GoodsReceipt'>;

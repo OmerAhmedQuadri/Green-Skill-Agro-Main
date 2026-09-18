@@ -24,6 +24,9 @@ export function useFormat() {
     const moneyFormat = new Intl.NumberFormat(tag, { style: 'currency', currency: 'SAR', minimumFractionDigits: 2 });
     const numberFormat = new Intl.NumberFormat(tag, { maximumFractionDigits: 3 });
     const regions = new Intl.DisplayNames([tag], { type: 'region' });
+    // Calendar dates (expiry, arrival) are dates, not instants: format them as UTC so no zone shifts the day.
+    const dateFormat = new Intl.DateTimeFormat(tag, { dateStyle: 'medium', timeZone: 'UTC' });
+    const dateTimeFormat = new Intl.DateTimeFormat(tag, { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Riyadh' });
     return {
       locale,
       /** I18N-003: product, variety and category names are data, shown in the reader's language. */
@@ -33,6 +36,10 @@ export function useFormat() {
       money: (value: string) => moneyFormat.format(value as NumericString),
       number: (value: string | number) => numberFormat.format(typeof value === 'number' ? value : (value as NumericString)),
       country: (code: string) => regions.of(code) ?? code,
+      /** A calendar date, `YYYY-MM-DD`. */
+      date: (iso: string) => dateFormat.format(new Date(`${iso}T00:00:00Z`)),
+      /** An instant, shown on Riyadh time (CONVENTIONS §4). */
+      dateTime: (instant: string | Date) => dateTimeFormat.format(new Date(instant)),
       /** ADR-0015: grams are stored; a whole number of kilograms reads as kilograms. */
       size: (size: Size, countUnit: 'SEED' | 'PIECE') => {
         if (size.measure === 'COUNT') return t(countUnit === 'SEED' ? 'seeds' : 'pieces', { count: size.packCount });
@@ -46,3 +53,9 @@ export function useFormat() {
 }
 
 export type Format = ReturnType<typeof useFormat>;
+
+/** Whole days from today (Riyadh) to a calendar date; negative when it has passed. PO-004's countdown. */
+export function daysUntil(iso: string, now = new Date()): number {
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Riyadh' }).format(now);
+  return Math.round((Date.parse(`${iso}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86_400_000);
+}

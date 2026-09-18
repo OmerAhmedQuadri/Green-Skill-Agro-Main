@@ -3,7 +3,7 @@ import {
 } from '@gsa/core';
 import { schema } from '@gsa/db';
 import { and, asc, eq, gt, ilike, or, type SQL } from 'drizzle-orm';
-import { authorize, type Ctx, type Patch } from '../context';
+import { authorize, authorizeAny, type Ctx, type Patch } from '../context';
 import {
   audit, decodeCursor, encodeCursor, inTx, likePattern, mapUniqueViolations, pageLimit, snapshot,
 } from '../platform';
@@ -80,11 +80,11 @@ export async function getVendor(ctx: Ctx, id: string): Promise<Vendor> {
 }
 
 /**
- * Picking a vendor on a product needs the codes, not the profiles, so it
- * needs product-editing rights rather than vendor access (VEN-005).
+ * Picking a vendor on a product or an order needs the codes, not the
+ * profiles, so product editors and buyers get them without vendor access (VEN-005).
  */
 export async function listVendorCodes(ctx: Ctx): Promise<{ id: VendorId; code: string }[]> {
-  if (!ctx.permissions.has('vendors.view')) authorize(ctx, 'catalogue.manage_products');
+  authorizeAny(ctx, ['vendors.view', 'catalogue.manage_products', 'procurement.manage_po']);
   const rows = await getDb().select({ id: vendors.id, code: vendors.code }).from(vendors).where(eq(vendors.isActive, true)).orderBy(asc(vendors.code));
   return rows.map((r) => ({ id: r.id as VendorId, code: r.code }));
 }

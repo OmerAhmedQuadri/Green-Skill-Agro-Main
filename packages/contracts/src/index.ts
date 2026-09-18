@@ -21,3 +21,5 @@ export * as catalogue from './catalogue';
 export * as vendors from './vendors';
 export * as pricing from './pricing';
 export * as system from './system';
+export * as procurement from './procurement';
+export * as inventory from './inventory';
