@@ -17,7 +17,18 @@
     "signOut": "Sign out",
     "all": "All",
     "saving": "Saving…",
-    "confirm": "Confirm"
+    "confirm": "Confirm",
+    "active": "Active",
+    "inactive": "Inactive",
+    "status": "Status",
+    "edit": "Edit",
+    "deactivate": "Deactivate",
+    "reactivate": "Reactivate",
+    "choose": "Choose…",
+    "loadMore": "Load more",
+    "saved": "Saved.",
+    "nameEn": "Name in English",
+    "nameAr": "Name in Arabic"
   },
   "roles": {
     "SUPER_ADMIN": "Super Admin",
@@ -65,7 +76,11 @@
     "users": "Users",
     "today": "Today",
     "menu": "Menu",
-    "close": "Close menu"
+    "close": "Close menu",
+    "catalogue": "Catalogue",
+    "vendors": "Vendors",
+    "pricing": "Pricing",
+    "settings": "Settings"
   },
   "dashboard": {
     "welcome": "Welcome, {name}",
@@ -270,6 +285,275 @@
     "MEDIA_NOT_UPLOADED": "The photo hasn't finished uploading. Try again.",
     "MEDIA_REJECTED": "That file was rejected — it isn't the kind of file it claims to be. Take the photo again.",
     "UPLOAD_FAILED": "The photo couldn't be uploaded. Check your connection and try again.",
-    "RESET_LINK_INVALID": "This reset link has expired or has already been used. Ask for a new one."
+    "RESET_LINK_INVALID": "This reset link has expired or has already been used. Ask for a new one.",
+    "INVALID_NAME": "Enter a name in both English and Arabic.",
+    "DUPLICATE_NAME": "That name is already in use here.",
+    "DUPLICATE_CODE": "That code is already in use.",
+    "DUPLICATE_SKU": "This product already has a SKU with that pack size and packaging.",
+    "INVALID_SKU_CODE": "Use capital letters, digits and hyphens only — no spaces.",
+    "INVALID_VENDOR_CODE": "Use capital letters, digits and hyphens only — no spaces.",
+    "INVALID_COUNTRY": "Choose a country from the list.",
+    "INVALID_TEMPLATE": "Shelf life needs expiry to be shown for this product type.",
+    "ATTRIBUTE_REQUIRED": "A required detail is missing for this product type.",
+    "ATTRIBUTE_NOT_ALLOWED": "This product type doesn't use that detail.",
+    "REFERENCE_INACTIVE": "That item is inactive and can't be used.",
+    "INVALID_PRICE": "Enter a price above zero, with at most two decimals.",
+    "CEILING_ABOVE_MAXIMUM": "A discount ceiling can't be above the absolute maximum discount.",
+    "INVALID_SETTING": "That value isn't allowed for this setting.",
+    "INVALID_CURSOR": "The list has changed. Reload and try again."
+  },
+  "format": {
+    "grams": "{value} g",
+    "kilograms": "{value} kg",
+    "seeds": "{count, plural, one {# seed} other {# seeds}}",
+    "pieces": "{count, plural, one {# piece} other {# pieces}}",
+    "gramUnit": "g",
+    "kilogramUnit": "kg"
+  },
+  "catalogue": {
+    "title": "Catalogue",
+    "subtitle": "Products, their varieties and SKUs, in English and Arabic.",
+    "newProduct": "New product",
+    "newProductHint": "Choose the type first — it decides which details are needed. Varieties, SKUs and prices come next.",
+    "createProduct": "Create product",
+    "details": "Details",
+    "searchPlaceholder": "Product, variety or SKU code",
+    "allTypes": "All types",
+    "allCategories": "All categories",
+    "empty": "No products match.",
+    "product": "Product",
+    "productType": "Product type",
+    "category": "Category",
+    "subCategory": "Sub-category",
+    "productNameEn": "Product name in English",
+    "productNameAr": "Product name in Arabic",
+    "hybrid": "Hybrid / non-hybrid",
+    "hybridValues": {
+      "HYBRID": "Hybrid",
+      "NON_HYBRID": "Non-hybrid"
+    },
+    "countryOfOrigin": "Country of origin",
+    "vendor": "Vendor",
+    "shelfLife": "Default shelf life",
+    "shelfLifeHint": "In months. Pre-fills the expiry date when goods are received; it can still be changed there.",
+    "months": "{count, plural, one {# month} other {# months}}",
+    "skus": "SKUs",
+    "skusHint": "One per pack size and packaging. The code is generated and can be overridden.",
+    "skuCount": "{count, plural, one {# SKU} other {# SKUs}}",
+    "addSku": "Add SKU",
+    "noSkus": "No SKUs yet.",
+    "addVarietyFirst": "Add a variety first, then its SKUs.",
+    "skuCode": "SKU code",
+    "customCode": "Custom code",
+    "editCode": "Change code",
+    "variety": "Variety",
+    "varieties": "Varieties",
+    "varietiesHint": "Each variety is named in English and Arabic.",
+    "varietyNameEn": "Variety name in English",
+    "varietyNameAr": "Variety name in Arabic",
+    "addVariety": "Add variety",
+    "noVarieties": "No varieties yet.",
+    "packSize": "Pack size",
+    "packaging": "Packaging",
+    "packagingValues": {
+      "CAN": "Can",
+      "POUCH": "Pouch",
+      "BAG": "Bag"
+    },
+    "basePrice": "Base price",
+    "basePriceHint": "Applies to every store without its own price list.",
+    "priceOn": "Price — {list}",
+    "sizedBy": "Sized by",
+    "byWeight": "Weight",
+    "bySeedCount": "Seed count",
+    "byPieceCount": "Piece count",
+    "seedsPerPack": "Seeds per pack",
+    "piecesPerPack": "Pieces per pack",
+    "unit": "Unit",
+    "weightHint": "At least 0.1 g.",
+    "codeGeneratedHint": "Generated from product, variety and pack size. Type to override.",
+    "codeOverriddenHint": "Your code will be kept as entered.",
+    "codePending": "Enter the pack size",
+    "useGeneratedCode": "Use the generated code",
+    "structure": {
+      "title": "Categories",
+      "subtitle": "The category and sub-category structure the catalogue is organised by.",
+      "addCategory": "Add category",
+      "addSubCategory": "Add sub-category",
+      "empty": "No categories yet.",
+      "expiryWarningDays": "Expiry warning (days)",
+      "expiryWarningHint": "Leave blank to use the system default.",
+      "warnsDays": "{count, plural, one {Expiry warning # day ahead} other {Expiry warning # days ahead}}",
+      "warnsDefault": "Expiry warning: system default"
+    }
+  },
+  "vendors": {
+    "title": "Vendors",
+    "subtitle": "Suppliers Green Agro buys from. Products name them by vendor code.",
+    "newVendor": "New vendor",
+    "create": "Create vendor",
+    "profile": "Vendor profile",
+    "searchPlaceholder": "Code, name or contact",
+    "empty": "No vendors match.",
+    "code": "Vendor code",
+    "codeHint": "Your own code, e.g. VEN-7K4M. It cannot be changed later.",
+    "codeFixed": "Products name the vendor by this code, so it cannot change.",
+    "name": "Vendor name",
+    "country": "Country",
+    "contactPerson": "Contact person",
+    "phone": "Telephone",
+    "phoneHint": "Include the country code for numbers outside Saudi Arabia.",
+    "email": "Email",
+    "address": "Address"
+  },
+  "pricing": {
+    "title": "Pricing",
+    "subtitle": "Price lists and discount ceilings. Prices are per pack of each SKU.",
+    "priceLists": "Price lists",
+    "priceListsHint": "The base list applies to every store; an additional list overrides it for the stores assigned to it.",
+    "newList": "New price list",
+    "createList": "Create price list",
+    "list": "Price list",
+    "pricedSkus": "Priced SKUs",
+    "base": "Base",
+    "baseHint": "Applies to every store that has no additional list.",
+    "additionalHint": "Overrides the base price for the SKUs it lists. A blank price leaves the base price in place.",
+    "rename": "Rename",
+    "searchSkus": "Filter by code, product or variety",
+    "savePrices": "Save prices",
+    "unsaved": "{count, plural, one {# unsaved change} other {# unsaved changes}}",
+    "noSkus": "No SKUs to price yet.",
+    "pricePerPack": "Price per pack (SAR)",
+    "priceFor": "Price for {code}",
+    "ceilings": "Discount ceilings",
+    "ceilingsHint": "Where the order ceiling and an item ceiling both apply, the tighter one governs. Above a ceiling, the seller asks a manager to approve.",
+    "orderCeiling": "Order ceiling (%)",
+    "orderCeilingHint": "The most discount across a whole order.",
+    "itemCeiling": "Item ceiling (%)",
+    "itemCeilingHint": "For every SKU without its own ceiling.",
+    "absoluteMaximum": "Absolute maximum (%)",
+    "absoluteMaximumHint": "Above this, approval cannot even be requested.",
+    "approvalExpiry": "Approval request expires after (minutes)",
+    "approvalExpiryHint": "The seller waits at the store meanwhile.",
+    "skuCeilings": "SKU ceilings",
+    "skuCeilingsHint": "SKUs with a ceiling of their own, instead of the item ceiling.",
+    "percent": "{value}%",
+    "useDefault": "Use item ceiling",
+    "findSku": "Find a SKU",
+    "sku": "SKU",
+    "ceiling": "Ceiling (%)",
+    "setSkuCeiling": "Set ceiling"
+  },
+  "settings": {
+    "title": "Settings",
+    "subtitle": "System-wide values and switches. Every change is recorded in the audit log.",
+    "general": "General",
+    "generalHint": "Rules the whole team works to.",
+    "groups": {
+      "discounts": "Discounts",
+      "returns": "Returns",
+      "expiry": "Expiry",
+      "operations": "Operations",
+      "limits": "Limits"
+    },
+    "fields": {
+      "discount": {
+        "order_ceiling": "Order discount ceiling (%)",
+        "item_ceiling": "Item discount ceiling (%)",
+        "absolute_maximum": "Absolute maximum discount (%)",
+        "approval_expiry_minutes": "Discount approval expires after (minutes)"
+      },
+      "returns": {
+        "uncleared_payment_allowed": "Allow returns while payment has not cleared",
+        "uncleared_payment_window_days": "Return window — payment not cleared (days)",
+        "defective_allowed": "Allow returns of defective items",
+        "defective_window_days": "Return window — defective item (days)"
+      },
+      "expiry": {
+        "warning_days": "Expiry warning, unless the category sets its own (days)",
+        "rate_basis": "Rate of sale behind the expiry flag"
+      },
+      "dispatch": {
+        "unconfirmed_after_days": "Flag a dispatch unconfirmed after (days)"
+      },
+      "vehicles": {
+        "audit_interval_days": "Expected vehicle audit interval (days)"
+      },
+      "ceilings": {
+        "reminder_interval_hours": "Remind about an exceeded ceiling every (hours)"
+      }
+    },
+    "choices": {
+      "TRAILING": "Trailing 30 days",
+      "SEASONAL": "Same period last season",
+      "CONSERVATIVE": "Whichever is more conservative"
+    },
+    "range": "Between {min} and {max}.",
+    "toggles": "Features",
+    "togglesHint": "A feature switched off is hidden from everyone, whatever their permissions.",
+    "toggleNames": {
+      "stores": {
+        "approval_required": "New stores need manager approval"
+      },
+      "attendance": {
+        "break_logging": "Break logging",
+        "restricted_check_in": "Restrict check-in to a location"
+      },
+      "inventory": {
+        "seller_conversion": "Sellers may convert SKUs"
+      }
+    },
+    "toggleHints": {
+      "stores": {
+        "approval_required": "A new store cannot take its first sale until a manager approves it."
+      },
+      "attendance": {
+        "break_logging": "Sellers log breaks, which are taken off active hours.",
+        "restricted_check_in": "Check-in only inside the set zone, unless a manager authorises it."
+      },
+      "inventory": {
+        "seller_conversion": "Sellers granted the permission may repackage stock in the field."
+      }
+    },
+    "productTypes": "Product types",
+    "productTypesHint": "Each type decides which details a product shows and requires.",
+    "newProductType": "New product type",
+    "createProductType": "Create product type",
+    "countUnit": "Counted in",
+    "countUnits": {
+      "SEED": "Seeds",
+      "PIECE": "Pieces"
+    },
+    "attributes": {
+      "VARIETY": "Variety",
+      "HYBRID": "Hybrid / non-hybrid",
+      "COUNTRY_OF_ORIGIN": "Country of origin",
+      "VENDOR": "Vendor",
+      "LOT_NUMBER": "LOT number",
+      "MANUFACTURING_DATE": "Manufacturing date",
+      "EXPIRY": "Expiry date",
+      "SHELF_LIFE": "Default shelf life"
+    },
+    "modes": {
+      "HIDDEN": "Hidden",
+      "OPTIONAL": "Optional",
+      "REQUIRED": "Required"
+    },
+    "ceilings": "Cash and stock ceilings",
+    "ceilingsHint": "Breaching a ceiling warns the seller and the Admin; it never stops the seller working. A seller's own ceiling overrides the global one.",
+    "ceilingKinds": {
+      "CASH_IN_HAND": "Cash in hand (SAR)",
+      "VEHICLE_STOCK_VALUE": "Vehicle stock value (SAR)"
+    },
+    "globalCeiling": "{kind} — everyone",
+    "noCeiling": "No ceiling",
+    "usesGlobal": "Global: {amount}",
+    "seller": "Seller",
+    "noSellers": "No active sellers yet.",
+    "commission": "Commission rates",
+    "commissionHint": "Commission is paid on cash collected, not on sales recorded.",
+    "rates": "On target / below target (%)",
+    "onTarget": "On target",
+    "belowTarget": "Below target"
   }
 }

@@ -23,3 +23,13 @@ export function authorize(ctx: Ctx, permission: PermissionCode): void {
     throw new DomainError('FORBIDDEN', { permission });
   }
 }
+
+/** For reads several permissions justify — e.g. the catalogue, needed to view it and to price it. */
+export function authorizeAny(ctx: Ctx, permissions: readonly PermissionCode[]): void {
+  if (!permissions.some((p) => ctx.permissions.has(p))) {
+    throw new DomainError('FORBIDDEN', { permission: permissions[0] });
+  }
+}
+
+/** An update's input: any field may be omitted or explicitly undefined (exactOptionalPropertyTypes). */
+export type Patch<T> = { [K in keyof T]?: T[K] | undefined };

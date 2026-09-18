@@ -1,6 +1,6 @@
 'use client';
 
-import { LayoutDashboard, Menu, Users, X } from 'lucide-react';
+import { LayoutDashboard, Menu, Package, Settings, Tag, Truck, Users, X } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
@@ -11,7 +11,9 @@ import { BrandMark } from './BrandMark';
 import { LocaleSwitch } from './LocaleSwitch';
 import { SignOutButton } from './SignOutButton';
 
-const ICONS = { dashboard: LayoutDashboard, users: Users } satisfies Record<NavIcon, unknown>;
+const ICONS = {
+  dashboard: LayoutDashboard, users: Users, catalogue: Package, vendors: Truck, pricing: Tag, settings: Settings,
+} satisfies Record<NavIcon, unknown>;
 
 type Props = { items: { href: string; label: string; icon: NavIcon }[]; user: { name: string; role: string }; children: ReactNode };
 

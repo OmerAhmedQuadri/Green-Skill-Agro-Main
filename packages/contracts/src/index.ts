@@ -17,3 +17,7 @@ export const page = <T extends z.ZodType>(item: T) =>
 
 export * as identity from './identity';
 export * as media from './media';
+export * as catalogue from './catalogue';
+export * as vendors from './vendors';
+export * as pricing from './pricing';
+export * as system from './system';

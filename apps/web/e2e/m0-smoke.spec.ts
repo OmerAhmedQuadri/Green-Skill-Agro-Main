@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import ar from '../src/messages/ar.json' with { type: 'json' };
 import { shot, signIn } from './helpers';
 
 test.describe('M0 smoke — identity, permissions, shells', () => {
@@ -24,10 +25,10 @@ test.describe('M0 smoke — identity, permissions, shells', () => {
     await signIn(page, 'manager@dev.local');
     await page.getByRole('button', { name: 'العربية' }).first().click();
     await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
-    await expect(page.getByRole('link', { name: 'الرئيسية' }).first()).toBeVisible();
+    await expect(page.getByRole('link', { name: ar.nav.dashboard }).first()).toBeVisible();
     await page.screenshot({ path: shot('03-console-dashboard-ar') });
-    await page.getByRole('link', { name: 'المستخدمون' }).first().click();
-    await expect(page.getByRole('heading', { name: 'المستخدمون' })).toBeVisible();
+    await page.getByRole('link', { name: ar.nav.users }).first().click();
+    await expect(page.getByRole('heading', { name: ar.users.title })).toBeVisible();
     await page.screenshot({ path: shot('04-users-ar'), fullPage: true });
     await page.getByRole('button', { name: 'English' }).first().click(); // leave the account as found
     await expect(page.locator('html')).toHaveAttribute('dir', 'ltr');

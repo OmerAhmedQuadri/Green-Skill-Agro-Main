@@ -1,9 +1,10 @@
-import { assertPasswordAcceptable, DomainError, type PermissionCode, type Role, type UserId } from '@gsa/core';
+import { assertPasswordAcceptable, DomainError, type FeatureToggles, type PermissionCode, type Role, type UserId } from '@gsa/core';
 import { schema } from '@gsa/db';
 import { eq } from 'drizzle-orm';
 import type { Ctx } from '../context';
 import { audit, hitRateLimit, inTx } from '../platform';
 import { getDb } from '../runtime';
+import { readToggles } from '../system';
 import { hashPassword, verifyPassword } from './password';
 import { createSession, revokeAllSessions, type SessionMeta } from './sessions';
 
@@ -19,6 +20,8 @@ export type Me = {
   readonly mustChangePassword: boolean;
   /** The effective set the interface renders from — absent means hidden (USR-008). */
   readonly permissions: readonly PermissionCode[];
+  /** A switched-off feature is hidden from everyone (SYS-005, PERMISSIONS §3.4). */
+  readonly toggles: FeatureToggles;
 };
 
 async function loadSelf(ctx: Ctx) {
@@ -28,10 +31,10 @@ async function loadSelf(ctx: Ctx) {
 }
 
 export async function getMe(ctx: Ctx): Promise<Me> {
-  const row = await loadSelf(ctx);
+  const [row, toggles] = await Promise.all([loadSelf(ctx), readToggles()]);
   return {
     id: ctx.user.id, role: row.role, name: row.name, email: row.email, phone: row.phone,
-    locale: row.locale, mustChangePassword: row.mustChangePassword, permissions: [...ctx.permissions].sort(),
+    locale: row.locale, mustChangePassword: row.mustChangePassword, permissions: [...ctx.permissions].sort(), toggles,
   };
 }
 

@@ -38,6 +38,21 @@ const STATUS: Record<ErrorCode, number> = {
   MEDIA_NOT_UPLOADED: 409,
   MEDIA_REJECTED: 422,
   RESET_LINK_INVALID: 422,
+  INVALID_NAME: 422,
+  DUPLICATE_NAME: 422,
+  DUPLICATE_CODE: 422,
+  DUPLICATE_SKU: 422,
+  INVALID_SKU_CODE: 422,
+  INVALID_VENDOR_CODE: 422,
+  INVALID_COUNTRY: 422,
+  INVALID_TEMPLATE: 422,
+  ATTRIBUTE_REQUIRED: 422,
+  ATTRIBUTE_NOT_ALLOWED: 422,
+  REFERENCE_INACTIVE: 422,
+  INVALID_PRICE: 422,
+  CEILING_ABOVE_MAXIMUM: 422,
+  INVALID_SETTING: 422,
+  INVALID_CURSOR: 400,
 };
 
 export function problem(status: number, code: string, requestId: string, details?: Record<string, unknown>, headers?: HeadersInit): Response {
