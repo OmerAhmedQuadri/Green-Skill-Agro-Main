@@ -1,7 +1,8 @@
 import { defineConfig } from 'vitest/config';
 
 // Integration tests run against a dedicated gsa_test database (TESTING §3).
-process.loadEnvFile(new URL('../../.env', import.meta.url));
+// Local runs read .env; CI provides the same variables directly.
+try { process.loadEnvFile(new URL('../../.env', import.meta.url)); } catch { /* no .env in CI */ }
 
 const onTestDatabase = (url: string | undefined): string => {
   if (!url) throw new Error('DATABASE_URL and DATABASE_OWNER_URL must be set in .env');

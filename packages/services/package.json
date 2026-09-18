@@ -11,8 +11,8 @@
     "lint": "eslint .",
     "test": "vitest run --passWithNoTests",
     "test:integration": "vitest run --config vitest.integration.config.ts",
-    "sync": "tsx --env-file=../../.env src/scripts/sync.ts",
-    "seed": "tsx --env-file=../../.env src/scripts/seed.ts",
+    "sync": "tsx --env-file-if-exists=../../.env src/scripts/sync.ts",
+    "seed": "tsx --env-file-if-exists=../../.env src/scripts/seed.ts",
     "test:r2": "vitest run --config vitest.r2.config.ts"
   },
   "dependencies": {
