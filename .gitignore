@@ -8,10 +8,15 @@
 # ---------------------------------------------------------------------------
 docs/
 
-# Client source documents
+# Client source documents and data, wherever they land. Client spreadsheets
+# live in docs/reference/client-data/ (ignored with docs/). Test fixtures
+# that need a spreadsheet are generated in code, never committed.
 *.docx
 *.doc
 *.pdf
+*.xlsx
+*.xls
+*.ods
 
 # ---------------------------------------------------------------------------
 # Standard Node / Next.js monorepo ignores
