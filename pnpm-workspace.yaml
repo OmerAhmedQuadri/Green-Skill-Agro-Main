@@ -9,3 +9,6 @@ allowBuilds:
   esbuild: true            # verifies its platform binary
   '@parcel/watcher': false # ships prebuilt binaries; script only builds from source
   '@swc/core': false       # ships prebuilt binaries via optional dependencies
+
+minimumReleaseAgeExclude:
+  - pg-boss@12.33.2

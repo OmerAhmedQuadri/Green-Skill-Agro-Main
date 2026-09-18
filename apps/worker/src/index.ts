@@ -17,8 +17,9 @@ await boss.start();
 // M0 heartbeat — proves scheduling in Riyadh time and job execution end to end.
 await boss.createQueue('system.heartbeat');
 await boss.schedule('system.heartbeat', '* * * * *', null, { tz: BUSINESS_TIME_ZONE });
-await boss.work('system.heartbeat', async ([job]) => {
+await boss.work('system.heartbeat', ([job]) => {
   console.log(`[worker] heartbeat ${job?.id ?? ''} at ${new Date().toISOString()}`);
+  return Promise.resolve();
 });
 
 console.log('[worker] started');
@@ -27,5 +28,5 @@ const shutdown = async () => {
   await boss.stop({ graceful: true, timeout: 10_000 });
   process.exit(0);
 };
-process.on('SIGINT', shutdown);
-process.on('SIGTERM', shutdown);
+process.on('SIGINT', () => void shutdown());
+process.on('SIGTERM', () => void shutdown());

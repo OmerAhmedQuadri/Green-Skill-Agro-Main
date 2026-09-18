@@ -3,8 +3,18 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "exports": { ".": "./src/index.ts" },
-  "scripts": { "typecheck": "tsc --noEmit -p ." },
-  "dependencies": { "zod": "4.6.5" },
-  "devDependencies": { "@gsa/tsconfig": "workspace:*" }
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p .",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@gsa/tsconfig": "workspace:*",
+    "@gsa/eslint-config": "workspace:*"
+  }
 }
