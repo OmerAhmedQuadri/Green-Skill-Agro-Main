@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { type DomainError } from '../errors';
-import { PERMISSION_CODES, type PermissionCode } from './permission-catalogue';
+import { moduleOf, PERMISSION_CODES, type PermissionCode } from './permission-catalogue';
 import {
-  assertCanChangePermissions, assertCanManageAccount, configurableFor, effectivePermissions,
+  assertCanChangePermissions, assertCanManageAccount, configurableFor, effectivePermissions, grantFor,
 } from './permissions';
+import { ROLES } from './roles';
 import { PRESET_DEFAULTS, presetOverrides } from './presets';
 
 const none = new Map<PermissionCode, boolean>();
@@ -62,6 +63,39 @@ describe('permission catalogue', () => {
     const s = effectivePermissions('SELLER', new Map([['sales.record', false], ['stores.approve', true]]));
     expect(s.has('sales.record')).toBe(true);
     expect(s.has('stores.approve')).toBe(false);
+  });
+});
+
+describe('role tiers and ownership (scope §05)', () => {
+  it('USR-001: four tiers, each holding every capability the tier below always has', () => {
+    expect(ROLES).toEqual(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'SELLER']);
+    const everything = (role: (typeof ROLES)[number]) => effectivePermissions(role, new Map(configurableFor(role).map((c) => [c, true])));
+    for (let i = 1; i < ROLES.length; i += 1) {
+      const lower = ROLES[i];
+      const upper = ROLES[i - 1];
+      if (!lower || !upper) continue;
+      const always = [...effectivePermissions(lower, none)].filter((c) => !FIELD.includes(c));
+      for (const code of always) expect(everything(upper).has(code), `${upper} should hold ${code}`).toBe(true);
+    }
+  });
+
+  it('USR-004: the Admin owns system configuration, vendor records and managers\' permission sets', () => {
+    const admin = effectivePermissions('ADMIN', none);
+    for (const code of ['system.configure', 'system.manage_templates', 'system.set_limits', 'pricing.set_discount_ceilings',
+      'returns.set_rules', 'vendors.manage', 'users.manage_permissions'] as const) {
+      expect(admin.has(code)).toBe(true);
+    }
+  });
+
+  it('USR-006: permission modules include every module the scope names', () => {
+    const modules = new Set(PERMISSION_CODES.map(moduleOf));
+    for (const m of ['catalogue', 'vendors', 'inventory', 'cash', 'attendance', 'sales', 'stores', 'returns', 'reports', 'targets']) {
+      expect(modules.has(m), `module ${m}`).toBe(true);
+    }
+  });
+
+  it('AUD-003: only Super Admin and Admin can view the audit log', () => {
+    expect(ROLES.map((r) => grantFor(r, 'system.view_audit_log'))).toEqual(['FULL', 'FULL', 'NONE', 'NONE']);
   });
 });
 

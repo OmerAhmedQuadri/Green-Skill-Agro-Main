@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import { shot, signIn } from './helpers';
 
 test.describe('M0 smoke — identity, permissions, shells', () => {
-  test('USR-008: an Admin sees only modules they hold and provisions a seller', async ({ page }) => {
+  test('NFR-001, USR-008: in the browser, an Admin sees only modules they hold and provisions a seller', async ({ page }) => {
     await signIn(page, 'admin@dev.local');
     await expect(page).toHaveURL(/\/console\/dashboard$/);
     await expect(page.locator('html')).toHaveAttribute('dir', 'ltr');
@@ -33,7 +33,7 @@ test.describe('M0 smoke — identity, permissions, shells', () => {
     await expect(page.locator('html')).toHaveAttribute('dir', 'ltr');
   });
 
-  test('USR-013: a seller lands in the field app; the console does not exist for them', async ({ page }) => {
+  test('USR-013, NFR-002: a seller lands in the phone-first field app; the console does not exist for them', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await signIn(page, 'seller@dev.local');
     await expect(page).toHaveURL(/\/field\/today$/);

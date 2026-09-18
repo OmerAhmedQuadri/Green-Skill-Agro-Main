@@ -19,7 +19,8 @@
     "db:sync": "pnpm --filter @gsa/services sync",
     "test:e2e": "turbo run test:e2e",
     "env:check": "node scripts/env.mjs check",
-    "env:sync": "node scripts/env.mjs sync"
+    "env:sync": "node scripts/env.mjs sync",
+    "test:trace": "node scripts/trace.mjs"
   },
   "devDependencies": {
     "@types/node": "24.13.5",

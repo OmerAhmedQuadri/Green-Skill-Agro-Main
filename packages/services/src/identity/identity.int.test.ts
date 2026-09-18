@@ -4,7 +4,7 @@ import { anAccount, ctxFor, meta, PASSWORD } from '../../test/factories';
 import { ownerQuery } from '../../test/db';
 import { getDb } from '../runtime';
 import {
-  applyPresetToAccount, changeAccountPermissions, changeMyPassword, createAccount, getMe, resolveSession,
+  applyPresetToAccount, changeAccountPermissions, changeMyPassword, createAccount, getMe, listAccounts, resolveSession,
   setAccountStatus, signIn,
 } from './index';
 
@@ -160,3 +160,35 @@ describe('append-only audit log (ADR-0008, AUD-004)', () => {
     expect(await ownerQuery('select 1 from audit_log')).toHaveLength(1);
   });
 });
+
+describe('Phase 1 has no branch scoping (USR-012, ADR-0004)', () => {
+  it('USR-012: every manager holding a permission sees all of that module\'s data, whoever created it', async () => {
+    const staffAdmin = new Map([['users.manage_staff', true]] as const);
+    const a = await ctxFor(await anAccount('MANAGER'), { overrides: staffAdmin });
+    const b = await ctxFor(await anAccount('MANAGER'), { overrides: staffAdmin });
+    const byA = await createAccount(a, { role: 'SELLER', name: 'Seller of A', phone: '0501000001' });
+    const byB = await createAccount(b, { role: 'SELLER', name: 'Seller of B', phone: '0501000002' });
+    for (const ctx of [a, b]) {
+      const ids = (await listAccounts(ctx)).items.map((u) => u.id);
+      expect(ids).toEqual(expect.arrayContaining([byA.account.id, byB.account.id]));
+    }
+  });
+
+  it('NFR-007: every table holding operational data carries branch_id, so multi-branch is an addition', async () => {
+    // Exempt, each for a reason: the branch table itself; identity plumbing
+    // that belongs to a user, not a branch; and the catalogue synced from code.
+    const exempt = new Set([
+      'branches', 'sessions', 'user_permissions', 'permissions', 'permission_presets',
+      'permission_preset_grants', 'rate_limits', 'idempotency_keys', 'password_reset_tokens',
+    ]);
+    const rows = await ownerQuery<{ table_name: string; has_branch: boolean }>(`
+      select t.table_name, bool_or(c.column_name = 'branch_id') as has_branch
+      from information_schema.tables t join information_schema.columns c using (table_schema, table_name)
+      where t.table_schema = 'public' and t.table_type = 'BASE TABLE'
+      group by t.table_name order by t.table_name`);
+    const missing = rows.filter((r) => !exempt.has(r.table_name) && !r.has_branch).map((r) => r.table_name);
+    expect(missing, 'add branch_id, or add the table to the exemptions with a reason').toEqual([]);
+    expect(rows.map((r) => r.table_name)).toEqual(expect.arrayContaining(['users', 'audit_log', 'media_assets', 'warehouses']));
+  });
+});
+
