@@ -20,6 +20,12 @@ export function next({ tsconfigRootDir, restrictedImports = [] }) {
         ...nextPlugin.configs.recommended.rules,
         ...nextPlugin.configs['core-web-vitals'].rules,
         ...reactHooks.configs.recommended.rules,
+      },
+    },
+    {
+      // UI rules govern application source — not test titles or tooling configs.
+      files: ['src/**/*.{ts,tsx}'],
+      rules: {
         'no-restricted-syntax': ['error',
           { selector: `Literal[value=${PHYSICAL}]`, message: RTL_MSG },
           { selector: `TemplateElement[value.raw=${PHYSICAL}]`, message: RTL_MSG },

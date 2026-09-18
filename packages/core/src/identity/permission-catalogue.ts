@@ -92,3 +92,10 @@ export const PERMISSION_CODES: readonly PermissionCode[] = PERMISSION_MATRIX.map
 export function moduleOf(code: PermissionCode): string {
   return code.slice(0, code.indexOf('.'));
 }
+
+const KNOWN = new Set<string>(PERMISSION_CODES);
+
+/** Narrows an untrusted string (e.g. validated API input) to a PermissionCode. */
+export function isPermissionCode(value: string): value is PermissionCode {
+  return KNOWN.has(value);
+}

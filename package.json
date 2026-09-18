@@ -16,7 +16,8 @@
     "db:migrate": "pnpm --filter @gsa/db migrate",
     "db:seed": "pnpm --filter @gsa/services seed",
     "test:integration": "turbo run test:integration",
-    "db:sync": "pnpm --filter @gsa/services sync"
+    "db:sync": "pnpm --filter @gsa/services sync",
+    "test:e2e": "turbo run test:e2e"
   },
   "devDependencies": {
     "@types/node": "24.13.5",

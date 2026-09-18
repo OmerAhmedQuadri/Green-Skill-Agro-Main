@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { BOOTSTRAP_SQL, runMigrations } from '@gsa/db';
+import { BOOTSTRAP_SQL, runMigrations } from '@gsa/db/migrate';
 import pg from 'pg';
 import { syncReferenceData } from '../src/reference-data';
 import { closeDb } from '../src/runtime';

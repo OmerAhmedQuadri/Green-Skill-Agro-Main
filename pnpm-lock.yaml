@@ -199,18 +199,30 @@ importers:
       '@gsa/services':
         specifier: workspace:*
         version: link:../../packages/services
+      '@gsa/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      '@tanstack/react-query':
+        specifier: 5.102.8
+        version: 5.102.8(react@19.3.0)
+      lucide-react:
+        specifier: 1.46.0
+        version: 1.46.0(react@19.3.0)
       next:
         specifier: 16.3.5
-        version: 16.3.5(@babel/core@7.29.7)(@types/node@24.13.5)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+        version: 16.3.5(@babel/core@7.29.7)(@playwright/test@1.63.0)(@types/node@24.13.5)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       next-intl:
         specifier: 4.14.5
-        version: 4.14.5(@swc/helpers@0.5.23)(next@16.3.5(@babel/core@7.29.7)(@types/node@24.13.5)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)
+        version: 4.14.5(@swc/helpers@0.5.23)(next@16.3.5(@babel/core@7.29.7)(@playwright/test@1.63.0)(@types/node@24.13.5)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)
       react:
         specifier: 19.3.0
         version: 19.3.0
       react-dom:
         specifier: 19.3.0
         version: 19.3.0(react@19.3.0)
+      zod:
+        specifier: 4.6.5
+        version: 4.6.5
     devDependencies:
       '@gsa/eslint-config':
         specifier: workspace:*
@@ -218,6 +230,9 @@ importers:
       '@gsa/tsconfig':
         specifier: workspace:*
         version: link:../../tooling/tsconfig
+      '@playwright/test':
+        specifier: 1.63.0
+        version: 1.63.0
       '@tailwindcss/postcss':
         specifier: 4.3.3
         version: 4.3.3
@@ -359,6 +374,31 @@ importers:
       tsx:
         specifier: 4.23.13
         version: 4.23.13
+
+  packages/ui:
+    dependencies:
+      class-variance-authority:
+        specifier: 0.7.1
+        version: 0.7.1
+      clsx:
+        specifier: 2.1.1
+        version: 2.1.1
+      tailwind-merge:
+        specifier: 3.7.0
+        version: 3.7.0
+    devDependencies:
+      '@gsa/eslint-config':
+        specifier: workspace:*
+        version: link:../../tooling/eslint
+      '@gsa/tsconfig':
+        specifier: workspace:*
+        version: link:../../tooling/tsconfig
+      '@types/react':
+        specifier: 19.3.0
+        version: 19.3.0
+      react:
+        specifier: 19.3.0
+        version: 19.3.0
 
   tooling/eslint:
     dependencies:
@@ -1440,6 +1480,11 @@ packages:
     resolution: {integrity: sha512-7FNeNl8NCE7aINx7WXiKQrPYZWC/hvrTsmk6zmxbI7LTXE7hVek/n8AfVgpe2y82zl3w0HvCHN0bVKMBoJcC0w==}
     engines: {node: '>= 10.0.0'}
 
+  '@playwright/test@1.63.0':
+    resolution: {integrity: sha512-oxMK4vllB9RK5NQ2l1pq1IfOf2AvnEuj/vYGDj0H2nMtmtZpKtCwt/l00GEO6xjGfpBNAvjovvYdCm50dRQkpQ==}
+    engines: {node: '>=20'}
+    hasBin: true
+
   '@rolldown/binding-android-arm-eabi@1.2.9':
     resolution: {integrity: sha512-tNISae1QEf/vkb3xkRcjV5SEdzPE97We5IVaa2Z8jSszQPZ8U60B/YCYpw4QI7VidYsBtKavczXf+DyDs9WGxw==}
     engines: {node: ^20.19.0 || >=22.12.0}
@@ -1730,6 +1775,14 @@ packages:
   '@tailwindcss/postcss@4.3.3':
     resolution: {integrity: sha512-JTSZZGQi1AyKirbLN3azmjVzef92tcX7h+iSqPdaeStyFpGpDlKvvpxeOE8njhbUanbRwr3z8DyzhICWnMtQeg==}
 
+  '@tanstack/query-core@5.102.8':
+    resolution: {integrity: sha512-ZNjkJ33CqvPNec/6lZBnHqLc3EVGPZ9ySLhYahU9TcuRFdmwXewuj0c4hwSWcGHqEUwcSrKeZ+oGcvPBqXcQcg==}
+
+  '@tanstack/react-query@5.102.8':
+    resolution: {integrity: sha512-TYBea4OuXWD7MhaSHq069TWbFe7rcwWN6kzT7JF0OKi1K6c1gTv2IzD6A6ExJsCMozdkqBWeuIUZmu4KQg0O5A==}
+    peerDependencies:
+      react: ^18 || ^19
+
   '@turbo/darwin-64@2.10.4':
     resolution: {integrity: sha512-m1MUEI4MJ69r5CwfMYxmHi0H0rrgiYCBOp0tgBZ9x/YVvOb5uu/lRIDyDwdtH054R2yWeQaIigUGu6aCX9f8cA==}
     cpu: [x64]
@@ -1914,8 +1967,15 @@ packages:
     resolution: {integrity: sha512-NUPRluOfOiTKBKvWPtSD4PhFvWCqOi0BGStNWs57X9js7XGTprSmFoz5F0tWhR4WPjNeR9jXqdC7/UpSJTnlRg==}
     engines: {node: '>=18'}
 
+  class-variance-authority@0.7.1:
+    resolution: {integrity: sha512-Ka+9Trutv7G8M6WT6SeiRWz792K5qEqIGEGzXKhAE6xOWAY6pPH8U+9IY3oCMv6kqTmLsv7Xh/2w2RigkePMsg==}
+
   client-only@0.0.1:
     resolution: {integrity: sha512-IV3Ou0jSMzZrd3pZ48nLkT9DA7Ag1pnPzaiQhpW7c3RbcqqzvzzVu+L8gfqMp/8IM2MQtSiqaCxrrcfu8I8rMA==}
+
+  clsx@2.1.1:
+    resolution: {integrity: sha512-eYm0QWBtUrBWZWG0d386OGAw16Z995PiOVo2B7bjWSbHedGl5e0ZWaq65kOGgUSNesEIDkB9ISbTg/JK9dhCZA==}
+    engines: {node: '>=6'}
 
   content-type@2.1.0:
     resolution: {integrity: sha512-mj7UPXE0jaqaOsukNZRUEfEi2AcL7C/vwmwcHV0O97eO1E1pxBZuyjlZrx5seTaNBg1U6+o35wpa35Qfcc+7ag==}
@@ -2441,6 +2501,11 @@ packages:
   lru-cache@5.1.1:
     resolution: {integrity: sha512-KpNARQA3Iwv+jTA0utUVVbrh+Jlrr1Fv0e56GGzAFOXN7dk/FviaDW8LHmK52DlcH4WP2n6gI8vN1aesBFgo9w==}
 
+  lucide-react@1.46.0:
+    resolution: {integrity: sha512-Bv+FZXgZPrxc/NCl1e7JJVQFLdiCxYgxNVhqoV7X0p6I8ADJo8DxBnK1auH0fZz4AmqOJ3jgneL4f1i8LJQRAA==}
+    peerDependencies:
+      react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
+
   luxon@3.7.2:
     resolution: {integrity: sha512-vtEhXh/gNjI9Yg1u4jX/0YVPMvxzHuGgCm6tC5kZyb08yjGWGnqAjGJvcXbqQR2P3MyMEFnRbpcdFS6PBcLqew==}
     engines: {node: '>=12'}
@@ -2593,6 +2658,16 @@ packages:
     resolution: {integrity: sha512-qcJu88Q2IWqJsDD529JKMdwGm/dvInW4HvQnRwiH9JtihJvzGOscDtHE3x1pBKeUOTysQ8kVmLnJ2kJu7yhcGA==}
     engines: {node: '>=12'}
 
+  playwright-core@1.63.0:
+    resolution: {integrity: sha512-rYCsBF/M5HjUch52bbtVONEFjv6Xu8sm8h72dNlR5bzIE1fvC/bxgspzkjSfU+MweEMmPM8KJebG6nnyxo5mCg==}
+    engines: {node: '>=20'}
+    hasBin: true
+
+  playwright@1.63.0:
+    resolution: {integrity: sha512-+7ziBLidS4NaNCdt57SUDT+wYmmd5fmiQejUic/kb+YsYSCPyOOE9sebzMjNmQrsnNpDJqd4WHvV/8lfKfUDUg==}
+    engines: {node: '>=20'}
+    hasBin: true
+
   po-parser@2.2.0:
     resolution: {integrity: sha512-NdTrKgh0oO7+y+RFX8KKhOB438x/j94UGXEFzl/7pHH0JjWSn42iJ9tgmPksIO6n1JKDHmNDcejPJfKspljB9g==}
 
@@ -2735,6 +2810,9 @@ packages:
   tagged-tag@1.0.0:
     resolution: {integrity: sha512-yEFYrVhod+hdNyx7g5Bnkkb0G6si8HJurOoOEgC8B/O0uXLHlaey/65KRv6cuWBNhBgHKAROVpc7QyYqE5gFng==}
     engines: {node: '>=20'}
+
+  tailwind-merge@3.7.0:
+    resolution: {integrity: sha512-XPPUyAc+cvspz3lHTcR/QgPfW2A0lv/xQNIjX3HGhLR+Nq2lHaLq5MtTesHn8GUr3W3DguT2KT5x3NVgRtYwmA==}
 
   tailwindcss@4.3.3:
     resolution: {integrity: sha512-gOhV3P7ufE62QDGg1zVaTgCR+EtPv92k2nIhVcVKcLmxT1sUBsQGhnZj175j+MqRt4zLF7ic+sCYjfhxMxj7YQ==}
@@ -3670,6 +3748,10 @@ snapshots:
       '@parcel/watcher-win32-arm64': 2.6.0
       '@parcel/watcher-win32-x64': 2.6.0
 
+  '@playwright/test@1.63.0':
+    dependencies:
+      playwright: 1.63.0
+
   '@rolldown/binding-android-arm-eabi@1.2.9':
     optional: true
 
@@ -3852,6 +3934,13 @@ snapshots:
       '@tailwindcss/oxide': 4.3.3
       postcss: 8.5.28
       tailwindcss: 4.3.3
+
+  '@tanstack/query-core@5.102.8': {}
+
+  '@tanstack/react-query@5.102.8(react@19.3.0)':
+    dependencies:
+      '@tanstack/query-core': 5.102.8
+      react: 19.3.0
 
   '@turbo/darwin-64@2.10.4':
     optional: true
@@ -4053,7 +4142,13 @@ snapshots:
 
   chai@6.2.2: {}
 
+  class-variance-authority@0.7.1:
+    dependencies:
+      clsx: 2.1.1
+
   client-only@0.0.1: {}
+
+  clsx@2.1.1: {}
 
   content-type@2.1.0: {}
 
@@ -4502,6 +4597,10 @@ snapshots:
     dependencies:
       yallist: 3.1.1
 
+  lucide-react@1.46.0(react@19.3.0):
+    dependencies:
+      react: 19.3.0
+
   luxon@3.7.2: {}
 
   magic-string@0.30.21:
@@ -4535,7 +4634,7 @@ snapshots:
 
   next-intl-swc-plugin-extractor@4.14.5: {}
 
-  next-intl@4.14.5(@swc/helpers@0.5.23)(next@16.3.5(@babel/core@7.29.7)(@types/node@24.13.5)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0):
+  next-intl@4.14.5(@swc/helpers@0.5.23)(next@16.3.5(@babel/core@7.29.7)(@playwright/test@1.63.0)(@types/node@24.13.5)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0):
     dependencies:
       '@eloqnt/config': 0.1.0
       '@eloqnt/format-json': 0.1.0
@@ -4545,14 +4644,14 @@ snapshots:
       '@swc/core': 1.16.2(@swc/helpers@0.5.23)
       icu-minify: 4.14.5
       negotiator: 1.1.0
-      next: 16.3.5(@babel/core@7.29.7)(@types/node@24.13.5)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+      next: 16.3.5(@babel/core@7.29.7)(@playwright/test@1.63.0)(@types/node@24.13.5)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       next-intl-swc-plugin-extractor: 4.14.5
       react: 19.3.0
       use-intl: 4.14.5(react@19.3.0)
     transitivePeerDependencies:
       - '@swc/helpers'
 
-  next@16.3.5(@babel/core@7.29.7)(@types/node@24.13.5)(react-dom@19.3.0(react@19.3.0))(react@19.3.0):
+  next@16.3.5(@babel/core@7.29.7)(@playwright/test@1.63.0)(@types/node@24.13.5)(react-dom@19.3.0(react@19.3.0))(react@19.3.0):
     dependencies:
       '@next/env': 16.3.5
       '@swc/helpers': 0.5.23
@@ -4571,6 +4670,7 @@ snapshots:
       '@next/swc-linux-x64-musl': 16.3.5
       '@next/swc-win32-arm64-msvc': 16.3.5
       '@next/swc-win32-x64-msvc': 16.3.5
+      '@playwright/test': 1.63.0
       sharp: 0.35.4(@types/node@24.13.5)
     transitivePeerDependencies:
       - '@babel/core'
@@ -4655,6 +4755,12 @@ snapshots:
   picomatch@2.3.2: {}
 
   picomatch@4.0.7: {}
+
+  playwright-core@1.63.0: {}
+
+  playwright@1.63.0:
+    dependencies:
+      playwright-core: 1.63.0
 
   po-parser@2.2.0: {}
 
@@ -4806,6 +4912,8 @@ snapshots:
       '@babel/core': 7.29.7
 
   tagged-tag@1.0.0: {}
+
+  tailwind-merge@3.7.0: {}
 
   tailwindcss@4.3.3: {}
 

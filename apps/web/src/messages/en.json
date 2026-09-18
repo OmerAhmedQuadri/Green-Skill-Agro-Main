@@ -2,7 +2,257 @@
   "app": {
     "name": "Green Agro",
     "tagline": "Field sales and inventory",
-    "skeleton": "Walking skeleton — M0 Foundation in progress",
     "switchLanguage": "العربية"
+  },
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "loading": "Loading…",
+    "retry": "Try again",
+    "search": "Search",
+    "back": "Back",
+    "copy": "Copy",
+    "copied": "Copied",
+    "optional": "optional",
+    "signOut": "Sign out",
+    "all": "All",
+    "saving": "Saving…",
+    "confirm": "Confirm"
+  },
+  "roles": {
+    "SUPER_ADMIN": "Super Admin",
+    "ADMIN": "Admin",
+    "MANAGER": "Manager",
+    "SELLER": "Seller"
+  },
+  "status": {
+    "ACTIVE": "Active",
+    "DEACTIVATED": "Deactivated"
+  },
+  "locales": {
+    "en": "English",
+    "ar": "العربية"
+  },
+  "auth": {
+    "signInTitle": "Sign in",
+    "signInSubtitle": "Use your work email or mobile number.",
+    "identifier": "Email or mobile number",
+    "password": "Password",
+    "signIn": "Sign in",
+    "signingIn": "Signing in…",
+    "changePasswordTitle": "Choose a new password",
+    "changePasswordRequired": "You need to set a new password before continuing.",
+    "currentPassword": "Current password",
+    "newPassword": "New password",
+    "confirmPassword": "Confirm new password",
+    "passwordHint": "At least 10 characters. A short sentence works well.",
+    "passwordsDontMatch": "The two passwords don't match.",
+    "changePassword": "Change password"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "users": "Users",
+    "today": "Today",
+    "menu": "Menu",
+    "close": "Close menu"
+  },
+  "dashboard": {
+    "welcome": "Welcome, {name}",
+    "signedInAs": "Signed in as {role}",
+    "permissionCount": "{count, plural, one {# permission} other {# permissions}}"
+  },
+  "field": {
+    "welcome": "Good day, {name}",
+    "todayIntro": "Your working day starts here — check-in, van stock and today's route arrive in the next milestones."
+  },
+  "users": {
+    "title": "Users",
+    "subtitle": "Staff accounts and what each person can do.",
+    "newAccount": "New account",
+    "searchPlaceholder": "Name, email or mobile",
+    "filterRole": "Role",
+    "filterStatus": "Status",
+    "colName": "Name",
+    "colRole": "Role",
+    "colContact": "Email / mobile",
+    "colStatus": "Status",
+    "empty": "No accounts match.",
+    "loadMore": "Load more",
+    "fieldName": "Full name",
+    "fieldEmail": "Email",
+    "fieldPhone": "Mobile number",
+    "fieldRole": "Role",
+    "fieldLocale": "Preferred language",
+    "identifierHint": "Email, mobile number, or both — either can be used to sign in.",
+    "create": "Create account",
+    "created": "Account created for {name}.",
+    "temporaryPassword": "Temporary password",
+    "temporaryPasswordNote": "Shown once. Give it to the person directly — they must change it when they first sign in.",
+    "profile": "Profile",
+    "account": "Account",
+    "saved": "Saved.",
+    "deactivate": "Deactivate",
+    "reactivate": "Reactivate",
+    "deactivateConfirm": "Deactivate {name}? They are signed out everywhere immediately.",
+    "resetPassword": "Reset password",
+    "resetConfirm": "Issue a new temporary password for {name}? They are signed out everywhere.",
+    "permissions": "Permissions",
+    "permissionsSubtitle": "Grant a module, then the actions within it. Anything not granted is hidden from the person entirely.",
+    "alwaysIncluded": "Always included for this role",
+    "savePermissions": "Save permissions",
+    "noChanges": "No changes to save.",
+    "preset": "Apply a preset",
+    "presetNote": "Replaces every configurable permission with the preset.",
+    "applyPreset": "Apply",
+    "mustChangeBadge": "Must change password",
+    "choosePreset": "Choose a preset",
+    "allRoles": "All roles",
+    "allStatuses": "All statuses"
+  },
+  "presets": {
+    "WAREHOUSE": "Warehouse",
+    "SALES_MANAGER": "Sales manager",
+    "OPERATIONS_MANAGER": "Operations manager"
+  },
+  "modules": {
+    "users": "Users",
+    "system": "System",
+    "catalogue": "Catalogue",
+    "pricing": "Pricing",
+    "vendors": "Vendors",
+    "procurement": "Procurement",
+    "inventory": "Inventory",
+    "vehicles": "Vehicles",
+    "stores": "Stores",
+    "sales": "Sales",
+    "returns": "Returns",
+    "cash": "Cash",
+    "attendance": "Attendance",
+    "targets": "Targets",
+    "reports": "Reports"
+  },
+  "permissions": {
+    "users": {
+      "manage_admins": "Create and manage Super Admin and Admin accounts",
+      "manage_staff": "Create and manage Manager and Seller accounts",
+      "manage_permissions": "Grant and withdraw permissions"
+    },
+    "system": {
+      "configure": "System settings and feature toggles",
+      "manage_templates": "Product-type attribute templates",
+      "set_limits": "Cash-in-hand and vehicle stock ceilings",
+      "view_audit_log": "View the audit log"
+    },
+    "catalogue": {
+      "view": "View the catalogue",
+      "manage_structure": "Maintain categories and sub-categories",
+      "manage_products": "Create and edit products, varieties and SKUs"
+    },
+    "pricing": {
+      "manage_price_lists": "Set prices and maintain price lists",
+      "set_discount_ceilings": "Set discount ceilings"
+    },
+    "vendors": {
+      "manage": "Create and edit vendor profiles",
+      "view": "View vendor profiles"
+    },
+    "procurement": {
+      "view": "View purchase orders and incoming stock",
+      "manage_po": "Enter and submit purchase orders",
+      "approve_po": "Approve and place purchase orders"
+    },
+    "inventory": {
+      "view_all_stock": "View all stock — warehouse and every vehicle",
+      "view_own_vehicle": "View stock on my vehicle",
+      "receive_goods": "Receive goods",
+      "bulk_import": "Bulk import stock",
+      "convert": "Convert and repackage SKUs",
+      "submit_write_off": "Submit a stock write-off",
+      "approve_write_off": "Approve stock write-offs",
+      "issue_to_vehicle": "Issue stock to vehicles",
+      "audit_vehicle": "Audit vehicle stock",
+      "manage_expiry": "Manage expiry flags",
+      "confirm_load": "Confirm a vehicle load",
+      "declare_closing_stock": "Declare closing stock"
+    },
+    "vehicles": {
+      "manage": "Vehicle register and assignments"
+    },
+    "stores": {
+      "onboard": "Onboard new stores",
+      "set_credit_cycle": "Set a store's credit cycle",
+      "view_all": "View all stores",
+      "approve": "Approve new stores",
+      "edit_terms": "Change credit limit and price list",
+      "reassign": "Reassign stores between sellers",
+      "override_credit_block": "Override a credit block"
+    },
+    "sales": {
+      "record": "Record sales",
+      "apply_discount": "Apply discounts within the ceiling",
+      "approve_discount": "Approve discounts above the ceiling",
+      "view_all": "View all sales",
+      "request_dispatch": "Request a warehouse dispatch",
+      "fulfil_dispatch": "Fulfil dispatch orders",
+      "create_order_for_seller": "Create orders for a seller",
+      "confirm_dispatch_receipt": "Confirm receipt of a dispatch",
+      "approve_lost_order": "Approve lost-order claims"
+    },
+    "returns": {
+      "process": "Process returns and replacements",
+      "set_rules": "Set return rules and windows"
+    },
+    "cash": {
+      "view_cash_in_hand": "View sellers' cash in hand",
+      "approve_settlement": "Approve cash deposits and handovers",
+      "submit_settlement": "Submit a cash settlement"
+    },
+    "attendance": {
+      "view": "View attendance, distance and hours",
+      "manage": "Authorise check-ins and open days for sellers",
+      "self": "Check in and out"
+    },
+    "targets": {
+      "manage": "Set targets and commission rates",
+      "view_own": "View my targets",
+      "view_commission": "View commission"
+    },
+    "reports": {
+      "view_trends": "Sales and seasonal trends",
+      "view_forecast": "Reorder forecast"
+    }
+  },
+  "errors": {
+    "UNAUTHENTICATED": "Your session has ended. Please sign in again.",
+    "INVALID_CREDENTIALS": "That email or mobile number and password don't match.",
+    "FORBIDDEN": "You don't have permission to do that.",
+    "ACCOUNT_TIER_FORBIDDEN": "You can't manage accounts of that role.",
+    "ACCOUNT_DEACTIVATED": "This account has been deactivated. Contact your administrator.",
+    "PASSWORD_CHANGE_REQUIRED": "You need to set a new password first.",
+    "NOT_FOUND": "That record doesn't exist or isn't available to you.",
+    "VERSION_CONFLICT": "Someone else changed this just now. Reload and try again.",
+    "ACCOUNT_LOCKED": "Too many failed attempts. The account is locked for 15 minutes.",
+    "RATE_LIMITED": "Too many attempts. Wait a minute and try again.",
+    "INVALID_MONEY": "That amount isn't valid.",
+    "INVALID_QUANTITY": "That quantity isn't valid.",
+    "INVALID_PERCENT": "That percentage isn't valid.",
+    "INVALID_PACK_COUNT": "Enter a whole number of packs.",
+    "INVALID_PACK_SIZE": "That pack size isn't valid.",
+    "PART_PACK_NOT_ALLOWED": "Only whole packs can be used here.",
+    "PERMISSION_NOT_CONFIGURABLE": "That permission can't be changed for this role.",
+    "PRESET_NOT_APPLICABLE": "Presets apply to Manager accounts only.",
+    "PASSWORD_TOO_WEAK": "Choose a stronger password — at least 10 characters and not a common one.",
+    "INVALID_EMAIL": "Enter a valid email address.",
+    "INVALID_PHONE": "Enter a valid mobile number.",
+    "DUPLICATE_EMAIL": "Another account already uses that email.",
+    "DUPLICATE_PHONE": "Another account already uses that mobile number.",
+    "SIGN_IN_IDENTIFIER_REQUIRED": "Enter an email, a mobile number, or both.",
+    "CANNOT_DEACTIVATE_SELF": "You can't deactivate your own account.",
+    "IDEMPOTENCY_KEY_REUSED": "This request conflicts with an earlier one. Reload and try again.",
+    "IDEMPOTENCY_KEY_REQUIRED": "Something went wrong sending that. Please try again.",
+    "VALIDATION_FAILED": "Some details are missing or invalid.",
+    "INTERNAL_ERROR": "Something went wrong on our side. Please try again.",
+    "CSRF_ORIGIN_MISMATCH": "This request was blocked for your security. Reload the page.",
+    "NETWORK_ERROR": "No connection. Check your network and try again."
   }
 }

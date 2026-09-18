@@ -6,7 +6,12 @@ import { getDb } from '../runtime';
 
 const { idempotencyKeys } = schema;
 
-export type Outcome<T> = { readonly status: number; readonly body: T };
+export type Outcome<T> = {
+  readonly status: number;
+  readonly body: T;
+  /** What a replay returns, when the live body carries a secret that must not be persisted (e.g. a temporary password). */
+  readonly replayBody?: T;
+};
 
 /**
  * Exactly-once mutations over unreliable networks (ADR-0009, NFR-006). The key
@@ -39,8 +44,8 @@ export async function runIdempotent<T>(
     const outcome = await work({ ...ctx, tx });
     await tx
       .update(idempotencyKeys)
-      .set({ responseStatus: outcome.status, responseBody: outcome.body })
+      .set({ responseStatus: outcome.status, responseBody: outcome.replayBody ?? outcome.body })
       .where(and(eq(idempotencyKeys.userId, ctx.user.id), eq(idempotencyKeys.key, request.key)));
-    return { ...outcome, replayed: false };
+    return { status: outcome.status, body: outcome.body, replayed: false };
   });
 }

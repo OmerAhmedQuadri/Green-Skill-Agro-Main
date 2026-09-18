@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { anAccount, ctxFor } from '../../test/factories';
 import { ownerQuery } from '../../test/db';
 import { audit } from './audit';
-import { runIdempotent } from './idempotency';
+import { runIdempotent, type Outcome } from './idempotency';
 
 describe('idempotent mutations (ADR-0009, NFR-006)', () => {
   it('NFR-006: a retried request runs once and replays the stored response', async () => {
@@ -52,5 +52,16 @@ describe('idempotent mutations (ADR-0009, NFR-006)', () => {
     await runIdempotent(ctx, { key: 'k-4', hash: 'h' }, () => Promise.reject(new Error('transient'))).catch(() => undefined);
     const retry = await runIdempotent(ctx, { key: 'k-4', hash: 'h' }, () => Promise.resolve({ status: 201, body: { ok: 1 } }));
     expect(retry.replayed).toBe(false);
+  });
+
+  it('SECURITY §5: a secret in the live response is never stored for replay', async () => {
+    const ctx = await ctxFor(await anAccount('ADMIN'));
+    const work = (): Promise<Outcome<{ temporaryPassword: string | null }>> =>
+      Promise.resolve({ status: 201, body: { temporaryPassword: 'S3cretTemp' }, replayBody: { temporaryPassword: null } });
+    const live = await runIdempotent(ctx, { key: 'k-5', hash: 'h' }, work);
+    const replay = await runIdempotent(ctx, { key: 'k-5', hash: 'h' }, work);
+    expect(live.body.temporaryPassword).toBe('S3cretTemp');
+    expect(replay.body.temporaryPassword).toBeNull();
+    expect(JSON.stringify(await ownerQuery('select response_body from idempotency_keys'))).not.toContain('S3cretTemp');
   });
 });

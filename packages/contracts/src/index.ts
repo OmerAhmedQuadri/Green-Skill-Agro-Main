@@ -14,3 +14,5 @@ export type Problem = z.infer<typeof Problem>;
 /** Cursor-paginated list envelope (CONVENTIONS §5). */
 export const page = <T extends z.ZodType>(item: T) =>
   z.object({ items: z.array(item), nextCursor: z.string().nullable() });
+
+export * as identity from './identity';

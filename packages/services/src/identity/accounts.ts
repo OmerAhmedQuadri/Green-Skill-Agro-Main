@@ -65,7 +65,7 @@ async function detail(db: Executor, row: { id: string } & Omit<AccountSummary, '
   };
 }
 
-function identifiers(input: { email?: string | null; phone?: string | null }) {
+function identifiers(input: { email?: string | null | undefined; phone?: string | null | undefined }) {
   const email = input.email ? normaliseEmail(input.email) : null;
   const phone = input.phone ? normalisePhone(input.phone) : null;
   return { email, phone };
@@ -87,7 +87,10 @@ async function assertIdentifiersFree(db: Executor, ids: { email: string | null; 
 
 export async function listAccounts(
   ctx: Ctx,
-  filter: { role?: Role; status?: 'ACTIVE' | 'DEACTIVATED'; search?: string; cursor?: string; limit?: number } = {},
+  filter: {
+    role?: Role | undefined; status?: 'ACTIVE' | 'DEACTIVATED' | undefined;
+    search?: string | undefined; cursor?: string | undefined; limit?: number | undefined;
+  } = {},
 ): Promise<{ items: AccountSummary[]; nextCursor: string | null }> {
   const roles = assertManagesAnyone(ctx);
   const limit = Math.min(Math.max(filter.limit ?? 50, 1), 200);
@@ -114,7 +117,7 @@ export async function getAccount(ctx: Ctx, id: string): Promise<AccountDetail> {
 /** USR-002/003: provisions an account with a temporary password that must be changed. */
 export async function createAccount(
   ctx: Ctx,
-  input: { role: Role; name: string; email?: string | null; phone?: string | null; locale?: 'en' | 'ar' },
+  input: { role: Role; name: string; email?: string | null | undefined; phone?: string | null | undefined; locale?: 'en' | 'ar' | undefined },
 ): Promise<{ account: AccountDetail; temporaryPassword: string }> {
   assertCanManageAccount(ctx.permissions, input.role);
   const ids = identifiers(input);
@@ -140,7 +143,10 @@ export async function createAccount(
 export async function updateAccount(
   ctx: Ctx,
   id: string,
-  input: { version: number; name?: string; email?: string | null; phone?: string | null; locale?: 'en' | 'ar' },
+  input: {
+    version: number; name?: string | undefined; email?: string | null | undefined;
+    phone?: string | null | undefined; locale?: 'en' | 'ar' | undefined;
+  },
 ): Promise<AccountDetail> {
   return inTx(ctx, async (tx) => {
     const current = await loadManageable(tx, ctx, id);
