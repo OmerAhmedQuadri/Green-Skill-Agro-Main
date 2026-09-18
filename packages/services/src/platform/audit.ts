@@ -27,3 +27,8 @@ export async function writeAudit(db: Executor, origin: Origin, entry: AuditEntry
 export function audit(db: Executor, ctx: Ctx, entry: AuditEntry): Promise<void> {
   return writeAudit(db, { actorId: ctx.user.id, branchId: ctx.branchId, requestId: ctx.requestId, ip: ctx.ip }, entry);
 }
+
+/** The fields of `source` that a change touches, for an audit entry's `before`. */
+export function snapshot<T extends object>(source: object, keysOf: T): Partial<T> {
+  return Object.fromEntries(Object.keys(keysOf).map((k) => [k, (source as Record<string, unknown>)[k]])) as Partial<T>;
+}

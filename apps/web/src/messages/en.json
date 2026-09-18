@@ -270,6 +270,21 @@
     "MEDIA_NOT_UPLOADED": "The photo hasn't finished uploading. Try again.",
     "MEDIA_REJECTED": "That file was rejected — it isn't the kind of file it claims to be. Take the photo again.",
     "UPLOAD_FAILED": "The photo couldn't be uploaded. Check your connection and try again.",
-    "RESET_LINK_INVALID": "This reset link has expired or has already been used. Ask for a new one."
+    "RESET_LINK_INVALID": "This reset link has expired or has already been used. Ask for a new one.",
+    "INVALID_NAME": "Enter a name in both English and Arabic.",
+    "DUPLICATE_NAME": "That name is already in use here.",
+    "DUPLICATE_CODE": "That code is already in use.",
+    "DUPLICATE_SKU": "This product already has a SKU with that pack size and packaging.",
+    "INVALID_SKU_CODE": "Use capital letters, digits and hyphens only — no spaces.",
+    "INVALID_VENDOR_CODE": "Use capital letters, digits and hyphens only — no spaces.",
+    "INVALID_COUNTRY": "Choose a country from the list.",
+    "INVALID_TEMPLATE": "Shelf life needs expiry to be shown for this product type.",
+    "ATTRIBUTE_REQUIRED": "A required detail is missing for this product type.",
+    "ATTRIBUTE_NOT_ALLOWED": "This product type doesn't use that detail.",
+    "REFERENCE_INACTIVE": "That item is inactive and can't be used.",
+    "INVALID_PRICE": "Enter a price above zero, with at most two decimals.",
+    "CEILING_ABOVE_MAXIMUM": "A discount ceiling can't be above the absolute maximum discount.",
+    "INVALID_SETTING": "That value isn't allowed for this setting.",
+    "INVALID_CURSOR": "The list has changed. Reload and try again."
   }
 }

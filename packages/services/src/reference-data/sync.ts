@@ -1,9 +1,11 @@
-import { moduleOf, PERMISSION_CODES, PRESET_DEFAULTS } from '@gsa/core';
+import { DEFAULT_PRODUCT_TYPES, moduleOf, PERMISSION_CODES, PRESET_DEFAULTS, PRODUCT_ATTRIBUTES } from '@gsa/core';
 import { type Db, schema } from '@gsa/db';
 import { eq, notInArray } from 'drizzle-orm';
 import { getDb } from '../runtime';
 
-const { branches, warehouses, permissions, permissionPresets, permissionPresetGrants } = schema;
+const {
+  branches, warehouses, permissions, permissionPresets, permissionPresetGrants, productTypes, productTypeAttributes, priceLists,
+} = schema;
 
 /**
  * Reference data every environment needs, production included (DEVELOPMENT §7).
@@ -39,6 +41,29 @@ export async function syncReferenceData(db: Db = getDb()) {
         presetsCreated.push(code);
       }
     }
-    return { permissionsAdded: missing.length, permissionsRemoved: removed.map((r) => r.code), presetsCreated };
+    // CAT-014: the two product types Phase 1 ships, created once. Admin edits to
+    // their templates are preserved (CAT-015).
+    const productTypesCreated: string[] = [];
+    for (const [code, type] of Object.entries(DEFAULT_PRODUCT_TYPES)) {
+      const [created] = await tx.insert(productTypes)
+        .values({ code, nameEn: type.nameEn, nameAr: type.nameAr, countUnit: type.countUnit })
+        .onConflictDoNothing({ target: productTypes.code }).returning({ id: productTypes.id });
+      if (created) {
+        await tx.insert(productTypeAttributes).values(PRODUCT_ATTRIBUTES.map((attribute) => ({
+          productTypeId: created.id, attribute, mode: type.template[attribute],
+        })));
+        productTypesCreated.push(code);
+      }
+    }
+
+    // PRC-002: exactly one base price list, which applies to every store.
+    const basePriceList = await tx.insert(priceLists)
+      .values({ nameEn: 'Base price list', nameAr: 'قائمة الأسعار الأساسية', isBase: true })
+      .onConflictDoNothing().returning({ id: priceLists.id });
+
+    return {
+      permissionsAdded: missing.length, permissionsRemoved: removed.map((r) => r.code), presetsCreated,
+      productTypesCreated, basePriceListCreated: basePriceList.length > 0,
+    };
   });
 }

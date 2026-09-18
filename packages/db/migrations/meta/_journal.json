@@ -36,6 +36,13 @@
       "when": 1789761760450,
       "tag": "0004_email_outbox_and_reset_tokens",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1789765911035,
+      "tag": "0005_catalogue_vendors_pricing_settings",
+      "breakpoints": true
     }
   ]
 }
