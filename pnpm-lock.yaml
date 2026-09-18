@@ -245,6 +245,9 @@ importers:
       tailwindcss:
         specifier: 4.3.3
         version: 4.3.3
+      write-excel-file:
+        specifier: 4.1.1
+        version: 4.1.1
 
   apps/worker:
     dependencies:

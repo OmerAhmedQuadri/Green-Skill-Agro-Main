@@ -1,6 +1,6 @@
 import {
-  DomainError, dec, isEditable, money, outstandingPacks, poNumber, transitionPo,
-  type CountUnit, type Money, type PackSize, type PoAction, type PoCloseReason, type PoStatus, type PurchaseOrderId, type SkuId, type VendorId,
+  DomainError, dec, isEditable, money, outstandingPacks, poNumber, templateFrom, transitionPo,
+  type AttributeMode, type CountUnit, type Money, type PackSize, type PoAction, type PoCloseReason, type PoStatus, type PurchaseOrderId, type SkuId, type VendorId,
 } from '@gsa/core';
 import { schema } from '@gsa/db';
 import { and, asc, desc, eq, ilike, inArray, lt, sql, type SQL } from 'drizzle-orm';
@@ -11,7 +11,7 @@ import { getDb } from '../runtime';
 
 const {
   purchaseOrders, purchaseOrderLines, purchaseOrderEvents, goodsReceiptLines, goodsReceipts, skus, products, varieties, productTypes,
-  vendors, warehouses, documentSequences, users,
+  vendors, warehouses, documentSequences, users, productTypeAttributes,
 } = schema;
 
 /** Who may read purchase orders: anyone who raises, approves or receives them. */
@@ -26,6 +26,8 @@ export type PoLine = {
   readonly receivedPacks: number;
   /** RCV-007: received − ordered; negative is short, positive is over. */ readonly variance: number;
   /** PO-004/006: still expected while the order is live. */ readonly outstandingPacks: number;
+  /** What a receipt of this line must capture, from its product type's template (CAT-013, CAT-016). */
+  readonly receiving: { readonly lotNumber: AttributeMode; readonly manufacturedOn: AttributeMode; readonly expiry: AttributeMode; readonly shelfLifeMonths: number | null };
 };
 
 export type PoSummary = {
@@ -96,8 +98,8 @@ export async function loadPurchaseOrder(db: Executor, id: string): Promise<PoDet
   if (!head) throw new DomainError('NOT_FOUND', { entity: 'purchase_order', id });
   const [lines, events, receipts] = await Promise.all([
     db.select({
-      line: purchaseOrderLines, sku: skus, productEn: products.nameEn, productAr: products.nameAr,
-      varietyEn: varieties.nameEn, varietyAr: varieties.nameAr, countUnit: productTypes.countUnit, received: receivedPacks,
+      line: purchaseOrderLines, sku: skus, productEn: products.nameEn, productAr: products.nameAr, productTypeId: products.productTypeId,
+      shelfLifeMonths: products.shelfLifeMonths, varietyEn: varieties.nameEn, varietyAr: varieties.nameAr, countUnit: productTypes.countUnit, received: receivedPacks,
     })
       .from(purchaseOrderLines).innerJoin(skus, eq(skus.id, purchaseOrderLines.skuId))
       .innerJoin(products, eq(products.id, skus.productId)).innerJoin(productTypes, eq(productTypes.id, products.productTypeId))
@@ -112,6 +114,9 @@ export async function loadPurchaseOrder(db: Executor, id: string): Promise<PoDet
       .where(eq(goodsReceipts.purchaseOrderId, id)).orderBy(asc(goodsReceipts.receivedAt)),
   ]);
   const status = head.po.status;
+  const typeIds = [...new Set(lines.map((l) => l.productTypeId))];
+  const attributes = typeIds.length ? await db.select().from(productTypeAttributes).where(inArray(productTypeAttributes.productTypeId, typeIds)) : [];
+  const templateOf = (typeId: string) => templateFrom(attributes.filter((a) => a.productTypeId === typeId));
   return {
     ...summary(head), closeNote: head.po.closeNote, notes: head.po.notes, warehouseId: head.po.warehouseId,
     lines: lines.map((l) => ({
@@ -120,6 +125,10 @@ export async function loadPurchaseOrder(db: Executor, id: string): Promise<PoDet
       variety: l.varietyEn !== null && l.varietyAr !== null ? { nameEn: l.varietyEn, nameAr: l.varietyAr } : null,
       orderedPacks: l.line.orderedPacks, expectedUnitCost: money(l.line.expectedUnitCost), receivedPacks: l.received,
       variance: l.received - l.line.orderedPacks, outstandingPacks: outstandingPacks(status, l.line.orderedPacks, l.received),
+      receiving: {
+        lotNumber: templateOf(l.productTypeId).LOT_NUMBER, manufacturedOn: templateOf(l.productTypeId).MANUFACTURING_DATE,
+        expiry: templateOf(l.productTypeId).EXPIRY, shelfLifeMonths: l.shelfLifeMonths,
+      },
     })),
     events: events.map(({ e, actor }) => ({ action: e.action, from: e.fromStatus, to: e.toStatus, reason: e.reason, actor, at: e.occurredAt })),
     receipts: receipts.map(({ r, by, packs }) => ({ id: r.id, receivedAt: r.receivedAt, source: r.source, fileName: r.fileName, packs, by })),

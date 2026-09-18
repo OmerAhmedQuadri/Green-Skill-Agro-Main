@@ -17,7 +17,7 @@ type Cell = string | number | Date | null;
 const xlsx = async (rows: Cell[][]) => (await writeXlsxFile(rows, { dateFormat: 'yyyy-mm-dd' }).toBuffer()).toString('base64');
 
 describe('goods receipt (RCV-003..008)', () => {
-  it('RCV-003, RCV-008, STK-005: each line becomes a batch with its LOT and dates, in the warehouse', async () => {
+  it('RCV-003, RCV-008, STK-001, STK-005: stock is tracked by batch — each line becomes one, with its LOT and dates, in the warehouse', async () => {
     const ctx = await admin();
     const { po, bagLine, bag } = await anOrderInTransit(ctx);
     const after = await receiveGoods(ctx, po.id, { version: po.version, lines: [
