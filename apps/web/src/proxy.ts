@@ -9,6 +9,10 @@ const SESSION_COOKIE = 'gsa_session';
 const PUBLIC_PAGES = ['/login'];
 const PUBLIC_API = ['/api/v1/auth/sign-in', '/api/v1/health'];
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+// Compared against the configured public origin, not the URL Next.js rebuilds
+// from proxy headers — behind nginx that may read http:// while the browser
+// sends https:// (SECURITY §2).
+const APP_ORIGIN = process.env.APP_URL ? new URL(process.env.APP_URL).origin : null;
 
 function problem(status: number, code: string) {
   return NextResponse.json({ type: `https://greenagro.app/problems/${code.toLowerCase()}`, title: code, status, code }, {
@@ -23,7 +27,7 @@ export default function proxy(request: NextRequest) {
   // SECURITY §2: every state-changing API request must come from our own origin.
   if (isApi && !SAFE_METHODS.has(request.method)) {
     const origin = request.headers.get('origin');
-    if (!origin || origin !== request.nextUrl.origin) return problem(403, 'CSRF_ORIGIN_MISMATCH');
+    if (!origin || !APP_ORIGIN || origin !== APP_ORIGIN) return problem(403, 'CSRF_ORIGIN_MISMATCH');
   }
 
   const hasSession = request.cookies.has(SESSION_COOKIE);

@@ -1,6 +1,6 @@
 import type { BlobInfo, BlobStore, PresignedUpload } from './blob-store';
 
-type Stored = { body: Uint8Array; contentType: string };
+type Stored = { body: Uint8Array<ArrayBuffer>; contentType: string };
 
 /**
  * In-memory BlobStore for automated tests (TESTING §3): no network, no
@@ -32,7 +32,7 @@ export function createMemoryBlobStore() {
   };
   return {
     ...store,
-    completeUpload: (key: string, body: Uint8Array, contentType: string) => { objects.set(key, { body, contentType }); },
+    completeUpload: (key: string, body: Uint8Array<ArrayBuffer>, contentType: string) => { objects.set(key, { body, contentType }); },
     keys: () => [...objects.keys()],
   };
 }

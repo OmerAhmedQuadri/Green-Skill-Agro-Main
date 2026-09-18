@@ -20,6 +20,6 @@ export interface BlobStore {
   /** Size and type of a stored object, or null if absent. */
   head(key: string): Promise<BlobInfo | null>;
   /** Server-side write, e.g. a generated delivery document. */
-  put(key: string, body: Uint8Array | string, contentType: string): Promise<void>;
+  put(key: string, body: Uint8Array<ArrayBuffer> | string, contentType: string): Promise<void>;
   delete(key: string): Promise<void>;
 }

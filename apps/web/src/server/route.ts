@@ -10,10 +10,12 @@ export type RequestMeta = { requestId: string; ip: string | null; userAgent: str
 
 export async function requestMeta(): Promise<RequestMeta> {
   const h = await headers();
-  const forwarded = h.get('x-forwarded-for')?.split(',')[0]?.trim();
   return {
     requestId: h.get('x-request-id') ?? randomUUID(),
-    ip: forwarded || h.get('x-real-ip') || null,
+    // The client address comes only from X-Real-IP, which nginx overwrites with
+    // $remote_addr. X-Forwarded-For is never trusted: its first entry is
+    // whatever the client sent, so it could dodge per-IP rate limits (SECURITY §2).
+    ip: h.get('x-real-ip')?.trim() || null,
     userAgent: h.get('user-agent'),
     now: new Date(),
   };
