@@ -13,7 +13,7 @@
     "@gsa/config": "workspace:*",
     "@gsa/core": "workspace:*",
     "@gsa/services": "workspace:*",
-    "pg-boss": "12.33.2"
+    "pg-boss": "12.31.1"
   },
   "devDependencies": {
     "@gsa/tsconfig": "workspace:*",
