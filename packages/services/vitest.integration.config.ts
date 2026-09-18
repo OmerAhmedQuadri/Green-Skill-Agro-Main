@@ -14,12 +14,14 @@ const env = {
   NODE_ENV: 'test',
   DATABASE_URL: onTestDatabase(process.env.DATABASE_URL),
   DATABASE_OWNER_URL: onTestDatabase(process.env.DATABASE_OWNER_URL),
-  // TESTING §3: tests never touch R2, whatever .env says.
-  S3_ENDPOINT: 'http://localhost:8333',
-  S3_REGION: 'us-east-1',
-  S3_BUCKET: 'gsa-test',
-  S3_ACCESS_KEY: 'gsa_s3',
-  S3_SECRET_KEY: 'gsa_s3_dev_secret',
+  // TESTING §3: automated tests use the in-memory blob store and never touch R2,
+  // whatever .env says. These values only satisfy config validation; the
+  // `.invalid` domain can never resolve.
+  S3_ENDPOINT: 'https://blob-store.invalid',
+  S3_REGION: 'auto',
+  S3_BUCKET: 'unused-in-tests',
+  S3_ACCESS_KEY: 'unused-in-tests',
+  S3_SECRET_KEY: 'unused-in-tests',
 };
 Object.assign(process.env, env); // global setup runs in this process
 
