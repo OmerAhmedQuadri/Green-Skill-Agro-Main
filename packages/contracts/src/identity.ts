@@ -24,6 +24,13 @@ export const ChangePasswordRequest = z.object({
   newPassword: z.string().min(10).max(256),
 });
 
+export const ForgotPasswordRequest = z.object({ email: z.string().trim().min(3).max(254) });
+
+export const ResetPasswordRequest = z.object({
+  token: z.string().min(20).max(200),
+  newPassword: z.string().min(10).max(256),
+});
+
 export const Me = z.object({
   id: z.uuid(), role: Role, name: z.string(), email: z.string().nullable(), phone: z.string().nullable(),
   locale: Locale, mustChangePassword: z.boolean(), permissions: z.array(z.string()),

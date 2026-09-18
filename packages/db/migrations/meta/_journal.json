@@ -29,6 +29,13 @@
       "when": 1789761227660,
       "tag": "0003_media_assets",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1789761760450,
+      "tag": "0004_email_outbox_and_reset_tokens",
+      "breakpoints": true
     }
   ]
 }

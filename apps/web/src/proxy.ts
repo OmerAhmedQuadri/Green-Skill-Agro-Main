@@ -6,8 +6,8 @@ import { NextResponse, type NextRequest } from 'next/server';
  * authorisation happen in route handlers and services (ADR-0005).
  */
 const SESSION_COOKIE = 'gsa_session';
-const PUBLIC_PAGES = ['/login'];
-const PUBLIC_API = ['/api/v1/auth/sign-in', '/api/v1/health'];
+const PUBLIC_PAGES = ['/login', '/forgot-password', '/reset-password'];
+const PUBLIC_API = ['/api/v1/auth/sign-in', '/api/v1/auth/password/forgot', '/api/v1/auth/password/reset', '/api/v1/health'];
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 // Compared against the configured public origin, not the URL Next.js rebuilds
 // from proxy headers — behind nginx that may read http:// while the browser

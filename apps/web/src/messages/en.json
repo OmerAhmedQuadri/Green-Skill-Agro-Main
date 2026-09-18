@@ -47,7 +47,18 @@
     "confirmPassword": "Confirm new password",
     "passwordHint": "At least 10 characters. A short sentence works well.",
     "passwordsDontMatch": "The two passwords don't match.",
-    "changePassword": "Change password"
+    "changePassword": "Change password",
+    "forgotLink": "Forgot your password?",
+    "forgotTitle": "Reset your password",
+    "forgotSubtitle": "Enter the email address on your account. We'll send a link to choose a new password.",
+    "email": "Email",
+    "sendLink": "Send reset link",
+    "linkSent": "If an account uses that email, a reset link is on its way. It works once and expires in 30 minutes.",
+    "noEmailHint": "Signed in with a mobile number only? Ask your administrator to reset your password.",
+    "backToSignIn": "Back to sign in",
+    "resetTitle": "Choose a new password",
+    "resetDone": "Your password has been changed. Sign in with your new password.",
+    "setPassword": "Set new password"
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -258,6 +269,7 @@
     "MEDIA_TOO_LARGE": "That file is too large. The limit is 10 MB.",
     "MEDIA_NOT_UPLOADED": "The photo hasn't finished uploading. Try again.",
     "MEDIA_REJECTED": "That file was rejected — it isn't the kind of file it claims to be. Take the photo again.",
-    "UPLOAD_FAILED": "The photo couldn't be uploaded. Check your connection and try again."
+    "UPLOAD_FAILED": "The photo couldn't be uploaded. Check your connection and try again.",
+    "RESET_LINK_INVALID": "This reset link has expired or has already been used. Ask for a new one."
   }
 }

@@ -6,4 +6,5 @@ export {
   changeAccountPermissions, applyPresetToAccount, listPresets, type AccountSummary, type AccountDetail,
 } from './accounts';
 export { hashPassword } from './password';
+export { requestPasswordReset, resetPasswordWithToken } from './password-reset';
 export type { SessionMeta } from './sessions';

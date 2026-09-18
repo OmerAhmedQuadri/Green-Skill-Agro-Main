@@ -7,7 +7,7 @@ const ownerPool = () => (owner ??= new pg.Pool({ connectionString: process.env.D
 
 /** Clears everything except reference data (branches, warehouses, permissions, presets). */
 export async function resetDatabase(): Promise<void> {
-  await ownerPool().query('TRUNCATE users, sessions, user_permissions, audit_log, idempotency_keys, rate_limits, media_assets CASCADE');
+  await ownerPool().query('TRUNCATE users, sessions, user_permissions, audit_log, idempotency_keys, rate_limits, media_assets, email_outbox, password_reset_tokens CASCADE');
 }
 
 export async function ownerQuery<T extends pg.QueryResultRow>(text: string, values: unknown[] = []): Promise<T[]> {

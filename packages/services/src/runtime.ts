@@ -2,6 +2,7 @@ import { loadConfig } from '@gsa/config';
 import { type BranchId } from '@gsa/core';
 import { createDb, type Db, schema } from '@gsa/db';
 import { createS3BlobStore, type BlobStore } from './media';
+import { createSmtpMailer, type Mailer } from './notifications';
 import { asc } from 'drizzle-orm';
 
 let db: Db | undefined;
@@ -45,4 +46,16 @@ export function getBlobStore(): BlobStore {
 /** Test seam: swap in an in-memory store. */
 export function setBlobStore(store: BlobStore): void {
   blobStore = store;
+}
+
+let mailer: Mailer | undefined;
+
+/** nodemailer over SMTP_URL — Mailpit in development (ADR-0022). Tests swap in a memory mailer. */
+export function getMailer(): Mailer {
+  mailer ??= createSmtpMailer(loadConfig().SMTP_URL, loadConfig().MAIL_FROM);
+  return mailer;
+}
+
+export function setMailer(next: Mailer): void {
+  mailer = next;
 }

@@ -11,6 +11,14 @@ export function sessionIdFor(token: string): string {
   return createHmac('sha256', loadConfig().SESSION_SECRET).update(token).digest('hex');
 }
 
+/**
+ * Password-reset tokens are hashed with a distinct prefix, so a reset token's
+ * hash can never be mistaken for a session's (ADR-0018).
+ */
+export function resetTokenIdFor(token: string): string {
+  return createHmac('sha256', loadConfig().SESSION_SECRET).update(`password-reset:${token}`).digest('hex');
+}
+
 // No look-alike characters (0/O, 1/l/I): temporary passwords are read aloud or retyped.
 const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
 

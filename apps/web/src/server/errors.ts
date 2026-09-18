@@ -37,6 +37,7 @@ const STATUS: Record<ErrorCode, number> = {
   MEDIA_TOO_LARGE: 422,
   MEDIA_NOT_UPLOADED: 409,
   MEDIA_REJECTED: 422,
+  RESET_LINK_INVALID: 422,
 };
 
 export function problem(status: number, code: string, requestId: string, details?: Record<string, unknown>, headers?: HeadersInit): Response {

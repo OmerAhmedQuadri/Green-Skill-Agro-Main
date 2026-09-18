@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
@@ -48,6 +49,7 @@ export function LoginForm() {
         <Input id="password" name="password" type="password" autoComplete="current-password" required />
       </Field>
       <Button type="submit" block size="lg" disabled={pending}>{pending ? t('signingIn') : t('signIn')}</Button>
+      <Link href="/forgot-password" className="block text-center text-sm text-brand-800 hover:underline">{t('forgotLink')}</Link>
     </form>
   );
 }

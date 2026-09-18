@@ -1,6 +1,6 @@
 import { loadConfig } from '@gsa/config';
 import { BUSINESS_TIME_ZONE } from '@gsa/core';
-import { media } from '@gsa/services';
+import { getMailer, media, notifications } from '@gsa/services';
 import { PgBoss } from 'pg-boss';
 
 /**
@@ -31,9 +31,27 @@ await boss.work('media.retention', async () => {
   console.log(`[worker] media.retention purged ${result.expired} expired, ${result.abandoned} abandoned`);
 });
 
+// ADR-0023: deliver the email outbox every few seconds; never two passes at once.
+let delivering = false;
+const deliverEmails = async () => {
+  if (delivering) return;
+  delivering = true;
+  try {
+    const result = await notifications.deliverPendingEmails(getMailer(), new Date());
+    if (result.sent + result.failed > 0) console.log(`[worker] email outbox: ${result.sent} sent, ${result.failed} failed`);
+  } catch (error) {
+    console.error('[worker] email outbox pass failed', error);
+  } finally {
+    delivering = false;
+  }
+};
+const emailLoop = setInterval(() => void deliverEmails(), 5_000);
+void deliverEmails();
+
 console.log('[worker] started');
 
 const shutdown = async () => {
+  clearInterval(emailLoop);
   await boss.stop({ graceful: true, timeout: 10_000 });
   process.exit(0);
 };

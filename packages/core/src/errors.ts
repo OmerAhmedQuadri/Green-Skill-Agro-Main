@@ -34,7 +34,8 @@ export type ErrorCode =
   | 'MEDIA_TYPE_NOT_ALLOWED'
   | 'MEDIA_TOO_LARGE'
   | 'MEDIA_NOT_UPLOADED'
-  | 'MEDIA_REJECTED';
+  | 'MEDIA_REJECTED'
+  | 'RESET_LINK_INVALID';
 
 export class DomainError extends Error {
   readonly code: ErrorCode;
