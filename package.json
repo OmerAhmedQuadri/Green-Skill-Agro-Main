@@ -1,0 +1,33 @@
+{
+  "name": "green-agro",
+  "private": true,
+  "packageManager": "pnpm@12.4.1",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "check": "node scripts/env.mjs check && turbo run lint typecheck test",
+    "db:generate": "pnpm --filter @gsa/db generate",
+    "db:migrate": "pnpm --filter @gsa/db migrate",
+    "db:seed": "pnpm --filter @gsa/services seed",
+    "test:integration": "turbo run test:integration",
+    "db:sync": "pnpm --filter @gsa/services sync",
+    "test:e2e": "turbo run test:e2e",
+    "env:check": "node scripts/env.mjs check",
+    "env:sync": "node scripts/env.mjs sync",
+    "test:trace": "node scripts/trace.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "24.13.5",
+    "eslint": "10.10.0",
+    "turbo": "2.10.4",
+    "typescript": "6.0.3",
+    "vite": "8.3.0",
+    "vitest": "5.0.1"
+  }
+}

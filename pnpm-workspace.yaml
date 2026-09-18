@@ -1,0 +1,15 @@
+packages:
+  - apps/*
+  - packages/*
+  - tooling/*
+
+# Dependency install scripts are blocked unless approved here (supply-chain
+# safeguard). Approve only what cannot work without its script.
+allowBuilds:
+  esbuild: true            # verifies its platform binary
+  '@parcel/watcher': false # ships prebuilt binaries; script only builds from source
+  '@swc/core': false       # ships prebuilt binaries via optional dependencies
+
+# Refuse versions younger than pnpm's minimum release age instead of silently
+# adding exceptions. Pin the previous release instead (DEVELOPMENT §5).
+minimumReleaseAgeStrict: true

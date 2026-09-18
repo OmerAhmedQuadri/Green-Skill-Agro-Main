@@ -1,0 +1,99 @@
+# Continuous integration (TESTING §6). No secrets: automated tests use the
+# in-memory blob store and Mailpit, so nothing touches R2 or a real mailbox.
+# Actions are pinned to commit SHAs — a moved tag cannot change what runs.
+name: CI
+
+on:
+  push:
+    branches: [main, 'feat/**', 'fix/**']
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # CI-only values, not secrets: this database lives for the length of one job.
+  DATABASE_URL: postgres://gsa_app:gsa_app_ci@localhost:5432/gsa
+  DATABASE_OWNER_URL: postgres://gsa_owner:gsa_owner_ci@localhost:5432/gsa
+  APP_URL: http://localhost:3000
+  SESSION_SECRET: ci-only-session-secret-used-nowhere-else-0000
+  S3_ENDPOINT: https://blob-store.invalid
+  S3_REGION: auto
+  S3_BUCKET: unused-in-ci
+  S3_ACCESS_KEY: unused-in-ci
+  S3_SECRET_KEY: unused-in-ci
+  SMTP_URL: smtp://localhost:1025
+  MAIL_FROM: Green Agro CI <ci@localhost>
+  DEV_SEED_PASSWORD: ci-seed-password-only
+  NEXT_TELEMETRY_DISABLED: '1'
+  TURBO_TELEMETRY_DISABLED: '1'
+
+jobs:
+  check:
+    name: Lint, types, unit + integration tests, build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17.11
+        env: { POSTGRES_USER: gsa_owner, POSTGRES_PASSWORD: gsa_owner_ci, POSTGRES_DB: gsa }
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U gsa_owner -d gsa"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with: { node-version-file: .nvmrc, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - name: Database roles and grants (DEVELOPMENT §6)
+        run: |
+          docker exec -i ${{ job.services.postgres.id }} psql -v ON_ERROR_STOP=1 -U gsa_owner -d gsa \
+            -c "CREATE ROLE gsa_app LOGIN PASSWORD 'gsa_app_ci';"
+          docker exec -i ${{ job.services.postgres.id }} psql -v ON_ERROR_STOP=1 -U gsa_owner -d gsa < packages/db/sql/bootstrap.sql
+      - run: pnpm check
+      - run: pnpm test:integration
+      - run: pnpm build
+
+  e2e:
+    name: End-to-end (Playwright)
+    if: github.event_name == 'pull_request'
+    needs: check
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:17.11
+        env: { POSTGRES_USER: gsa_owner, POSTGRES_PASSWORD: gsa_owner_ci, POSTGRES_DB: gsa }
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U gsa_owner -d gsa"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+      mailpit:
+        image: axllent/mailpit:v1.31.1
+        ports: ['1025:1025', '8025:8025']
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with: { node-version-file: .nvmrc, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - name: Database roles and grants (DEVELOPMENT §6)
+        run: |
+          docker exec -i ${{ job.services.postgres.id }} psql -v ON_ERROR_STOP=1 -U gsa_owner -d gsa \
+            -c "CREATE ROLE gsa_app LOGIN PASSWORD 'gsa_app_ci';"
+          docker exec -i ${{ job.services.postgres.id }} psql -v ON_ERROR_STOP=1 -U gsa_owner -d gsa < packages/db/sql/bootstrap.sql
+      - run: pnpm db:migrate
+      - run: pnpm db:seed
+      - run: pnpm --filter @gsa/web build
+      - run: pnpm --filter @gsa/web exec playwright install --with-deps chromium
+      # The R2 media spec skips itself here: S3_ENDPOINT is not R2 (TESTING §3).
+      - run: pnpm --filter @gsa/web test:e2e
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: failure()
+        with: { name: playwright-traces, path: apps/web/test-results, retention-days: 7 }

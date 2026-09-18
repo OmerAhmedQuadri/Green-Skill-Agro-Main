@@ -1,0 +1,20 @@
+@import "tailwindcss";
+
+/* Shared components ship as source; let Tailwind see their classes. */
+@source "../../../../packages/ui/src";
+
+@theme {
+  /* Brand green, anchored on UI-v1's #1b4332. */
+  --color-brand-50: #eef6f0;
+  --color-brand-100: #d6eadb;
+  --color-brand-200: #aed4b9;
+  --color-brand-300: #7fb892;
+  --color-brand-400: #4f9a6c;
+  --color-brand-500: #2f7d50;
+  --color-brand-600: #256641;
+  --color-brand-700: #1f5236;
+  --color-brand-800: #1b4332;
+  --color-brand-900: #133023;
+  /* Latin first; Arabic glyphs fall through to the Arabic face (ARCHITECTURE §6.7). */
+  --font-sans: var(--font-latin), var(--font-arabic), ui-sans-serif, system-ui, sans-serif;
+}

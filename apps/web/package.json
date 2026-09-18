@@ -1,0 +1,37 @@
+{
+  "name": "@gsa/web",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "next typegen && tsc --noEmit -p .",
+    "lint": "eslint .",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "@gsa/config": "workspace:*",
+    "@gsa/contracts": "workspace:*",
+    "@gsa/core": "workspace:*",
+    "@gsa/services": "workspace:*",
+    "@gsa/ui": "workspace:*",
+    "@tanstack/react-query": "5.102.8",
+    "lucide-react": "1.46.0",
+    "next": "16.3.5",
+    "next-intl": "4.14.5",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@gsa/eslint-config": "workspace:*",
+    "@gsa/tsconfig": "workspace:*",
+    "@playwright/test": "1.63.0",
+    "@tailwindcss/postcss": "4.3.3",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "tailwindcss": "4.3.3"
+  }
+}

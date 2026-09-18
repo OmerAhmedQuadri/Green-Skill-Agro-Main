@@ -1,0 +1,36 @@
+{
+  "name": "@gsa/services",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p .",
+    "lint": "eslint .",
+    "test": "vitest run --passWithNoTests",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "sync": "tsx --env-file-if-exists=../../.env src/scripts/sync.ts",
+    "seed": "tsx --env-file-if-exists=../../.env src/scripts/seed.ts",
+    "test:r2": "vitest run --config vitest.r2.config.ts"
+  },
+  "dependencies": {
+    "@gsa/config": "workspace:*",
+    "@gsa/contracts": "workspace:*",
+    "@gsa/core": "workspace:*",
+    "@gsa/db": "workspace:*",
+    "@node-rs/argon2": "2.2.1",
+    "aws4fetch": "1.0.20",
+    "drizzle-orm": "0.45.2",
+    "nodemailer": "10.0.10"
+  },
+  "devDependencies": {
+    "@gsa/eslint-config": "workspace:*",
+    "@gsa/tsconfig": "workspace:*",
+    "@types/nodemailer": "8.0.2",
+    "@types/pg": "8.23.1",
+    "pg": "8.23.0",
+    "tsx": "4.23.13"
+  }
+}

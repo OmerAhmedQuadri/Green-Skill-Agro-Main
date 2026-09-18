@@ -1,0 +1,59 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "globalPassThroughEnv": [
+    "DATABASE_URL",
+    "DATABASE_OWNER_URL",
+    "APP_URL",
+    "SESSION_SECRET",
+    "S3_*",
+    "SMTP_URL",
+    "MAIL_FROM",
+    "DEV_SEED_PASSWORD",
+    "LOG_LEVEL",
+    "NODE_ENV",
+    "CI",
+    "SCREENSHOT_DIR"
+  ],
+  "tasks": {
+    "build": {
+      "dependsOn": [
+        "^build"
+      ],
+      "outputs": [
+        ".next/**",
+        "!.next/cache/**",
+        "dist/**"
+      ]
+    },
+    "transit": {
+      "dependsOn": [
+        "^transit"
+      ]
+    },
+    "typecheck": {
+      "dependsOn": [
+        "transit"
+      ]
+    },
+    "lint": {
+      "dependsOn": [
+        "transit"
+      ]
+    },
+    "test": {
+      "dependsOn": [
+        "transit"
+      ]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "test:integration": {
+      "cache": false
+    },
+    "test:e2e": {
+      "cache": false
+    }
+  }
+}
