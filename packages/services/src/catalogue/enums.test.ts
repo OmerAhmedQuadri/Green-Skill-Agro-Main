@@ -1,4 +1,6 @@
-import { ATTRIBUTE_MODES, COUNT_UNITS, PACKAGING_TYPES, PRODUCT_ATTRIBUTES } from '@gsa/core';
+import {
+  ATTRIBUTE_MODES, COUNT_UNITS, PACKAGING_TYPES, PO_CLOSE_REASONS, PO_STATUSES, PRODUCT_ATTRIBUTES, STOCK_ACCOUNT_KINDS, STOCK_REFERENCE_TYPES,
+} from '@gsa/core';
 import { schema } from '@gsa/db';
 import { describe, expect, it } from 'vitest';
 
@@ -13,5 +15,15 @@ describe('database enums mirror core', () => {
 
   it('CAT-009: packaging types', () => {
     expect(schema.packagingType.enumValues).toEqual([...PACKAGING_TYPES]);
+  });
+
+  it('STK-013: stock accounts and movement references', () => {
+    expect(schema.stockAccountKind.enumValues).toEqual([...STOCK_ACCOUNT_KINDS]);
+    expect(schema.stockReferenceType.enumValues).toEqual([...STOCK_REFERENCE_TYPES]);
+  });
+
+  it('PO-001, PO-007: purchase order states and close reasons', () => {
+    expect(schema.poStatus.enumValues).toEqual([...PO_STATUSES]);
+    expect(schema.poCloseReason.enumValues).toEqual([...PO_CLOSE_REASONS]);
   });
 });

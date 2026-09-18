@@ -23,13 +23,16 @@
     "@node-rs/argon2": "2.2.1",
     "aws4fetch": "1.0.20",
     "drizzle-orm": "0.45.2",
-    "nodemailer": "10.0.10"
+    "nodemailer": "10.0.10",
+    "read-excel-file": "9.3.10",
+    "write-excel-file": "4.1.1"
   },
   "devDependencies": {
     "@gsa/eslint-config": "workspace:*",
     "@gsa/tsconfig": "workspace:*",
     "@types/nodemailer": "8.0.2",
     "@types/pg": "8.23.1",
+    "fast-check": "4.9.0",
     "pg": "8.23.0",
     "tsx": "4.23.13"
   }

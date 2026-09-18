@@ -43,6 +43,20 @@
       "when": 1789765911035,
       "tag": "0005_catalogue_vendors_pricing_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1789770638242,
+      "tag": "0006_stock_ledger_and_procurement",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1789770639727,
+      "tag": "0007_stock_ledger_guards",
+      "breakpoints": true
     }
   ]
 }

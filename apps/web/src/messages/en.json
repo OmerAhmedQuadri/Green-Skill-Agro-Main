@@ -300,7 +300,20 @@
     "INVALID_PRICE": "Enter a price above zero, with at most two decimals.",
     "CEILING_ABOVE_MAXIMUM": "A discount ceiling can't be above the absolute maximum discount.",
     "INVALID_SETTING": "That value isn't allowed for this setting.",
-    "INVALID_CURSOR": "The list has changed. Reload and try again."
+    "INVALID_CURSOR": "The list has changed. Reload and try again.",
+    "UNBALANCED_POSTING": "That stock movement doesn't balance. Nothing was changed.",
+    "INSUFFICIENT_STOCK": "There isn't enough stock for that.",
+    "INVALID_DATE": "Enter a real date as YYYY-MM-DD.",
+    "INVALID_LOT": "That LOT number is too long.",
+    "INVALID_SHELF_LIFE": "Enter a shelf life of at least one month.",
+    "EXPIRY_BEFORE_MANUFACTURE": "The expiry date must come after the manufacturing date.",
+    "EXPIRY_REQUIRED": "Enter an expiry date, or a manufacturing date with a shelf life.",
+    "INVALID_TRANSITION": "That step isn't possible from the order's current state.",
+    "REASON_REQUIRED": "Give a reason.",
+    "PO_NOT_EDITABLE": "Only a draft order can be edited.",
+    "PO_NOT_RECEIVABLE": "Goods can be received once the order is placed, and until it is closed.",
+    "SKU_NOT_ON_ORDER": "That SKU isn't on this order.",
+    "INVALID_IMPORT_FILE": "That file couldn't be read. Use the downloaded template, saved as .xlsx, under 2 MB."
   },
   "format": {
     "grams": "{value} g",

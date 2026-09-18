@@ -53,6 +53,19 @@ const STATUS: Record<ErrorCode, number> = {
   CEILING_ABOVE_MAXIMUM: 422,
   INVALID_SETTING: 422,
   INVALID_CURSOR: 400,
+  UNBALANCED_POSTING: 422,
+  INSUFFICIENT_STOCK: 409,
+  INVALID_DATE: 422,
+  INVALID_LOT: 422,
+  INVALID_SHELF_LIFE: 422,
+  EXPIRY_BEFORE_MANUFACTURE: 422,
+  EXPIRY_REQUIRED: 422,
+  INVALID_TRANSITION: 409,
+  REASON_REQUIRED: 422,
+  PO_NOT_EDITABLE: 409,
+  PO_NOT_RECEIVABLE: 409,
+  SKU_NOT_ON_ORDER: 422,
+  INVALID_IMPORT_FILE: 422,
 };
 
 export function problem(status: number, code: string, requestId: string, details?: Record<string, unknown>, headers?: HeadersInit): Response {
