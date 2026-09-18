@@ -16,4 +16,6 @@ export function sessionCookie(token: string) {
   };
 }
 
-export const clearedSessionCookie = { ...sessionCookie(''), maxAge: 0 };
+// A function, not a constant: configuration is read per request, never at build
+// time — `next build` must not need runtime secrets.
+export const clearedSessionCookie = () => ({ ...sessionCookie(''), maxAge: 0 });

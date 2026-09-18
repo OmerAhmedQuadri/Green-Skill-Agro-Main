@@ -6,6 +6,6 @@ import { clearedSessionCookie, SESSION_COOKIE } from '@/server/session-cookie';
 export const POST = publicRoute(async ({ meta }) => {
   const jar = await cookies();
   await identity.signOut(jar.get(SESSION_COOKIE)?.value, meta);
-  jar.set(clearedSessionCookie);
+  jar.set(clearedSessionCookie());
   return new Response(null, { status: 204 });
 });
