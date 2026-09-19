@@ -7,7 +7,9 @@
 # only; their password is DEV_SEED_PASSWORD from .env.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-export COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+# This app's own pnpm, in .tools — never a system-wide one another app may rely on.
+bash deploy/pnpm.sh --version >/dev/null
+export PATH=$PWD/.tools/node_modules/.bin:$PATH
 
 log() { printf '\n== %s\n' "$*"; }
 for key in S3_ACCESS_KEY S3_SECRET_KEY SMTP_URL; do

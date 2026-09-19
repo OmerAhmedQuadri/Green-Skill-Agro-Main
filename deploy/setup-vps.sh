@@ -4,7 +4,7 @@
 #
 #   bash /root/green-agro-app/deploy/setup-vps.sh app.greenskillagro.com
 #
-# Installs Docker for PostgreSQL; enables pnpm on the existing Node; writes the
+# Installs Docker for PostgreSQL; pnpm for this app only; writes the
 # app's .env with generated passwords; starts the database; adds the nginx site
 # and its certificate. The app itself runs under the existing pm2, beside the
 # other app. Safe to run again — it keeps what exists.
@@ -20,10 +20,9 @@ log() { printf '\n== %s\n' "$*"; }
 node -e 'process.exit(Number(process.versions.node.split(".")[0]) >= 24 ? 0 : 1)' \
   || { echo "Node 24 or later is needed (found $(node -v))."; exit 1; }
 
-log "pnpm, through Node's corepack"
-export COREPACK_ENABLE_DOWNLOAD_PROMPT=0
-corepack enable pnpm
-(cd "$APP_DIR" && pnpm --version >/dev/null)
+log "pnpm for this app only, in $APP_DIR/.tools — nothing system-wide changes"
+# deploy.sh installs the version package.json pins; this proves it works here.
+bash "$APP_DIR/deploy/pnpm.sh" --version
 
 log "Docker, for PostgreSQL"
 if ! command -v docker >/dev/null; then

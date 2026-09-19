@@ -81,3 +81,6 @@ next-env.d.ts
 *.md
 !/README.md
 .claude/
+
+# Deployment: this app's own pnpm on the VPS (deploy/pnpm.sh)
+.tools/
