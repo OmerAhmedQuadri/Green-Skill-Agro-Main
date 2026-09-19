@@ -7,11 +7,21 @@ export default defineConfig({
   testDir: 'e2e',
   globalSetup: './e2e/global-setup.ts',
   fullyParallel: false,
+  // One database and shared accounts (a manager whose permissions workflow P
+  // changes, photo uploads to one bucket): specs run one at a time (TESTING §3).
+  workers: 1,
   forbidOnly: Boolean(process.env.CI),
   retries: 0,
   reporter: [['list']],
   use: { baseURL: 'http://localhost:3000', trace: 'retain-on-failure' },
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } } }],
+  projects: [{
+    name: 'chromium',
+    use: {
+      ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 },
+      // NFR-003: a fake camera stands in for the phone's; permission is granted per context.
+      launchOptions: { args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'] },
+    },
+  }],
   webServer: [
     {
       command: 'pnpm start',

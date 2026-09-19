@@ -69,7 +69,7 @@ export async function markNotificationsRead(ctx: Ctx, input: { ids?: readonly st
     eq(notifications.userId, ctx.user.id), isNull(notifications.readAt),
     input.ids ? inArray(notifications.id, [...input.ids]) : undefined,
   )));
-  const [count] = await getDb().select({ n: sql<number>`count(*)::int` }).from(notifications)
+  const [count] = await (ctx.tx ?? getDb()).select({ n: sql<number>`count(*)::int` }).from(notifications)
     .where(and(eq(notifications.userId, ctx.user.id), isNull(notifications.readAt)));
   return { unread: count?.n ?? 0 };
 }

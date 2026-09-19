@@ -28,8 +28,9 @@ async function assertSeller(db: Executor, sellerId: string) {
 /** LIM-001, OQ-005: a seller's own ceiling overrides the global one. */
 export async function getCeilings(ctx: Ctx): Promise<Ceilings> {
   authorize(ctx, 'system.set_limits');
-  const db = getDb();
-  const [rows, sellers] = await Promise.all([db.select().from(ceilings), activeSellers(db)]);
+  const db = ctx.tx ?? getDb(); // after a change, the request's transaction sees it
+  const rows = await db.select().from(ceilings);
+  const sellers = await activeSellers(db);
   const find = (kind: CeilingKind, sellerId: string | null) =>
     (rows.find((r) => r.kind === kind && r.sellerId === sellerId)?.amount ?? null) as Money | null;
   const global: Pair = { CASH_IN_HAND: find('CASH_IN_HAND', null), VEHICLE_STOCK_VALUE: find('VEHICLE_STOCK_VALUE', null) };
@@ -74,8 +75,9 @@ export type CommissionRate = {
 /** SYS-008: each seller's commission rates, on target and below target. */
 export async function getCommissionRates(ctx: Ctx): Promise<CommissionRate[]> {
   authorize(ctx, 'targets.manage');
-  const db = getDb();
-  const [rates, sellers] = await Promise.all([db.select().from(commissionRates), activeSellers(db)]);
+  const db = ctx.tx ?? getDb();
+  const rates = await db.select().from(commissionRates);
+  const sellers = await activeSellers(db);
   return sellers.map((s) => {
     const rate = rates.find((r) => r.sellerId === s.id);
     return { sellerId: s.id as UserId, name: s.name, onTarget: (rate?.onTargetPercent ?? null) as Percent | null, belowTarget: (rate?.belowTargetPercent ?? null) as Percent | null };

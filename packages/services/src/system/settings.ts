@@ -34,7 +34,7 @@ const editableBy = (ctx: Ctx) => SETTING_KEYS.filter((k) => ctx.permissions.has(
 /** The settings the caller may change, with their current values (SYS-001..007). */
 export async function getSettings(ctx: Ctx): Promise<{ values: Partial<Settings>; editable: SettingKey[] }> {
   authorizeAny(ctx, GOVERNING);
-  const all = await readSettings();
+  const all = await readSettings(ctx.tx); // after an update, the request's transaction sees the change
   const editable = editableBy(ctx);
   return { values: Object.fromEntries(editable.map((k) => [k, all[k]])), editable };
 }
@@ -83,7 +83,7 @@ export async function updateSettings(
 
 export async function getToggles(ctx: Ctx): Promise<FeatureToggles> {
   authorize(ctx, 'system.configure');
-  return readToggles();
+  return readToggles(ctx.tx);
 }
 
 /** SYS-005: a switched-off feature is hidden from everyone, whatever their permissions. */

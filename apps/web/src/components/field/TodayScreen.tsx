@@ -125,7 +125,7 @@ export function TodayScreen({ name }: { name: string }) {
             <>
               <p className="text-lg font-semibold"><bdi dir="ltr">{vehicle.data.vehicle.registration}</bdi></p>
               <p className="text-sm">{t('vehicleStock', { packs: format.number(vehicle.data.packs), value: format.money(vehicle.data.value) })}</p>
-              {vehicle.data.flaggedCount > 0 ? <Badge tone="warning">{t('flaggedItems', { count: vehicle.data.flaggedCount })}</Badge> : null}
+              {vehicle.data.flaggedCount > 0 ? <Badge tone="warning" data-testid="flagged-items">{t('flaggedItems', { count: vehicle.data.flaggedCount })}</Badge> : null}
             </>
           ) : <p className="text-sm text-stone-600">{t('noVehicle')}</p>}
         </Card>

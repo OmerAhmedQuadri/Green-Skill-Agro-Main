@@ -5,6 +5,7 @@ import { anAccount, ctxFor } from '../../test/factories';
 import { aPhoto } from '../../test/media';
 import { aLoadedVehicle, aSeller, AWAY, aVehicle, captureFor, checkInAs, YARD } from '../../test/vehicles';
 import { submitWriteOff } from '../inventory';
+import { getDb } from '../runtime';
 import { listMyNotifications } from '../notifications';
 import { updateToggles } from '../system';
 import { assignVehicle, getVehicle } from '../vehicles';
@@ -36,6 +37,17 @@ describe('check-in and check-out (workflow G, ATT-001..007)', () => {
     const [row] = await ownerQuery<{ selfie: string | null; odo: string | null; lat: string }>(
       `select check_in_selfie_id as selfie, check_in_odo_photo_id as odo, check_in_lat as lat from attendance_sessions`);
     expect(row?.selfie && row.odo && row.lat).toBeTruthy();
+  });
+
+  it('ATT-001: inside a request\'s transaction (the HTTP path), check-in returns the day it just opened', async () => {
+    const { seller } = await sellerWithVehicle();
+    const selfieId = await aPhoto(seller.ctx, 'SELFIE');
+    const odometerPhotoId = await aPhoto(seller.ctx, 'ODOMETER');
+    await getDb().transaction(async (tx) => {
+      const today = await checkIn({ ...seller.ctx, tx }, { location: YARD, selfieId, odometer: 10_001, odometerPhotoId });
+      expect(today.day?.status).toBe('OPEN');
+      expect(today.live?.checkInOdometer).toBe(10_001);
+    });
   });
 
   it('ATT-001: with a vehicle the odometer is required; the location always; the selfie must be the seller\'s own', async () => {

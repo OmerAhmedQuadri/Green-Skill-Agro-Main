@@ -1,4 +1,4 @@
-import { expect, type Browser, type Page } from '@playwright/test';
+import { expect, type Browser, type BrowserContextOptions, type Page } from '@playwright/test';
 
 export const PASSWORD = process.env.DEV_SEED_PASSWORD ?? '';
 export const shot = (name: string) => `${process.env.SCREENSHOT_DIR ?? 'test-results/screenshots'}/${name}.png`;
@@ -30,7 +30,7 @@ export async function sessionPage(browser: Browser, account: SessionAccount, loc
 }
 
 type Json = Record<string, unknown>;
-const post = async (page: Page, origin: string, path: string, data: Json) => {
+export const post = async (page: Page, origin: string, path: string, data: Json) => {
   const response = await page.request.post(`/api/v1${path}`, { headers: { origin, 'idempotency-key': crypto.randomUUID() }, data });
   if (!response.ok()) throw new Error(`${path}: ${response.status()} ${await response.text()}`);
   return (await response.json()) as Json & { id: string; version: number };
@@ -70,4 +70,67 @@ export async function aJpeg(page: Page): Promise<Buffer> {
     return btoa(String.fromCharCode(...bytes));
   });
   return Buffer.from(base64, 'base64');
+}
+
+/** The warehouse yard in Riyadh, where sellers check in. */
+export const YARD = { latitude: 24.7136, longitude: 46.6753, accuracy: 15 };
+
+/** A seller's phone: small screen, touch, a (fake) camera and GPS they have allowed (NFR-002..004). */
+export const PHONE: BrowserContextOptions = {
+  viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true,
+  permissions: ['camera', 'geolocation'], geolocation: YARD,
+};
+
+/**
+ * A new seller for this run, signed in on a phone. Fresh accounts keep runs
+ * independent — a closing count is once a day, and shared sellers would carry
+ * yesterday's vehicle and today's check-in into the next run.
+ */
+export async function freshSeller(browser: Browser, admin: Page, origin: string, locale: 'en' | 'ar', name: string) {
+  const email = `${name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${Date.now()}@e2e.local`;
+  const created = (await post(admin, origin, '/users', { role: 'SELLER', name, email, locale })) as unknown as { account: { id: string }; temporaryPassword: string };
+  const context = await browser.newContext({ baseURL: origin, ...PHONE });
+  await context.addCookies([{ name: 'NEXT_LOCALE', value: locale, url: origin }]);
+  const signedIn = await context.request.post('/api/v1/auth/sign-in', { headers: { origin }, data: { identifier: email, password: created.temporaryPassword } });
+  expect(signedIn.ok(), 'fresh seller signs in').toBe(true);
+  const changed = await context.request.post('/api/v1/auth/password/change', {
+    headers: { origin }, data: { currentPassword: created.temporaryPassword, newPassword: `${PASSWORD}-${Date.now()}` },
+  });
+  expect(changed.status(), 'fresh seller sets a password').toBe(204);
+  return { id: created.account.id, name, page: await context.newPage() };
+}
+
+/** A vehicle with a unique registration, created through the API. */
+export async function aVehicle(admin: Page, origin: string, odometer = 10_000) {
+  const registration = `E2E ${String(Date.now()).slice(-7)}`;
+  return (await post(admin, origin, '/vehicles', { registration, description: 'E2E pickup', odometer })) as unknown as { id: string; registration: string };
+}
+
+export async function batchOf(page: Page, skuId: string, lot: string): Promise<string> {
+  const stock = (await (await page.request.get(`/api/v1/stock/${skuId}`)).json()) as { batches: { batchId: string; lotNumber: string | null }[] };
+  const batch = stock.batches.find((b) => b.lotNumber === lot);
+  if (!batch) throw new Error(`no batch ${lot}`);
+  return batch.batchId;
+}
+
+export async function positionsOf(page: Page, skuId: string) {
+  return ((await (await page.request.get(`/api/v1/stock/${skuId}`)).json()) as { sku: { positions: { warehouse: number; vehicles: number; total: number } } }).sku.positions;
+}
+
+/** Takes a photo with the live camera component labelled `label` — the fake camera in tests. */
+export async function takePhoto(page: Page, container: string, m: { camera: { open: string; take: string; ready: string } }) {
+  const box = page.locator(`[id="${container}"]`);
+  await box.getByRole('button', { name: m.camera.open }).click();
+  await expect(box.locator('video')).toBeVisible();
+  await expect.poll(() => box.locator('video').evaluate((v: HTMLVideoElement) => v.videoWidth)).toBeGreaterThan(0);
+  await box.getByRole('button', { name: m.camera.take }).click();
+  await expect(box.getByText(m.camera.ready)).toBeVisible({ timeout: 30_000 });
+  return box.locator('img');
+}
+
+/** One batch's packs by place — other specs may move other batches of the same SKU meanwhile. */
+export async function batchPositions(page: Page, skuId: string, lot: string) {
+  const stock = (await (await page.request.get(`/api/v1/stock/${skuId}`)).json()) as { batches: { lotNumber: string | null; positions: { warehouse: number; vehicles: number; total: number } }[] };
+  const b = stock.batches.find((x) => x.lotNumber === lot)?.positions;
+  return b ? { warehouse: b.warehouse, vehicles: b.vehicles, total: b.total } : null;
 }

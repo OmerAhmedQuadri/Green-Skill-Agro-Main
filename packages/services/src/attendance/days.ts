@@ -81,15 +81,16 @@ export const totalsOf = (sessions: readonly SessionView[]) => {
 /** The seller's day: the live one (perhaps begun yesterday) or today's. */
 export async function getToday(ctx: Ctx): Promise<Today> {
   authorize(ctx, 'attendance.self');
-  const db = getDb();
+  // After a check-in, the request's own transaction holds rows no other connection can see yet.
+  const db = ctx.tx ?? getDb();
   const live = await liveSession(db, ctx.user.id);
   const today = businessDate(ctx.now);
   const dayFor = (where: SQL) => db.select({ day: attendanceDays, registration: vehicles.registration }).from(attendanceDays)
     .leftJoin(vehicles, eq(vehicles.id, attendanceDays.vehicleId))
     .where(and(eq(attendanceDays.sellerId, ctx.user.id), where)).orderBy(desc(attendanceDays.workDate)).limit(1);
-  const [[current], assignment, toggles] = await Promise.all([
-    dayFor(eq(attendanceDays.workDate, live?.workDate ?? today)), currentAssignment(db, ctx.user.id), readToggles(db),
-  ]);
+  const [current] = await dayFor(eq(attendanceDays.workDate, live?.workDate ?? today));
+  const assignment = await currentAssignment(db, ctx.user.id);
+  const toggles = await readToggles(db);
   // A trip that ended this morning still shows until the day is closed overnight.
   const [day] = current || live ? [current] : await dayFor(and(eq(attendanceDays.status, 'CHECKED_OUT'), lt(attendanceDays.workDate, today)) as SQL);
   const workDate = day?.day.workDate ?? today;
