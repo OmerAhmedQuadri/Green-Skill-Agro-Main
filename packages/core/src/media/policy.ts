@@ -27,8 +27,8 @@ type Policy = {
   readonly contentTypes: readonly string[];
   /** Live in-app camera only — no gallery — so an old photo can't pass as today's (ARCHITECTURE §6.4). */
   readonly liveCameraOnly: boolean;
-  /** Purged after this many days; null keeps it (OQ-009). TODO(M1): read from system settings. */
-  readonly retentionDays: number | null;
+  /** OQ-009: staff photographs are purged after the Admin's retention period (`media.photo_retention_days`); evidence is kept. */
+  readonly purged: boolean;
   /** Object-key prefix, so a bucket lifecycle rule can target a kind (ADR-0020). */
   readonly prefix: string;
 };
@@ -37,13 +37,13 @@ const PHOTO = ['image/jpeg'] as const;
 const PHOTO_OR_DOCUMENT = ['image/jpeg', 'image/png', 'application/pdf'] as const;
 
 export const MEDIA_POLICY: Readonly<Record<MediaKind, Policy>> = {
-  SELFIE:             { upload: 'attendance.self', read: ['attendance.view', 'attendance.manage'], contentTypes: PHOTO, liveCameraOnly: true, retentionDays: 90, prefix: 'selfie' },
-  ODOMETER:           { upload: 'attendance.self', read: ['attendance.view', 'attendance.manage'], contentTypes: PHOTO, liveCameraOnly: true, retentionDays: 90, prefix: 'odometer' },
-  STOREFRONT:         { upload: 'stores.onboard', read: ['stores.view_all', 'stores.approve'], contentTypes: PHOTO, liveCameraOnly: false, retentionDays: null, prefix: 'storefront' },
-  WRITE_OFF_EVIDENCE: { upload: 'inventory.submit_write_off', read: ['inventory.approve_write_off'], contentTypes: PHOTO, liveCameraOnly: false, retentionDays: null, prefix: 'write-off' },
+  SELFIE:             { upload: 'attendance.self', read: ['attendance.view', 'attendance.manage'], contentTypes: PHOTO, liveCameraOnly: true, purged: true, prefix: 'selfie' },
+  ODOMETER:           { upload: 'attendance.self', read: ['attendance.view', 'attendance.manage'], contentTypes: PHOTO, liveCameraOnly: true, purged: true, prefix: 'odometer' },
+  STOREFRONT:         { upload: 'stores.onboard', read: ['stores.view_all', 'stores.approve'], contentTypes: PHOTO, liveCameraOnly: false, purged: false, prefix: 'storefront' },
+  WRITE_OFF_EVIDENCE: { upload: 'inventory.submit_write_off', read: ['inventory.approve_write_off'], contentTypes: PHOTO, liveCameraOnly: false, purged: false, prefix: 'write-off' },
   // A bank confirmation is often a screenshot or a PDF (ARCHITECTURE §6.4).
-  DEPOSIT_SLIP:       { upload: 'cash.submit_settlement', read: ['cash.approve_settlement', 'cash.view_cash_in_hand'], contentTypes: PHOTO_OR_DOCUMENT, liveCameraOnly: false, retentionDays: null, prefix: 'deposit-slip' },
-  TRANSPORT_SLIP:     { upload: 'sales.fulfil_dispatch', read: ['sales.fulfil_dispatch', 'sales.view_all'], contentTypes: PHOTO_OR_DOCUMENT, liveCameraOnly: false, retentionDays: null, prefix: 'transport-slip' },
+  DEPOSIT_SLIP:       { upload: 'cash.submit_settlement', read: ['cash.approve_settlement', 'cash.view_cash_in_hand'], contentTypes: PHOTO_OR_DOCUMENT, liveCameraOnly: false, purged: false, prefix: 'deposit-slip' },
+  TRANSPORT_SLIP:     { upload: 'sales.fulfil_dispatch', read: ['sales.fulfil_dispatch', 'sales.view_all'], contentTypes: PHOTO_OR_DOCUMENT, liveCameraOnly: false, purged: false, prefix: 'transport-slip' },
 };
 
 export function isMediaKind(value: string): value is MediaKind {
@@ -74,8 +74,7 @@ export function sniffContentType(head: Uint8Array): string | null {
   return null;
 }
 
-/** Whole days since an instant, for retention. */
-export function isPastRetention(kind: MediaKind, createdAt: Date, now: Date): boolean {
-  const days = MEDIA_POLICY[kind].retentionDays;
-  return days !== null && now.getTime() - createdAt.getTime() >= days * 86_400_000;
+/** OQ-009: a purged kind older than the retention period, in whole days. */
+export function isPastRetention(kind: MediaKind, createdAt: Date, now: Date, retentionDays: number): boolean {
+  return MEDIA_POLICY[kind].purged && now.getTime() - createdAt.getTime() >= retentionDays * 86_400_000;
 }

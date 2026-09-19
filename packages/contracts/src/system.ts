@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { MoneyString, PercentString } from './shared';
+import { Limit, MoneyString, PercentString } from './shared';
 
 /** Keys and values are validated against the settings register in core (ADR-0024). */
 export const UpdateSettingsRequest = z.object({
@@ -18,4 +18,10 @@ export const SetCeilingRequest = z.object({ kind: CeilingKind, sellerId: z.uuid(
 /** SYS-008: null removes the seller's rates. */
 export const SetCommissionRateRequest = z.object({
   rate: z.object({ onTarget: PercentString, belowTarget: PercentString }).nullable(),
+});
+
+/** AUD-003 */
+export const ListAuditLogQuery = z.object({
+  action: z.string().trim().max(100).optional(), entityType: z.string().trim().max(60).optional(), entityId: z.string().trim().max(100).optional(),
+  actorId: z.uuid().optional(), cursor: z.string().max(500).optional(), limit: Limit.optional(),
 });

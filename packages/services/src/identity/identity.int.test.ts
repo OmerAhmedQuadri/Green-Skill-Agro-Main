@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { anAccount, ctxFor, meta, PASSWORD } from '../../test/factories';
 import { ownerQuery } from '../../test/db';
 import { getDb } from '../runtime';
+import { listAuditLog } from '../system';
 import {
   applyPresetToAccount, changeAccountPermissions, changeMyPassword, createAccount, getMe, listAccounts, resolveSession,
   setAccountStatus, signIn,
@@ -133,6 +134,18 @@ describe('account administration (USR)', () => {
     expect(row?.after.permissions).toContain('cash.approve_settlement');
   });
 
+  it('AUD-003, AUD-001: the audit log is read by Super Admin and Admin only — who, what and when, newest first', async () => {
+    const admin = await anAccount('ADMIN');
+    const manager = await anAccount('MANAGER');
+    await changeAccountPermissions(await ctxFor(admin), manager.id, [{ permission: 'cash.approve_settlement', granted: true }]);
+    const page = await listAuditLog(await ctxFor(admin), { action: 'permissions_changed' });
+    expect(page.items[0]).toMatchObject({ action: 'identity.permissions_changed', actor: { id: admin.id }, entityId: manager.id });
+    expect(page.items[0]?.occurredAt).toBeInstanceOf(Date);
+    expect(await code(listAuditLog(await ctxFor(manager, { overrides: new Map([['users.manage_staff', true]]) })))).toBe('FORBIDDEN');
+    const superAdmin = await anAccount('SUPER_ADMIN');
+    expect((await listAuditLog(await ctxFor(superAdmin), { entityId: manager.id })).items.length).toBeGreaterThan(0);
+  });
+
   it('USR-014: applying a preset replaces every Config grant', async () => {
     const admin = await anAccount('ADMIN');
     const manager = await anAccount('MANAGER');
@@ -190,6 +203,7 @@ describe('Phase 1 has no branch scoping (USR-012, ADR-0004)', () => {
       'system_settings', 'feature_toggles', 'ceilings', 'commission_rates',
       'purchase_order_lines', 'purchase_order_events', 'goods_receipt_lines', 'document_sequences', 'stock_flags',
       'attendance_breaks', 'vehicle_loadout_lines', 'vehicle_return_lines', 'closing_stock_lines', 'payment_allocations',
+      'sale_lines', 'sale_line_allocations',
     ]);
     const rows = await ownerQuery<{ table_name: string; has_branch: boolean }>(`
       select t.table_name, bool_or(c.column_name = 'branch_id') as has_branch
