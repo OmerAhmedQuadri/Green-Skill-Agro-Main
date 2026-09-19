@@ -1,5 +1,5 @@
 export { postStockMovements, findOrCreateBatch, positionOf, batchRefs, type BatchRef } from './ledger';
-export { heldQuantity, availableOf } from './holds';
+export { heldQuantity, availableOf, saleHeld, saleHoldsByBatch } from './holds';
 export {
   listStock, getSkuStock, searchLots, type SkuStock, type BatchStock, type LotMatch, type Positions, type Incoming,
 } from './stock';

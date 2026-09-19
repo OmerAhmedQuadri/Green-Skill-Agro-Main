@@ -58,9 +58,17 @@ const walk = (dir) => {
 };
 for (const dir of ['apps', 'packages']) walk(join(root, dir));
 const tested = new Set();
+// A requirement named only by pure unit tests in packages/core may have its
+// rule but no feature — AUD-003 had a permission test and no audit screen.
+const beyondCore = new Set();
 for (const file of testFiles) {
+  const unitOnly = file.includes('/packages/core/');
   for (const m of readFileSync(file, 'utf8').matchAll(/\b(?:it|test)(?:\.\w+)?\(\s*(['"`])(.*?)\1/g)) {
-    for (const id of m[2].matchAll(/[A-Z0-9]{2,4}-\d{3}/g)) if (known.has(id[0])) tested.add(id[0]);
+    for (const id of m[2].matchAll(/[A-Z0-9]{2,4}-\d{3}/g)) {
+      if (!known.has(id[0])) continue;
+      tested.add(id[0]);
+      if (!unitOnly) beyondCore.add(id[0]);
+    }
   }
 }
 
@@ -73,6 +81,8 @@ for (const [key, { name, ids }] of milestones) {
   const mark = ids.length === 0 ? '·' : missing.length === 0 ? '✓' : '…';
   console.log(`${mark} ${name.padEnd(56)} ${String(ids.length - missing.length).padStart(3)}/${String(ids.length).padEnd(3)} tested`);
   if (missing.length && (only || missing.length <= 12)) console.log(`    untested: ${missing.join(', ')}`);
+  const thin = ids.filter((id) => tested.has(id) && !beyondCore.has(id));
+  if (thin.length && (only || missing.length === 0)) console.log(`    core unit tests only — check the feature exists: ${thin.join(', ')}`);
 }
 if (!only) {
   const claimed = new Set([...milestones.values()].flatMap((m) => m.ids).concat([...byDesign]));

@@ -1,7 +1,7 @@
 import { schema } from '@gsa/db';
 import { and, asc, eq, lte } from 'drizzle-orm';
 import type { Executor } from '../platform';
-import { getDb } from '../runtime';
+import { getBlobStore, getDb } from '../runtime';
 import type { Mailer } from './mailer';
 import { renderEmail, type EmailTemplate, type Locale } from './templates';
 
@@ -39,8 +39,14 @@ export async function deliverPendingEmails(mailer: Mailer, now: Date, batch = 20
     for (const row of due) {
       const attempt = row.attempts + 1;
       try {
-        const rendered = renderEmail(row.template as EmailTemplate, row.locale, row.params as Record<string, string>);
-        await mailer.send({ to: row.toAddress, ...rendered });
+        const { attachments, ...rendered } = renderEmail(row.template as EmailTemplate, row.locale, row.params as Record<string, string>);
+        const files = [];
+        for (const a of attachments ?? []) {
+          const content = await getBlobStore().get(a.storageKey);
+          if (!content) throw new Error(`attachment ${a.filename} is not in storage`);
+          files.push({ filename: a.filename, content, contentType: a.contentType });
+        }
+        await mailer.send({ to: row.toAddress, ...rendered, attachments: files });
         await tx.update(emailOutbox).set({ status: 'SENT', attempts: attempt, sentAt: now, lastError: null }).where(eq(emailOutbox.id, row.id));
         sent += 1;
       } catch (error) {

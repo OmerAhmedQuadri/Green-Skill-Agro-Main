@@ -6,7 +6,7 @@ import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import { currentAssignment } from '../attendance';
 import { sizeOf } from '../catalogue';
 import { authorize, type Ctx } from '../context';
-import { computeExpiryFlags } from '../inventory';
+import { computeExpiryFlags, saleHoldsByBatch } from '../inventory';
 import type { Executor } from '../platform';
 import { getDb } from '../runtime';
 
@@ -31,7 +31,7 @@ export type VehicleBatch = {
   readonly product: Named; readonly variety: Named | null; readonly size: PackSize; readonly countUnit: CountUnit;
   readonly lotNumber: string | null; readonly expiresOn: string | null; readonly firstReceivedAt: Date;
   /** Whole packs on the vehicle. */ readonly packs: number;
-  /** Packs held by a write-off awaiting a decision (ADR-0029). */ readonly heldPacks: number;
+  /** Packs held by a write-off (ADR-0029) or a sale (PRC-011) awaiting a decision. */ readonly heldPacks: number;
   readonly unitPrice: Money | null;
 };
 
@@ -55,10 +55,12 @@ export async function vehicleBatches(db: Executor, vehicleIds?: readonly string[
   const pending = await db.select({ vehicleId: writeOffs.vehicleId, batchId: writeOffs.batchId, q: sql<string>`sum(${writeOffs.requestedQuantity})` }).from(writeOffs)
       .where(and(eq(writeOffs.status, 'SUBMITTED'), eq(writeOffs.accountKind, 'VEHICLE'), inArray(writeOffs.batchId, rows.map((r) => r.batch.id))))
       .groupBy(writeOffs.vehicleId, writeOffs.batchId);
+  const selling = await saleHoldsByBatch(db, [...new Set(rows.map((r) => r.vehicleId))]);
   return rows.map((r) => {
     const size = sizeOf(r.sku);
     const units = unitsOf(size);
-    const hold = pending.find((p) => p.vehicleId === r.vehicleId && p.batchId === r.batch.id)?.q ?? '0';
+    const hold = [pending.find((p) => p.vehicleId === r.vehicleId && p.batchId === r.batch.id)?.q, selling.find((p) => p.vehicleId === r.vehicleId && p.batchId === r.batch.id)?.q]
+      .reduce((sum, q) => sum.plus(dec(q ?? '0')), dec('0')).toFixed(3);
     return {
       vehicleId: r.vehicleId, batchId: r.batch.id as BatchId, skuId: r.sku.id as SkuId, code: r.sku.code,
       productId: r.sku.productId, varietyId: r.sku.varietyId,

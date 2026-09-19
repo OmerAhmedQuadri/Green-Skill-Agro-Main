@@ -1,7 +1,8 @@
 'use client';
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Phone } from 'lucide-react';
+import { Phone, ShoppingCart } from 'lucide-react';
+import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { useState, type FormEvent } from 'react';
 import { Alert, Badge, Button, Card, Field, Input, Select } from '@gsa/ui';
@@ -62,6 +63,7 @@ export function FieldStoreScreen({ id }: { id: string }) {
       {s.status === 'REJECTED' && s.decisionReason ? <Alert>{t('rejectedBecause', { reason: s.decisionReason })}</Alert> : null}
 
       <Card className="p-4"><CreditPanel credit={s.credit} /></Card>
+      {s.status === 'ACTIVE' ? <Link href={`/field/sell/${id}`} className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-md bg-brand-800 text-base font-medium text-white"><ShoppingCart className="size-5" aria-hidden />{t('newSale')}</Link> : null}
 
       {pay.error ? <Alert>{errorText(pay.error)}</Alert> : null}
       {paying ? (
@@ -82,7 +84,7 @@ export function FieldStoreScreen({ id }: { id: string }) {
           </form>
         </Card>
       ) : s.status === 'ACTIVE' && s.credit.outstanding !== '0.00'
-        ? <Button block onClick={() => setPaying(true)}>{t('collect')}</Button> : null}
+        ? <Button block variant="secondary" onClick={() => setPaying(true)}>{t('collect')}</Button> : null}
 
       <Card className="space-y-2 p-4 text-sm">
         <div className="flex items-center justify-between">

@@ -33,9 +33,9 @@ describe('media policy (SECURITY §5, DATA-MODEL §5.8)', () => {
 
   it('OQ-009: selfies and odometer photos are purged after 90 days; business records are kept', () => {
     const created = new Date('2026-01-01T00:00:00Z');
-    expect(isPastRetention('SELFIE', created, new Date('2026-03-31T23:59:59Z'))).toBe(false);
-    expect(isPastRetention('SELFIE', created, new Date('2026-04-01T00:00:00Z'))).toBe(true);
-    expect(isPastRetention('DEPOSIT_SLIP', created, new Date('2030-01-01T00:00:00Z'))).toBe(false);
+    expect(isPastRetention('SELFIE', created, new Date('2026-03-31T23:59:59Z'), 90)).toBe(false);
+    expect(isPastRetention('SELFIE', created, new Date('2026-04-01T00:00:00Z'), 90)).toBe(true);
+    expect(isPastRetention('DEPOSIT_SLIP', created, new Date('2030-01-01T00:00:00Z'), 90)).toBe(false);
   });
 
   it('ADR-0020: keys are prefixed by kind, then month', () => {

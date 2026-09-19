@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { blobs } from '../../test/blobs';
 import { ownerQuery } from '../../test/db';
 import { anAccount, ctxFor } from '../../test/factories';
+import { updateSettings } from '../system';
 import { confirmUpload, mediaDownloadUrl, purgeMedia, requestUpload } from './uploads';
 
 const JPEG = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0, 16, 74, 70, 73, 70, 0, 1, 1, 0, 0, 1, 0xff, 0xd9]);
@@ -102,5 +103,16 @@ describe('photo upload pipeline (ARCHITECTURE §6.4, SECURITY §5)', () => {
     expect(await status(storefront.mediaId)).toBe('READY');
     expect(blobs.keys()).toEqual([await keyOf(storefront.mediaId)]);
     expect(await code(mediaDownloadUrl(seller, selfie))).toBe('NOT_FOUND');
+  });
+
+  it('OQ-009: the Admin sets how long staff photographs are kept', async () => {
+    const admin = await ctxFor(await anAccount('ADMIN'));
+    await updateSettings(admin, [{ key: 'media.photo_retention_days', value: 30 }]);
+    const seller = await ctxFor(await anAccount('SELLER'), { now: new Date('2026-01-01T08:00:00Z') });
+    const selfie = await uploadSelfie(seller);
+    await confirmUpload(seller, selfie);
+    expect(await purgeMedia(new Date('2026-01-30T09:00:00Z'))).toEqual({ expired: 0, abandoned: 0 });
+    expect(await purgeMedia(new Date('2026-01-31T09:00:00Z'))).toEqual({ expired: 1, abandoned: 0 });
+    expect(await code(updateSettings(admin, [{ key: 'media.photo_retention_days', value: 3 }]))).toBe('INVALID_SETTING');
   });
 });

@@ -16,7 +16,7 @@ type Spec =
 
 type Entry = Spec & { readonly permission: PermissionCode; readonly group: SettingGroup };
 
-export const SETTING_GROUPS = ['discounts', 'returns', 'expiry', 'operations', 'attendance', 'stores', 'credit', 'limits'] as const;
+export const SETTING_GROUPS = ['discounts', 'documents', 'returns', 'expiry', 'operations', 'attendance', 'stores', 'credit', 'limits'] as const;
 export type SettingGroup = (typeof SETTING_GROUPS)[number];
 
 export const SETTINGS = {
@@ -25,6 +25,8 @@ export const SETTINGS = {
   'discount.item_ceiling': { kind: 'percent', default: '5', permission: 'pricing.set_discount_ceilings', group: 'discounts' },
   'discount.absolute_maximum': { kind: 'percent', default: '25', permission: 'pricing.set_discount_ceilings', group: 'discounts' },
   'discount.approval_expiry_minutes': { kind: 'integer', min: 5, max: 240, default: 30, permission: 'pricing.set_discount_ceilings', group: 'discounts' },
+  // DOC-004: whether the seller must send the delivery document, may, or cannot — a copy is kept regardless (DOC-005)
+  'documents.sending': { kind: 'choice', options: ['OPTIONAL', 'COMPULSORY', 'DISABLED'], default: 'OPTIONAL', permission: 'system.configure', group: 'documents' },
   // RET-002..006, SYS-003
   'returns.uncleared_payment_allowed': { kind: 'boolean', default: true, permission: 'returns.set_rules', group: 'returns' },
   'returns.uncleared_payment_window_days': { kind: 'integer', min: 1, max: 365, default: 30, permission: 'returns.set_rules', group: 'returns' },
@@ -39,6 +41,8 @@ export const SETTINGS = {
   // ATT-012 (ADR-0032): odometer readings outside these are flagged for review, never refused
   'attendance.odometer_tolerance_km': { kind: 'integer', min: 0, max: 100, default: 5, permission: 'system.configure', group: 'attendance' },
   'attendance.max_session_km': { kind: 'integer', min: 50, max: 2000, default: 500, permission: 'system.configure', group: 'attendance' },
+  // OQ-009: selfies and odometer photographs are purged after this many days; the derived figures are kept
+  'media.photo_retention_days': { kind: 'integer', min: 7, max: 3650, default: 90, permission: 'system.configure', group: 'attendance' },
   // STO-008, OQ-006: likely duplicates — near, or a similar name within the wider radius
   'stores.duplicate_radius_m': { kind: 'integer', min: 10, max: 5000, default: 150, permission: 'system.configure', group: 'stores' },
   'stores.duplicate_name_radius_m': { kind: 'integer', min: 100, max: 20000, default: 1000, permission: 'system.configure', group: 'stores' },

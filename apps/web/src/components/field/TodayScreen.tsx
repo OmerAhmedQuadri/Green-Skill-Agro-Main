@@ -1,7 +1,8 @@
 'use client';
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, ChevronRight, Coffee, LogIn, LogOut, PackageCheck, Truck } from 'lucide-react';
+import { sumMoney } from '@gsa/core';
+import { AlertTriangle, Banknote, ChevronRight, Coffee, LogIn, LogOut, PackageCheck, Store, Truck } from 'lucide-react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { useState } from 'react';
@@ -11,13 +12,15 @@ import { useDuration } from '@/lib/duration';
 import { useFormat } from '@/lib/format';
 import { useCommand, useErrorText } from '@/lib/hooks';
 import { keys } from '@/lib/query-keys';
+import type { StoreSummary } from '@/components/stores/types';
 import { CaptureForm } from './CaptureForm';
 import type { Handover, Load, MyVehicle, Today } from './types';
 
 /**
  * The seller's home (workflow G, EXP-007): the day — checked in or not, on a
- * break, hours so far — and the vehicle: its stock, items flagged near expiry,
- * and anything waiting for the seller to confirm.
+ * break, hours so far — the vehicle: its stock, items flagged near expiry,
+ * and anything waiting for the seller to confirm — what their stores owe
+ * (TGT-004's dues) and the cash they hold (CSH-001, SAL-007).
  */
 export function TodayScreen({ name }: { name: string }) {
   const t = useTranslations('field');
@@ -30,6 +33,8 @@ export function TodayScreen({ name }: { name: string }) {
   const vehicle = useQuery({ queryKey: keys.myVehicle, queryFn: () => api<MyVehicle>('/stock/my-vehicle') });
   const loads = useQuery({ queryKey: keys.loads({ status: 'ISSUED' }), queryFn: () => api<Load[]>('/vehicle-loads?status=ISSUED') });
   const handovers = useQuery({ queryKey: keys.handovers, queryFn: () => api<Handover[]>('/vehicle-handovers') });
+  const cash = useQuery({ queryKey: keys.cashInHand, queryFn: () => api<{ cashInHand: string }>('/cash/me') });
+  const portfolio = useQuery({ queryKey: keys.stores(), queryFn: () => api<StoreSummary[]>('/stores') });
   const breakCmd = useCommand((action: 'start' | 'end', key) => api<Today>(`/attendance/breaks/${action}`, { method: 'POST', body: {}, idempotencyKey: key }),
     { onSuccess: (d) => queryClient.setQueryData(keys.today, d) });
 
@@ -130,6 +135,24 @@ export function TodayScreen({ name }: { name: string }) {
           ) : <p className="text-sm text-stone-600">{t('noVehicle')}</p>}
         </Card>
       </Link>
+
+      {portfolio.data && portfolio.data.length > 0 ? (
+        <Link href="/field/stores" className="block">
+          <Card className="space-y-2 p-4" data-testid="dues-card">
+            <div className="flex items-center gap-2 text-sm font-medium text-stone-600"><Store className="size-4" aria-hidden />{t('dues')}</div>
+            <p className="text-lg font-semibold">{format.money(sumMoney(portfolio.data.map((p) => p.credit.outstanding)))}</p>
+            <p className="text-sm">{t('pastDueTotal', { amount: format.money(sumMoney(portfolio.data.map((p) => p.credit.pastDue))) })}</p>
+            {portfolio.data.some((p) => p.credit.blocked) ? <Badge tone="danger">{t('blockedStores', { count: portfolio.data.filter((p) => p.credit.blocked).length })}</Badge> : null}
+          </Card>
+        </Link>
+      ) : null}
+
+      {cash.data ? (
+        <Card className="space-y-1 p-4" data-testid="cash-card">
+          <div className="flex items-center gap-2 text-sm font-medium text-stone-600"><Banknote className="size-4" aria-hidden />{t('cashInHand')}</div>
+          <p className="text-lg font-semibold" data-testid="cash-in-hand">{format.money(cash.data.cashInHand)}</p>
+        </Card>
+      ) : null}
     </div>
   );
 }

@@ -24,6 +24,9 @@ export function createMemoryBlobStore() {
     readPrefix(key, bytes) {
       return Promise.resolve(objects.get(key)?.body.slice(0, bytes) ?? new Uint8Array());
     },
+    get(key) {
+      return Promise.resolve(objects.get(key)?.body.slice() ?? null);
+    },
     put(key, body, contentType) {
       objects.set(key, { body: typeof body === 'string' ? new TextEncoder().encode(body) : body, contentType });
       return Promise.resolve();

@@ -80,6 +80,8 @@ export type BlockReason =
 export type CreditStatus = {
   readonly outstanding: Money; readonly pastDue: Money; readonly limit: Money; readonly available: Money;
   readonly blocked: boolean; readonly reasons: readonly BlockReason[]; readonly overridden: boolean;
+  /** An unused same-day override: it releases the next sale from a credit block or the limit (OQ-018). */
+  readonly overrideAvailable: boolean;
 };
 
 /**
@@ -111,6 +113,6 @@ export function creditStatus(input: {
   const available = dec(input.limit).minus(outstanding);
   return {
     outstanding: toMoney(outstanding), pastDue: toMoney(pastDue), limit: input.limit, available: toMoney(available.gt(0) ? available : new Dec(0)),
-    blocked: all.length > 0, reasons: [...reasons, ...creditReasons], overridden,
+    blocked: all.length > 0, reasons: [...reasons, ...creditReasons], overridden, overrideAvailable: input.overrideActive && reasons.length === 0,
   };
 }

@@ -18,6 +18,11 @@ done
 
 log "Code";          git pull --ff-only
 log "Dependencies";  pnpm install --frozen-lockfile
+# ADR-0019, ADR-0037: the worker prints delivery documents in Chromium — the
+# version this playwright-core expects, with its system libraries (quick when
+# already installed). Browsers go under /root/.cache/ms-playwright.
+log "Chromium";      DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=l \
+                       pnpm --filter @gsa/worker exec playwright-core install --with-deps chromium
 log "Build";         pnpm build
 log "Database";      docker compose --env-file .env -f deploy/docker-compose.staging.yml up -d --wait
                      pnpm db:migrate && pnpm db:sync

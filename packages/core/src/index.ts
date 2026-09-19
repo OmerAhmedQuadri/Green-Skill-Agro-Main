@@ -14,3 +14,5 @@ export * from './vehicles';
 export * from './attendance';
 export * from './notifications';
 export * from './stores';
+export * from './sales';
+export * from './cash';

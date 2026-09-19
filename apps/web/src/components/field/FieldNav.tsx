@@ -1,6 +1,6 @@
 'use client';
 
-import { CalendarCheck, Store, Truck } from 'lucide-react';
+import { CalendarCheck, Receipt, Store, Truck } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
@@ -10,6 +10,7 @@ const ITEMS = [
   { href: '/field/today', key: 'today', icon: CalendarCheck },
   { href: '/field/vehicle', key: 'myVehicle', icon: Truck },
   { href: '/field/stores', key: 'stores', icon: Store },
+  { href: '/field/sales', key: 'sales', icon: Receipt },
 ] as const;
 
 /** The seller's bottom bar: thumb-reachable destinations (NFR-002). */
@@ -17,7 +18,7 @@ export function FieldNav() {
   const t = useTranslations('nav');
   const pathname = usePathname();
   return (
-    <nav className="sticky bottom-0 grid grid-cols-3 border-t border-stone-200 bg-white">
+    <nav className="sticky bottom-0 grid grid-cols-4 border-t border-stone-200 bg-white">
       {ITEMS.map(({ href, key, icon: Icon }) => {
         const active = pathname.startsWith(href);
         return (

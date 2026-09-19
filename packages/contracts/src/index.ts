@@ -28,3 +28,4 @@ export * as vehicles from './vehicles';
 export * as attendance from './attendance';
 export * as notifications from './notifications';
 export * as stores from './stores';
+export * as sales from './sales';

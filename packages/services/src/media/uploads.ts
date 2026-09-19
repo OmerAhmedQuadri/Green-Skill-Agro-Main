@@ -7,6 +7,7 @@ import { and, eq, lte } from 'drizzle-orm';
 import { authorize, type Ctx } from '../context';
 import { inTx, writeAudit, type Executor } from '../platform';
 import { defaultBranchId, getBlobStore, getDb } from '../runtime';
+import { readSettings } from '../system';
 import type { PresignedUpload } from './blob-store';
 
 const { mediaAssets } = schema;
@@ -101,8 +102,8 @@ export async function mediaDownloadUrl(ctx: Ctx, mediaId: string): Promise<strin
 }
 
 /**
- * The daily sweep (worker job `media.retention`): purges photos past their
- * retention (OQ-009) and uploads requested but never confirmed. Rows stay as
+ * The daily sweep (worker job `media.retention`): purges photos past the
+ * Admin's retention period (OQ-009) and uploads requested but never confirmed. Rows stay as
  * a record; the bytes go. Idempotent.
  */
 export async function purgeMedia(now: Date, batch = 500): Promise<{ expired: number; abandoned: number }> {
@@ -114,11 +115,12 @@ export async function purgeMedia(now: Date, batch = 500): Promise<{ expired: num
   };
 
   let expired = 0;
-  for (const kind of MEDIA_KINDS.filter((k) => MEDIA_POLICY[k].retentionDays !== null)) {
-    const cutoff = new Date(now.getTime() - (MEDIA_POLICY[kind].retentionDays ?? 0) * 86_400_000);
+  const retentionDays = (await readSettings(db))['media.photo_retention_days'];
+  for (const kind of MEDIA_KINDS.filter((k) => MEDIA_POLICY[k].purged)) {
+    const cutoff = new Date(now.getTime() - retentionDays * 86_400_000);
     const due = await db.select().from(mediaAssets)
       .where(and(eq(mediaAssets.kind, kind), eq(mediaAssets.status, 'READY'), lte(mediaAssets.createdAt, cutoff))).limit(batch);
-    for (const asset of due.filter((a) => isPastRetention(a.kind, a.createdAt, now))) { await purge(asset); expired += 1; }
+    for (const asset of due.filter((a) => isPastRetention(a.kind, a.createdAt, now, retentionDays))) { await purge(asset); expired += 1; }
   }
 
   const stale = await db.select().from(mediaAssets)

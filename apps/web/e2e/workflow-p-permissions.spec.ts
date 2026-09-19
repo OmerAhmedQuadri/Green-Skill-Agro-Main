@@ -9,7 +9,7 @@ import { sessionPage } from './helpers';
  * the Arabic run clicks the real Arabic text.
  */
 for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
-  test(`Workflow P (${locale}) — USR-005, USR-007, USR-008, USR-010, USR-014: an Admin configures a manager; the manager's console follows`, async ({ browser, baseURL }) => {
+  test(`Workflow P (${locale}) — USR-005, USR-007, USR-008, USR-010, USR-011, USR-014, AUD-003: an Admin configures a manager; the manager's console follows; the change is audited`, async ({ browser, baseURL }) => {
     const origin = baseURL ?? '';
 
     // The Admin works in this run's language.
@@ -61,5 +61,14 @@ for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
     await expect(manager.getByRole('link', { name: m.nav.users })).toHaveCount(0);
     expect((await manager.goto('/console/users'))?.status()).toBe(404);
 
+    // USR-011, AUD-003: each change is in the audit log with the acting Admin and the time — for Admins only.
+    await page.goto('/console/audit-log');
+    await page.getByLabel(m.audit.entityId).fill(account.id);
+    const changes = page.getByTestId('audit-identity.permissions_changed');
+    await expect(changes.first()).toBeVisible();
+    expect(await changes.count()).toBeGreaterThanOrEqual(2);
+    const me = (await (await page.request.get('/api/v1/me')).json()) as { name: string };
+    await expect(changes.first()).toContainText(me.name);
+    expect((await manager.goto('/console/audit-log'))?.status()).toBe(404);
   });
 }
