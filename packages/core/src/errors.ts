@@ -119,7 +119,9 @@ export type ErrorCode =
   | 'REPLACEMENT_ONLY_DEFECTIVE'
   | 'REPLACEMENT_NEEDS_VEHICLE'
   | 'REFUND_NEEDS_SELLER'
-  | 'REFUND_EXCEEDS_CASH_IN_HAND';
+  | 'REFUND_EXCEEDS_CASH_IN_HAND'
+  | 'SETTLEMENT_ABOVE_CASH_IN_HAND'
+  | 'RECEIVER_REQUIRED';
 
 export class DomainError extends Error {
   readonly code: ErrorCode;

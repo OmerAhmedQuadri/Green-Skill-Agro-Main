@@ -5,7 +5,7 @@ import type { EmailMessage } from './mailer';
  * place text is built on the server; interface text stays in the web app's
  * message files. Arabic renders right-to-left.
  */
-export type EmailTemplate = 'password-reset' | 'delivery-document';
+export type EmailTemplate = 'password-reset' | 'delivery-document' | 'ceiling-breached';
 export type Locale = 'en' | 'ar';
 
 /** A stored file to attach, fetched when the email is sent (DOC-003). */
@@ -57,6 +57,30 @@ const DELIVERY_DOCUMENT = {
   },
 } as const;
 
+/** LIM-002: the seller's warning, in their own language. Nothing is blocked (LIM-005). */
+const CEILING_BREACHED = {
+  en: {
+    subject: 'You are over your limit',
+    lines: (p: Readonly<Record<string, string>>) => [
+      `Hello ${p.name ?? ''},`,
+      p.kind === 'CASH_IN_HAND'
+        ? `You are holding ${p.amount ?? ''} SAR in cash, above your limit of ${p.ceiling ?? ''} SAR. Please bank it or hand it to a manager.`
+        : `The stock on your vehicle is worth ${p.amount ?? ''} SAR, above your limit of ${p.ceiling ?? ''} SAR. Please return some to the warehouse.`,
+      'You can keep working as usual; this is a reminder, not a block.',
+    ],
+  },
+  ar: {
+    subject: 'تجاوزت الحد المسموح به',
+    lines: (p: Readonly<Record<string, string>>) => [
+      `مرحباً ${p.name ?? ''}،`,
+      p.kind === 'CASH_IN_HAND'
+        ? `بحوزتك ${p.amount ?? ''} ر.س. نقدًا، وهو أعلى من حدك البالغ ${p.ceiling ?? ''} ر.س. يرجى إيداعه أو تسليمه إلى مدير.`
+        : `قيمة المخزون في مركبتك ${p.amount ?? ''} ر.س.، وهي أعلى من حدك البالغ ${p.ceiling ?? ''} ر.س. يرجى إعادة بعضه إلى المستودع.`,
+      'يمكنك متابعة عملك كالمعتاد؛ هذا تنبيه وليس منعًا.',
+    ],
+  },
+} as const;
+
 export function renderEmail(template: EmailTemplate, locale: Locale, params: Readonly<Record<string, string>>): Rendered {
   switch (template) {
     case 'delivery-document': {
@@ -69,6 +93,15 @@ export function renderEmail(template: EmailTemplate, locale: Locale, params: Rea
         text: order.map((l) => DELIVERY_DOCUMENT[l].lines(params).join('\n\n')).join('\n\n—\n\n'),
         html: layout(locale, html),
         attachments: params.attachmentKey ? [{ filename: params.attachmentName ?? `${number}.pdf`, storageKey: params.attachmentKey, contentType: 'application/pdf' }] : [],
+      };
+    }
+    case 'ceiling-breached': {
+      const t = CEILING_BREACHED[locale];
+      const lines = t.lines(params);
+      return {
+        subject: t.subject,
+        text: lines.join('\n\n'),
+        html: layout(locale, lines.map((line, i) => `<p${i === 2 ? ' style="color:#78716c;font-size:13px"' : ''}>${escape(line)}</p>`).join('')),
       };
     }
     case 'password-reset': {

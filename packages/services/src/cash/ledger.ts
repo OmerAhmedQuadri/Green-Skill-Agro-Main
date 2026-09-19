@@ -2,6 +2,7 @@ import { dec, DomainError, toMoney, type Money } from '@gsa/core';
 import { schema } from '@gsa/db';
 import { eq, sql } from 'drizzle-orm';
 import { authorize, type Ctx } from '../context';
+import { syncFlagsFor } from './ceilings';
 import type { Executor, Tx } from '../platform';
 import { getDb } from '../runtime';
 
@@ -18,16 +19,22 @@ export async function postCashCollection(
     sellerId: input.sellerId, occurredAt: ctx.now, entryType: 'COLLECTION', amount: input.amount,
     referenceType: input.referenceType, referenceId: input.referenceId, branchId: ctx.branchId, createdBy: ctx.user.id,
   });
+  // LIM-002: collecting can take the seller over their cash ceiling.
+  await syncFlagsFor(tx, ctx, input.sellerId);
 }
 
 /**
  * RET-008, OQ-020 (ADR-0039): the seller hands cash back to a store on a
  * credit note — out of their cash in hand, never more than they hold.
  */
+/** One seller's cash ledger at a time: refunds and settlements read then write it. */
+export const lockCash = (tx: Executor, sellerId: string) =>
+  tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`cash-ledger:${sellerId}`}, 0))`);
+
 export async function postCashRefund(
   tx: Tx, ctx: Ctx, input: { sellerId: string; amount: Money; referenceType: 'RETURN'; referenceId: string },
 ): Promise<string> {
-  await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`cash-ledger:${input.sellerId}`}, 0))`);
+  await lockCash(tx, input.sellerId);
   const held = await cashInHand(tx, input.sellerId);
   if (dec(input.amount).gt(dec(held))) throw new DomainError('REFUND_EXCEEDS_CASH_IN_HAND', { amount: input.amount, cashInHand: held });
   const [row] = await tx.insert(cashLedgerEntries).values({

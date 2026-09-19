@@ -124,6 +124,8 @@ const STATUS: Record<ErrorCode, number> = {
   REPLACEMENT_NEEDS_VEHICLE: 409,
   REFUND_NEEDS_SELLER: 409,
   REFUND_EXCEEDS_CASH_IN_HAND: 409,
+  SETTLEMENT_ABOVE_CASH_IN_HAND: 409,
+  RECEIVER_REQUIRED: 422,
 };
 
 export function problem(status: number, code: string, requestId: string, details?: Record<string, unknown>, headers?: HeadersInit): Response {
