@@ -1,9 +1,9 @@
 import { expect, test } from '@playwright/test';
 import { signIn } from './helpers';
 
-// Exercises the real R2 development bucket and its CORS policy, so it runs only
-// when .env points at R2 (never in CI — TESTING §3). Uploads land under selfie/
-// and are removed by the 90-day retention sweep.
+// Exercises the real R2 test bucket and its CORS policy, so it runs only when
+// S3_ENDPOINT points at R2: locally from .env, in CI from the R2_* secrets under
+// the ci/ prefix (TESTING §6). Uploads are removed by the retention sweep.
 const usesR2 = /\.r2\.cloudflarestorage\.com$/.test(process.env.S3_ENDPOINT ?? '');
 
 test.describe.serial('M0 — photo upload pipeline in a real browser (ARCHITECTURE §6.4)', () => {

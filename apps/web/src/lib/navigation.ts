@@ -5,7 +5,7 @@ import type { PermissionCode } from '@gsa/core';
  * permission that makes it useful — absent, never disabled. Later milestones
  * add their modules here.
  */
-export type NavIcon = 'dashboard' | 'users' | 'catalogue' | 'vendors' | 'pricing' | 'settings' | 'purchaseOrders' | 'incoming' | 'stock';
+export type NavIcon = 'dashboard' | 'users' | 'catalogue' | 'vendors' | 'pricing' | 'settings' | 'purchaseOrders' | 'incoming' | 'stock' | 'writeOffs' | 'expiry';
 type Can = (p: ReadonlySet<PermissionCode>) => boolean;
 type NavItem = { href: string; key: NavIcon; icon: NavIcon; visible: Can };
 
@@ -18,6 +18,8 @@ export const canSeePricing = any('pricing.manage_price_lists', 'pricing.set_disc
 export const canSeePurchaseOrders = any('procurement.view', 'procurement.manage_po', 'procurement.approve_po', 'inventory.receive_goods');
 export const canSeeIncoming = any('procurement.view', 'procurement.manage_po', 'procurement.approve_po', 'inventory.view_all_stock', 'inventory.receive_goods');
 export const canSeeStock = any('inventory.view_all_stock');
+export const canSeeWriteOffs = any('inventory.submit_write_off', 'inventory.approve_write_off');
+export const canSeeExpiry = any('inventory.view_all_stock', 'inventory.manage_expiry');
 export const canSeeSettings = any('system.configure', 'system.manage_templates', 'system.set_limits', 'returns.set_rules', 'targets.manage');
 
 export const CONSOLE_NAV: readonly NavItem[] = [
@@ -28,6 +30,8 @@ export const CONSOLE_NAV: readonly NavItem[] = [
   { href: '/console/purchase-orders', key: 'purchaseOrders', icon: 'purchaseOrders', visible: canSeePurchaseOrders },
   { href: '/console/incoming', key: 'incoming', icon: 'incoming', visible: canSeeIncoming },
   { href: '/console/stock', key: 'stock', icon: 'stock', visible: canSeeStock },
+  { href: '/console/write-offs', key: 'writeOffs', icon: 'writeOffs', visible: canSeeWriteOffs },
+  { href: '/console/expiry', key: 'expiry', icon: 'expiry', visible: canSeeExpiry },
   { href: '/console/users', key: 'users', icon: 'users', visible: canAdministerUsers },
   { href: '/console/settings', key: 'settings', icon: 'settings', visible: canSeeSettings },
 ];

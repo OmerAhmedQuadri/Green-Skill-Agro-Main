@@ -28,3 +28,46 @@ export async function sessionPage(browser: Browser, account: SessionAccount, loc
   await context.addCookies([{ name: 'NEXT_LOCALE', value: locale, url: baseURL }]);
   return context.newPage();
 }
+
+type Json = Record<string, unknown>;
+const post = async (page: Page, origin: string, path: string, data: Json) => {
+  const response = await page.request.post(`/api/v1${path}`, { headers: { origin, 'idempotency-key': crypto.randomUUID() }, data });
+  if (!response.ok()) throw new Error(`${path}: ${response.status()} ${await response.text()}`);
+  return (await response.json()) as Json & { id: string; version: number };
+};
+
+/**
+ * Stock in the warehouse, received through the real purchase-order path, for
+ * specs that start from stock on hand. Needs a page signed in as an Admin.
+ */
+export async function receiveStock(page: Page, origin: string, input: { code: string; packs: number; lot: string; expiresOn?: string }) {
+  const skus = (await (await page.request.get(`/api/v1/skus?search=${encodeURIComponent(input.code)}`)).json()) as { items: { id: string; code: string }[] };
+  const sku = skus.items.find((s) => s.code === input.code);
+  const vendors = (await (await page.request.get('/api/v1/vendor-codes')).json()) as { id: string; code: string }[];
+  if (!sku || !vendors[0]) throw new Error(`no SKU ${input.code} or vendor — run pnpm db:seed`);
+  let po = await post(page, origin, '/purchase-orders', { vendorId: vendors[0].id, lines: [{ skuId: sku.id, orderedPacks: input.packs, expectedUnitCost: '10' }] });
+  for (const step of ['submit', 'approve', 'place']) po = await post(page, origin, `/purchase-orders/${po.id}/transitions/${step}`, { version: po.version });
+  const line = (po.lines as { id: string }[])[0];
+  await post(page, origin, `/purchase-orders/${po.id}/receipts`, {
+    version: po.version,
+    lines: [{ purchaseOrderLineId: line?.id, packs: input.packs, lotNumber: input.lot, manufacturedOn: '2026-01-10', expiresOn: input.expiresOn ?? '2027-12-31' }],
+  });
+  return { skuId: sku.id };
+}
+
+/** A real JPEG, encoded by the browser from a canvas — what a phone camera hands the app. */
+export async function aJpeg(page: Page): Promise<Buffer> {
+  const base64 = await page.evaluate(async () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 64;
+    canvas.height = 48;
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('no canvas');
+    context.fillStyle = '#7f1d1d';
+    context.fillRect(0, 0, 64, 48);
+    const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('encode'))), 'image/jpeg', 0.8));
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    return btoa(String.fromCharCode(...bytes));
+  });
+  return Buffer.from(base64, 'base64');
+}

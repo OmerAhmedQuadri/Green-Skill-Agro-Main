@@ -1,5 +1,7 @@
-# Continuous integration (TESTING §6). No secrets: automated tests use the
-# in-memory blob store and Mailpit, so nothing touches R2 or a real mailbox.
+# Continuous integration (TESTING §6). Unit and integration tests use the
+# in-memory blob store and Mailpit. The end-to-end job uploads photos to the R2
+# test bucket for real, under the ci/ key prefix, with keys from the R2_*
+# repository secrets; nothing else in CI holds a secret.
 # Actions are pinned to commit SHAs — a moved tag cannot change what runs.
 name: CI
 
@@ -66,6 +68,13 @@ jobs:
     needs: check
     runs-on: ubuntu-24.04
     timeout-minutes: 25
+    env:
+      # Photos go to the R2 test bucket, kept apart under ci/; the retention job clears them.
+      S3_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+      S3_BUCKET: ${{ secrets.R2_BUCKET }}
+      S3_ACCESS_KEY: ${{ secrets.R2_ACCESS_KEY }}
+      S3_SECRET_KEY: ${{ secrets.R2_SECRET_KEY }}
+      S3_KEY_PREFIX: ci/
     services:
       postgres:
         image: postgres:17.11
@@ -78,6 +87,8 @@ jobs:
         image: axllent/mailpit:v1.31.1
         ports: ['1025:1025', '8025:8025']
     steps:
+      - name: R2 test bucket configured
+        run: test -n "$S3_ACCESS_KEY" || { echo "::error::Add the R2_ENDPOINT, R2_BUCKET, R2_ACCESS_KEY and R2_SECRET_KEY repository secrets (TESTING §6)"; exit 1; }
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -92,7 +103,6 @@ jobs:
       - run: pnpm db:seed
       - run: pnpm --filter @gsa/web build
       - run: pnpm --filter @gsa/web exec playwright install --with-deps chromium
-      # The R2 media spec skips itself here: S3_ENDPOINT is not R2 (TESTING §3).
       - run: pnpm --filter @gsa/web test:e2e
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: failure()
