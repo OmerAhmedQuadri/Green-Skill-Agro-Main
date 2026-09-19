@@ -2,6 +2,7 @@ import {
   ATTRIBUTE_MODES, COUNT_UNITS, PACKAGING_TYPES, PO_CLOSE_REASONS, PO_STATUSES, PRODUCT_ATTRIBUTES, STOCK_ACCOUNT_KINDS, STOCK_REFERENCE_TYPES,
   WRITE_OFF_REASONS, WRITE_OFF_STATUSES, VEHICLE_STATUSES, HANDOVER_STATUSES, LOAD_STATUSES, VEHICLE_RETURN_REASONS,
   ATTENDANCE_DAY_STATUSES, ATTENDANCE_SESSION_STATUSES, ODOMETER_FLAGS, CLOSING_STATUSES, NOTIFICATION_KINDS, STORE_STATUSES, CREDIT_MODES,
+  SALE_STATUSES, SALE_CANCEL_REASONS, DISCOUNT_REQUEST_STATUSES, DELIVERY_DOCUMENT_STATUSES, DOCUMENT_SEND_CHANNELS, CASH_LEDGER_ENTRY_TYPES,
 } from '@gsa/core';
 import { schema } from '@gsa/db';
 import { describe, expect, it } from 'vitest';
@@ -52,5 +53,14 @@ describe('database enums mirror core', () => {
   it('STO-001, CRD-001: store states and credit modes', () => {
     expect(schema.storeStatus.enumValues).toEqual([...STORE_STATUSES]);
     expect(schema.creditMode.enumValues).toEqual([...CREDIT_MODES]);
+  });
+
+  it('SAL-007, PRC-015, DOC-003, CSH-001: sale, discount request, delivery document and cash ledger enums', () => {
+    expect(schema.saleStatus.enumValues).toEqual([...SALE_STATUSES]);
+    expect(schema.saleCancelReason.enumValues).toEqual([...SALE_CANCEL_REASONS]);
+    expect(schema.discountRequestStatus.enumValues).toEqual([...DISCOUNT_REQUEST_STATUSES]);
+    expect(schema.deliveryDocumentStatus.enumValues).toEqual([...DELIVERY_DOCUMENT_STATUSES]);
+    expect(schema.documentSendChannel.enumValues).toEqual([...DOCUMENT_SEND_CHANNELS]);
+    expect(schema.cashLedgerEntryType.enumValues).toEqual([...CASH_LEDGER_ENTRY_TYPES]);
   });
 });

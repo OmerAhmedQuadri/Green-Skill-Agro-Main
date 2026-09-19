@@ -92,7 +92,9 @@
     "attendance": "Attendance",
     "closingStock": "Closing stock",
     "myVehicle": "My vehicle",
-    "stores": "Stores"
+    "stores": "Stores",
+    "sales": "Sales",
+    "auditLog": "Audit log"
   },
   "dashboard": {
     "welcome": "Welcome, {name}",
@@ -183,7 +185,11 @@
     "closingFlagged": "Your count differs from the system. Your manager will review it.",
     "declaredPacks": "{count, plural, one {# pack} other {# packs}}",
     "difference": "{count, plural, one {# difference} other {# difference}}",
-    "declare": "Declare closing stock"
+    "declare": "Declare closing stock",
+    "dues": "Your stores owe",
+    "pastDueTotal": "{amount} past due",
+    "blockedStores": "{count, plural, one {# store blocked} other {# stores blocked}}",
+    "cashInHand": "Cash in hand"
   },
   "users": {
     "title": "Users",
@@ -441,8 +447,19 @@
     "DUPLICATE_STORE_WARNING": "This may already be registered.",
     "CREDIT_MODE_UNAVAILABLE": "That credit cycle is not offered, or it needs its number of days.",
     "PAYMENT_EXCEEDS_BALANCE": "That is more than the store owes.",
-    "NOT_BLOCKED": "This store is not blocked.",
-    "STORE_NOT_ACTIVE": "This store is not active."
+    "STORE_NOT_ACTIVE": "This store is not active.",
+    "EMPTY_SALE": "Add at least one item.",
+    "DUPLICATE_LINE": "Each item can appear only once.",
+    "NO_PRICE": "This item has no price for this store.",
+    "DISCOUNT_NOT_PERMITTED": "You are not allowed to give discounts.",
+    "DISCOUNT_ABOVE_CEILING": "A discount is above its ceiling. Give a reason to request a manager's approval.",
+    "DISCOUNT_ABOVE_MAXIMUM": "That discount is above the absolute maximum and can't be requested.",
+    "DISCOUNT_RAISED": "An approval can lower a discount, never raise it.",
+    "CREDIT_BLOCKED": "This store is blocked on credit.",
+    "CREDIT_LIMIT_EXCEEDED": "This sale is above the store's available credit.",
+    "PAYMENT_REQUIRED": "A bill-to-bill store pays at the sale — choose how.",
+    "DOCUMENT_NOT_READY": "The delivery document is not ready yet.",
+    "DOCUMENT_SENDING_DISABLED": "Sending delivery documents is switched off."
   },
   "format": {
     "grams": "{value} g",
@@ -599,7 +616,8 @@
       "limits": "Limits",
       "attendance": "Attendance",
       "stores": "Stores",
-      "credit": "Credit"
+      "credit": "Credit",
+      "documents": "Delivery documents"
     },
     "fields": {
       "discount": {
@@ -643,6 +661,12 @@
         "custom_enabled": "Offer a custom cycle",
         "grace_days": "Days of grace after a cycle closes",
         "week_closes_on": "A weekly cycle closes on"
+      },
+      "documents": {
+        "sending": "Sending the delivery document"
+      },
+      "media": {
+        "photo_retention_days": "Days to keep selfies and odometer photos"
       }
     },
     "choices": {
@@ -655,7 +679,10 @@
       "WEDNESDAY": "Wednesday",
       "THURSDAY": "Thursday",
       "FRIDAY": "Friday",
-      "SATURDAY": "Saturday"
+      "SATURDAY": "Saturday",
+      "OPTIONAL": "Optional at the sale",
+      "COMPULSORY": "Compulsory before leaving the sale",
+      "DISABLED": "Switched off — a copy is still kept"
     },
     "range": "Between {min} and {max}.",
     "toggles": "Features",
@@ -1003,7 +1030,12 @@
       "STORE_APPROVED": "Store {name} was approved — you can sell to it.",
       "STORE_REJECTED": "Store {name} was rejected: {reason}",
       "STORE_ASSIGNED": "Store {name} is now yours to manage.",
-      "CREDIT_OVERRIDE_GRANTED": "Store {name} is released for one sale today: {reason}"
+      "CREDIT_OVERRIDE_GRANTED": "Store {name} is released for one sale today: {reason}",
+      "DISCOUNT_APPROVAL_REQUESTED": "{seller} asks for a discount at {store} ({total} SAR) and is waiting.",
+      "DISCOUNT_APPROVED": "Your discount at {store} was approved — complete the sale.",
+      "DISCOUNT_REDUCED": "Your discount at {store} was approved lower — complete the sale.",
+      "DISCOUNT_REJECTED": "Your discount at {store} was rejected.",
+      "DISCOUNT_EXPIRED": "Your pending sale at {store} expired and its items were released."
     }
   },
   "vehicles": {
@@ -1300,6 +1332,146 @@
     "adjustAmount": "Amount (e.g. 250.00 or -50.00)",
     "adjustDueOn": "Due date",
     "adjustReason": "Reason",
-    "postAdjustment": "Post correction"
+    "postAdjustment": "Post correction",
+    "newSale": "New sale",
+    "overrideHint": "For a blocked store, or for one sale above its limit."
+  },
+  "sales": {
+    "title": "Sales",
+    "subtitle": "Every sale, and the discount requests waiting for a decision.",
+    "loading": "Loading…",
+    "saving": "Saving…",
+    "mySales": "My sales",
+    "noSales": "No sales yet.",
+    "startFromStore": "A sale starts from the store's page.",
+    "toStores": "Go to my stores",
+    "awaitingDecision": "Waiting for a decision",
+    "sellTitle": "Sale to {store}",
+    "notWorking": "You can't sell right now:",
+    "goToToday": "Go to today",
+    "cannotSell": "No items can be added until the block is cleared or a manager releases the store.",
+    "releasedForOne": "A manager released this store for one sale today.",
+    "items": "Items on your vehicle",
+    "noItems": "There is nothing on your vehicle to sell.",
+    "noPrice": "No price",
+    "sellable": "{count} available",
+    "packsFor": "Packs of {code}",
+    "discountFor": "Discount % on {code}",
+    "ceilingNote": "Ceiling {ceiling}%",
+    "aboveCeiling": "Above the {ceiling}% ceiling — needs approval",
+    "aboveMaximum": "Discounts above {max}% can't be requested.",
+    "invalidDiscount": "Enter a percentage from 0 to 100.",
+    "tooMany": "Only {count} available.",
+    "sameDiscount": "Same discount on every line (%)",
+    "apply": "Apply",
+    "subtotal": "Subtotal",
+    "discount": "Discount",
+    "total": "Total",
+    "onAccountNote": "Added to the store's balance, due by its cycle. Credit available: {amount}.",
+    "overLimit": "The total is above the credit available ({amount}). Reduce the order, or ask a manager to release the store for one sale.",
+    "requestTitle": "A manager must approve this discount",
+    "requestHint": "The sale waits for the decision and the items stay reserved on your vehicle. You can withdraw it at any time.",
+    "requestReason": "Why this discount?",
+    "requestApproval": "Request approval",
+    "billToBillNote": "Bill to bill: the store pays the full amount now.",
+    "complete": "Complete sale",
+    "waitingTitle": "Waiting for a manager's decision",
+    "waitingHint": "The items are reserved on your vehicle. The request expires at {time}.",
+    "approvedTitle": "Approved — complete the sale at the store.",
+    "reducedTitle": "Approved at a lower discount — complete the sale at the store.",
+    "decisionComment": "Manager's note: {comment}",
+    "released": "Nothing was recorded, and the reserved items are back on sale.",
+    "freshSale": "Start a fresh sale within the ceiling",
+    "withdraw": "Withdraw",
+    "withdrawConfirm": "Withdraw? The sale is cancelled and the items are released.",
+    "keepWaiting": "Keep it",
+    "paidWith": "Paid: {method}, {amount}",
+    "overrideUsed": "Released for this sale by {name}: {reason}",
+    "done": "Done",
+    "sendRequired": "Send the delivery document to the store before you finish.",
+    "documentTitle": "Delivery document",
+    "notTaxInvoice": "Not a tax invoice",
+    "documentPreparing": "Preparing the document…",
+    "documentFailed": "The document could not be prepared yet. It will be tried again.",
+    "openPdf": "Open PDF",
+    "share": "Share",
+    "email": "Email",
+    "emailTo": "Email address",
+    "sendEmail": "Send",
+    "shareUnavailable": "This phone can't share files from here. Open the PDF, or send it by email.",
+    "sendingDisabled": "Sending is switched off. A copy is kept with the sale.",
+    "sentShare": "Shared from the phone at {time}",
+    "sentEmail": "Emailed to {to} at {time}",
+    "item": "Item",
+    "packs": "Packs",
+    "unitPrice": "Price",
+    "asked": "Asked",
+    "amount": "Amount",
+    "batchLine": "Batch {lot}, expires {expiry}: {packs}",
+    "when": "When",
+    "store": "Store",
+    "seller": "Seller",
+    "document": "Document",
+    "discountOf": "{amount} discount",
+    "expiresAt": "Expires {time}",
+    "soldBy": "{seller} · {time}",
+    "requestTitleConsole": "Discount request",
+    "requestedAt": "Asked at",
+    "decidedBy": "{name}, {time}",
+    "comment": "Comment",
+    "commentHint": "Needed to lower or reject.",
+    "decideHint": "Approve as asked, lower any line, or reject. The seller is waiting at the store.",
+    "approvedFor": "Approved % for {code}",
+    "askedCeiling": "Asked {asked}% · ceiling {ceiling}%",
+    "approve": "Approve",
+    "reject": "Reject",
+    "lines": "Items",
+    "details": "Details",
+    "vehicle": "Vehicle",
+    "payment": "Payment",
+    "onAccount": "On account",
+    "override": "Override",
+    "outcome": "Outcome",
+    "statuses": {
+      "PENDING_DISCOUNT_APPROVAL": "Waiting for approval",
+      "DISCOUNT_APPROVED": "Approved — to complete",
+      "PENDING_DELIVERY": "Waiting for delivery",
+      "COMPLETED": "Completed",
+      "CANCELLED": "Cancelled"
+    },
+    "cancelReasons": {
+      "REJECTED": "Rejected",
+      "EXPIRED": "Expired",
+      "WITHDRAWN": "Withdrawn"
+    },
+    "cancelledTitles": {
+      "REJECTED": "The discount was rejected.",
+      "EXPIRED": "The request expired without a decision.",
+      "WITHDRAWN": "You withdrew this sale."
+    },
+    "approvalStatuses": {
+      "PENDING": "Waiting",
+      "APPROVED": "Approved as asked",
+      "REDUCED": "Approved at a lower discount",
+      "REJECTED": "Rejected",
+      "EXPIRED": "Expired",
+      "WITHDRAWN": "Withdrawn"
+    }
+  },
+  "audit": {
+    "title": "Audit log",
+    "subtitle": "Every sensitive action: who did it, what changed, and when. Records cannot be edited or deleted.",
+    "action": "Action",
+    "entityId": "Record ID",
+    "when": "When",
+    "who": "Who",
+    "entity": "Record",
+    "change": "Change",
+    "show": "Show",
+    "before": "Before",
+    "after": "After",
+    "system": "System",
+    "empty": "Nothing recorded matches.",
+    "more": "Show more"
   }
 }

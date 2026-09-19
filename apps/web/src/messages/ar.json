@@ -92,7 +92,9 @@
     "attendance": "الحضور",
     "closingStock": "مخزون نهاية اليوم",
     "myVehicle": "مركبتي",
-    "stores": "المتاجر"
+    "stores": "المتاجر",
+    "sales": "المبيعات",
+    "auditLog": "سجل التدقيق"
   },
   "dashboard": {
     "welcome": "مرحباً، {name}",
@@ -183,7 +185,11 @@
     "closingFlagged": "عدّك يختلف عن النظام. سيراجعه مديرك.",
     "declaredPacks": "{count, plural, one {عبوة واحدة} two {عبوتان} few {# عبوات} many {# عبوة} other {# عبوة}}",
     "difference": "فرق {count}",
-    "declare": "الإقرار بمخزون نهاية اليوم"
+    "declare": "الإقرار بمخزون نهاية اليوم",
+    "dues": "مستحقات متاجرك",
+    "pastDueTotal": "{amount} متأخرة السداد",
+    "blockedStores": "{count, plural, zero {لا متاجر موقوفة} one {متجر واحد موقوف} two {متجران موقوفان} few {# متاجر موقوفة} many {# متجرًا موقوفًا} other {# متجر موقوف}}",
+    "cashInHand": "النقد المتوفر"
   },
   "users": {
     "title": "المستخدمون",
@@ -441,8 +447,19 @@
     "DUPLICATE_STORE_WARNING": "قد يكون هذا المتجر مسجلًا بالفعل.",
     "CREDIT_MODE_UNAVAILABLE": "دورة الائتمان هذه غير متاحة، أو تحتاج إلى عدد الأيام.",
     "PAYMENT_EXCEEDS_BALANCE": "المبلغ أكبر مما على المتجر.",
-    "NOT_BLOCKED": "هذا المتجر غير موقوف.",
-    "STORE_NOT_ACTIVE": "هذا المتجر غير نشط."
+    "STORE_NOT_ACTIVE": "هذا المتجر غير نشط.",
+    "EMPTY_SALE": "أضف صنفًا واحدًا على الأقل.",
+    "DUPLICATE_LINE": "يمكن أن يظهر كل صنف مرة واحدة فقط.",
+    "NO_PRICE": "لا يوجد سعر لهذا الصنف لهذا المتجر.",
+    "DISCOUNT_NOT_PERMITTED": "غير مسموح لك بمنح الخصومات.",
+    "DISCOUNT_ABOVE_CEILING": "يتجاوز خصمٌ حده الأقصى. اذكر سببًا لطلب موافقة المشرف.",
+    "DISCOUNT_ABOVE_MAXIMUM": "هذا الخصم أعلى من الحد المطلق ولا يمكن طلبه.",
+    "DISCOUNT_RAISED": "يمكن للموافقة تخفيض الخصم لا زيادته.",
+    "CREDIT_BLOCKED": "هذا المتجر موقوف ائتمانيًا.",
+    "CREDIT_LIMIT_EXCEEDED": "عملية البيع هذه تتجاوز الائتمان المتاح للمتجر.",
+    "PAYMENT_REQUIRED": "متجر فاتورة بفاتورة يدفع عند البيع — اختر طريقة الدفع.",
+    "DOCUMENT_NOT_READY": "سند التسليم غير جاهز بعد.",
+    "DOCUMENT_SENDING_DISABLED": "إرسال سندات التسليم متوقف."
   },
   "format": {
     "grams": "{value} جم",
@@ -599,7 +616,8 @@
       "limits": "الحدود",
       "attendance": "الحضور",
       "stores": "المتاجر",
-      "credit": "الائتمان"
+      "credit": "الائتمان",
+      "documents": "سندات التسليم"
     },
     "fields": {
       "discount": {
@@ -643,6 +661,12 @@
         "custom_enabled": "إتاحة دورة مخصصة",
         "grace_days": "أيام السماح بعد إغلاق الدورة",
         "week_closes_on": "تُغلق الدورة الأسبوعية يوم"
+      },
+      "documents": {
+        "sending": "إرسال سند التسليم"
+      },
+      "media": {
+        "photo_retention_days": "عدد أيام الاحتفاظ بصور السيلفي والعدّاد"
       }
     },
     "choices": {
@@ -655,7 +679,10 @@
       "WEDNESDAY": "الأربعاء",
       "THURSDAY": "الخميس",
       "FRIDAY": "الجمعة",
-      "SATURDAY": "السبت"
+      "SATURDAY": "السبت",
+      "OPTIONAL": "اختياري عند البيع",
+      "COMPULSORY": "إلزامي قبل مغادرة عملية البيع",
+      "DISABLED": "متوقف — تُحفظ نسخة رغم ذلك"
     },
     "range": "بين {min} و{max}.",
     "toggles": "الميزات",
@@ -1003,7 +1030,12 @@
       "STORE_APPROVED": "اعتُمد المتجر {name} — يمكنك البيع له.",
       "STORE_REJECTED": "رُفض المتجر {name}: {reason}",
       "STORE_ASSIGNED": "أصبح المتجر {name} ضمن متاجرك.",
-      "CREDIT_OVERRIDE_GRANTED": "أُتيح البيع للمتجر {name} مرة واحدة اليوم: {reason}"
+      "CREDIT_OVERRIDE_GRANTED": "أُتيح البيع للمتجر {name} مرة واحدة اليوم: {reason}",
+      "DISCOUNT_APPROVAL_REQUESTED": "يطلب {seller} خصمًا في {store} ({total} ر.س) وينتظر القرار.",
+      "DISCOUNT_APPROVED": "تمت الموافقة على خصمك في {store} — أتمّ البيع.",
+      "DISCOUNT_REDUCED": "تمت الموافقة على خصمك في {store} بنسبة أقل — أتمّ البيع.",
+      "DISCOUNT_REJECTED": "رُفض خصمك في {store}.",
+      "DISCOUNT_EXPIRED": "انتهت مهلة عملية البيع المعلّقة في {store} وتحرّرت أصنافها."
     }
   },
   "vehicles": {
@@ -1300,6 +1332,146 @@
     "adjustAmount": "المبلغ (مثل 250.00 أو -50.00)",
     "adjustDueOn": "تاريخ الاستحقاق",
     "adjustReason": "السبب",
-    "postAdjustment": "تسجيل التصحيح"
+    "postAdjustment": "تسجيل التصحيح",
+    "newSale": "عملية بيع جديدة",
+    "overrideHint": "لمتجر موقوف، أو لعملية بيع واحدة تتجاوز حده الائتماني."
+  },
+  "sales": {
+    "title": "المبيعات",
+    "subtitle": "جميع عمليات البيع، وطلبات الخصم التي تنتظر القرار.",
+    "loading": "جارٍ التحميل…",
+    "saving": "جارٍ الحفظ…",
+    "mySales": "مبيعاتي",
+    "noSales": "لا توجد مبيعات بعد.",
+    "startFromStore": "تبدأ عملية البيع من صفحة المتجر.",
+    "toStores": "إلى متاجري",
+    "awaitingDecision": "بانتظار القرار",
+    "sellTitle": "بيع إلى {store}",
+    "notWorking": "لا يمكنك البيع الآن:",
+    "goToToday": "الذهاب إلى اليوم",
+    "cannotSell": "لا يمكن إضافة أصناف حتى يُرفع الإيقاف أو يتيح المشرف البيع للمتجر.",
+    "releasedForOne": "أتاح المشرف البيع لهذا المتجر مرة واحدة اليوم.",
+    "items": "الأصناف في مركبتك",
+    "noItems": "لا يوجد في مركبتك ما يُباع.",
+    "noPrice": "لا سعر",
+    "sellable": "المتاح {count}",
+    "packsFor": "عبوات {code}",
+    "discountFor": "نسبة الخصم على {code}",
+    "ceilingNote": "الحد الأقصى {ceiling}%",
+    "aboveCeiling": "أعلى من الحد الأقصى {ceiling}% — يحتاج إلى موافقة",
+    "aboveMaximum": "لا يمكن طلب خصم أعلى من {max}%.",
+    "invalidDiscount": "أدخل نسبة من 0 إلى 100.",
+    "tooMany": "المتاح {count} فقط.",
+    "sameDiscount": "الخصم نفسه على كل الأصناف (%)",
+    "apply": "تطبيق",
+    "subtotal": "المجموع",
+    "discount": "الخصم",
+    "total": "الإجمالي",
+    "onAccountNote": "يُضاف إلى رصيد المتجر ويستحق حسب دورته. الائتمان المتاح: {amount}.",
+    "overLimit": "الإجمالي أعلى من الائتمان المتاح ({amount}). خفّض الطلب، أو اطلب من المشرف إتاحة البيع للمتجر مرة واحدة.",
+    "requestTitle": "يجب أن يوافق المشرف على هذا الخصم",
+    "requestHint": "تنتظر عملية البيع القرار وتبقى الأصناف محجوزة في مركبتك. يمكنك سحبها في أي وقت.",
+    "requestReason": "سبب هذا الخصم",
+    "requestApproval": "طلب الموافقة",
+    "billToBillNote": "فاتورة بفاتورة: يدفع المتجر المبلغ كاملًا الآن.",
+    "complete": "إتمام البيع",
+    "waitingTitle": "بانتظار قرار المشرف",
+    "waitingHint": "الأصناف محجوزة في مركبتك. تنتهي مهلة الطلب في {time}.",
+    "approvedTitle": "تمت الموافقة — أتمّ البيع في المتجر.",
+    "reducedTitle": "تمت الموافقة بخصم أقل — أتمّ البيع في المتجر.",
+    "decisionComment": "ملاحظة المشرف: {comment}",
+    "released": "لم يُسجَّل شيء، وعادت الأصناف المحجوزة متاحة للبيع.",
+    "freshSale": "ابدأ عملية بيع جديدة ضمن الحد الأقصى",
+    "withdraw": "سحب",
+    "withdrawConfirm": "هل تريد السحب؟ ستُلغى عملية البيع وتُحرَّر الأصناف.",
+    "keepWaiting": "إبقاؤها",
+    "paidWith": "مدفوع: {method}، {amount}",
+    "overrideUsed": "أتاح {name} البيع لهذه العملية: {reason}",
+    "done": "تم",
+    "sendRequired": "أرسل سند التسليم إلى المتجر قبل الانتهاء.",
+    "documentTitle": "سند التسليم",
+    "notTaxInvoice": "ليست فاتورة ضريبية",
+    "documentPreparing": "جارٍ إعداد السند…",
+    "documentFailed": "تعذّر إعداد السند حتى الآن، وستُعاد المحاولة.",
+    "openPdf": "فتح ملف PDF",
+    "share": "مشاركة",
+    "email": "بريد إلكتروني",
+    "emailTo": "عنوان البريد الإلكتروني",
+    "sendEmail": "إرسال",
+    "shareUnavailable": "لا يمكن لهذا الهاتف مشاركة الملفات من هنا. افتح ملف PDF، أو أرسله بالبريد الإلكتروني.",
+    "sendingDisabled": "الإرسال متوقف. تُحفظ نسخة مع عملية البيع.",
+    "sentShare": "شورك من الهاتف في {time}",
+    "sentEmail": "أُرسل بالبريد إلى {to} في {time}",
+    "item": "الصنف",
+    "packs": "العبوات",
+    "unitPrice": "السعر",
+    "asked": "المطلوب",
+    "amount": "المبلغ",
+    "batchLine": "الدفعة {lot}، تنتهي {expiry}: {packs}",
+    "when": "الوقت",
+    "store": "المتجر",
+    "seller": "المندوب",
+    "document": "السند",
+    "discountOf": "خصم {amount}",
+    "expiresAt": "تنتهي المهلة {time}",
+    "soldBy": "{seller} · {time}",
+    "requestTitleConsole": "طلب الخصم",
+    "requestedAt": "وقت الطلب",
+    "decidedBy": "{name}، {time}",
+    "comment": "تعليق",
+    "commentHint": "مطلوب عند التخفيض أو الرفض.",
+    "decideHint": "وافق كما طُلب، أو خفّض أي صنف، أو ارفض. المندوب ينتظر في المتجر.",
+    "approvedFor": "النسبة الموافق عليها لـ {code}",
+    "askedCeiling": "المطلوب {asked}% · الحد الأقصى {ceiling}%",
+    "approve": "موافقة",
+    "reject": "رفض",
+    "lines": "الأصناف",
+    "details": "التفاصيل",
+    "vehicle": "المركبة",
+    "payment": "الدفع",
+    "onAccount": "على الحساب",
+    "override": "تجاوز الإيقاف",
+    "outcome": "النتيجة",
+    "statuses": {
+      "PENDING_DISCOUNT_APPROVAL": "بانتظار الموافقة",
+      "DISCOUNT_APPROVED": "تمت الموافقة — بانتظار الإتمام",
+      "PENDING_DELIVERY": "بانتظار التسليم",
+      "COMPLETED": "مكتملة",
+      "CANCELLED": "ملغاة"
+    },
+    "cancelReasons": {
+      "REJECTED": "مرفوضة",
+      "EXPIRED": "انتهت مهلتها",
+      "WITHDRAWN": "مسحوبة"
+    },
+    "cancelledTitles": {
+      "REJECTED": "رُفض الخصم.",
+      "EXPIRED": "انتهت مهلة الطلب دون قرار.",
+      "WITHDRAWN": "سحبتَ عملية البيع هذه."
+    },
+    "approvalStatuses": {
+      "PENDING": "بانتظار القرار",
+      "APPROVED": "تمت الموافقة كما طُلب",
+      "REDUCED": "تمت الموافقة بخصم أقل",
+      "REJECTED": "مرفوض",
+      "EXPIRED": "انتهت مهلته",
+      "WITHDRAWN": "مسحوب"
+    }
+  },
+  "audit": {
+    "title": "سجل التدقيق",
+    "subtitle": "كل إجراء حساس: من قام به، وما الذي تغيّر، ومتى. لا يمكن تعديل السجلات أو حذفها.",
+    "action": "الإجراء",
+    "entityId": "معرّف السجل",
+    "when": "الوقت",
+    "who": "المستخدم",
+    "entity": "السجل",
+    "change": "التغيير",
+    "show": "عرض",
+    "before": "قبل",
+    "after": "بعد",
+    "system": "النظام",
+    "empty": "لا توجد سجلات مطابقة.",
+    "more": "عرض المزيد"
   }
 }

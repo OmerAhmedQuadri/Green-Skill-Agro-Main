@@ -1,7 +1,8 @@
 import { loadConfig } from '@gsa/config';
 import { BUSINESS_TIME_ZONE } from '@gsa/core';
-import { attendance, getMailer, media, notifications } from '@gsa/services';
+import { attendance, getMailer, media, notifications, sales } from '@gsa/services';
 import { PgBoss } from 'pg-boss';
+import { chromiumRenderer } from './pdf';
 
 /**
  * Background jobs (ADR-0012, ARCHITECTURE §6.5). Same database, runtime role,
@@ -39,6 +40,33 @@ await boss.work('attendance.close-day', async () => {
   console.log(`[worker] attendance.close-day closed ${result.closed}, withdrew ${result.withdrawn}`);
 });
 
+// PRC-015 (ARCHITECTURE §6.5): undecided discount requests past their time, and approved sales left from an earlier day. Idempotent.
+await boss.createQueue('discount-approval.expire');
+await boss.schedule('discount-approval.expire', '* * * * *', null, { tz: BUSINESS_TIME_ZONE });
+await boss.work('discount-approval.expire', async () => {
+  const result = await sales.expireDiscountRequests(new Date());
+  if (result.expired > 0) console.log(`[worker] discount-approval.expire expired ${result.expired}`);
+});
+
+// ADR-0019, ADR-0037: print delivery documents from their outbox; Chromium runs only while there is work.
+const renderer = chromiumRenderer();
+let rendering = false;
+const renderDocuments = async () => {
+  if (rendering) return;
+  rendering = true;
+  try {
+    const result = await sales.renderPendingDocuments(renderer, new Date());
+    if (result.rendered + result.failed > 0) console.log(`[worker] delivery documents: ${result.rendered} ready, ${result.failed} failed`);
+  } catch (error) {
+    console.error('[worker] delivery document pass failed', error);
+  } finally {
+    await renderer.close().catch(() => undefined);
+    rendering = false;
+  }
+};
+const documentLoop = setInterval(() => void renderDocuments(), 3_000);
+void renderDocuments();
+
 // ADR-0023: deliver the email outbox every few seconds; never two passes at once.
 let delivering = false;
 const deliverEmails = async () => {
@@ -60,6 +88,8 @@ console.log('[worker] started');
 
 const shutdown = async () => {
   clearInterval(emailLoop);
+  clearInterval(documentLoop);
+  await renderer.close();
   await boss.stop({ graceful: true, timeout: 10_000 });
   process.exit(0);
 };

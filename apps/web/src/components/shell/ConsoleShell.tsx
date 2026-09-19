@@ -1,7 +1,7 @@
 'use client';
 
 import {
-  CalendarCheck, CalendarClock, Car, ClipboardCheck, ClipboardList, LayoutDashboard, PackageX, Menu, Package, Settings, Ship, Store, Tag, Truck, Users, Warehouse, X,
+  CalendarCheck, CalendarClock, Car, ClipboardCheck, ClipboardList, History, LayoutDashboard, PackageX, Menu, Package, Receipt, Settings, Ship, Store, Tag, Truck, Users, Warehouse, X,
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -17,7 +17,7 @@ import { SignOutButton } from './SignOutButton';
 const ICONS = {
   dashboard: LayoutDashboard, users: Users, catalogue: Package, vendors: Truck, pricing: Tag, settings: Settings,
   purchaseOrders: ClipboardList, incoming: Ship, stock: Warehouse, writeOffs: PackageX, expiry: CalendarClock,
-  vehicles: Car, attendance: CalendarCheck, closingStock: ClipboardCheck, stores: Store,
+  vehicles: Car, attendance: CalendarCheck, closingStock: ClipboardCheck, stores: Store, sales: Receipt, auditLog: History,
 } satisfies Record<NavIcon, unknown>;
 
 type Props = { items: { href: string; label: string; icon: NavIcon }[]; user: { name: string; role: string }; children: ReactNode };

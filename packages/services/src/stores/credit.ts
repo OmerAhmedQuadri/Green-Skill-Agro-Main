@@ -4,6 +4,7 @@ import {
 import { newId, schema } from '@gsa/db';
 import { aliasedTable, and, asc, eq, isNull, sql } from 'drizzle-orm';
 import { assertSellerWorking } from '../attendance';
+import { postCashCollection } from '../cash';
 import { authorize, authorizeAny, type Ctx } from '../context';
 import { notify } from '../notifications';
 import { audit, inTx, nextDocumentNumber, type Executor, type Tx } from '../platform';
@@ -56,34 +57,49 @@ export async function postStoreCredit(
 }
 
 export type Payment = {
-  readonly id: string; readonly number: string; readonly storeId: string; readonly amount: Money; readonly method: 'CASH' | 'BANK_TRANSFER';
+  readonly id: string; readonly number: string; readonly storeId: string; readonly amount: Money; readonly method: PaymentMethod;
   readonly reference: string | null; readonly receivedAt: Date; readonly receivedBy: string; readonly credit: CreditStatus;
 };
+
+export type PaymentMethod = 'CASH' | 'BANK_TRANSFER';
+
+/**
+ * A payment taken from a store, in the caller's transaction: the ledger
+ * credit settling the oldest debts (CRD-003), the payment record and — for
+ * cash — the collector's cash in hand (CSH-001, ADR-0037). A bill-to-bill
+ * sale settles through here too (SAL-006).
+ */
+export async function takePayment(
+  tx: Tx, ctx: Ctx, input: { storeId: string; amount: Money; method: PaymentMethod; reference?: string | null | undefined },
+): Promise<{ id: string; number: string; reference: string | null }> {
+  const reference = input.reference?.trim() || null;
+  if (input.method === 'BANK_TRANSFER' && !reference) throw new DomainError('REASON_REQUIRED', { field: 'reference' });
+  const id = newId();
+  const { entryId } = await postStoreCredit(tx, ctx, { storeId: input.storeId, entryType: 'PAYMENT', amount: input.amount, referenceType: 'PAYMENT', referenceId: id });
+  const number = await nextDocumentNumber(tx, 'PM', ctx.now);
+  await tx.insert(payments).values({
+    id, number, storeId: input.storeId, amount: input.amount, method: input.method, reference, receivedAt: ctx.now, receivedBy: ctx.user.id,
+    ledgerEntryId: entryId, branchId: ctx.branchId,
+  });
+  if (input.method === 'CASH') await postCashCollection(tx, ctx, { sellerId: ctx.user.id, amount: input.amount, referenceType: 'PAYMENT', referenceId: id });
+  await audit(tx, ctx, { action: 'stores.payment_recorded', entityType: 'payment', entityId: id, after: { number, storeId: input.storeId, amount: input.amount, method: input.method } });
+  return { id, number, reference };
+}
 
 /**
  * CRD-003: a payment collected from a store — partial or in full, oldest
  * debts first, the rest carrying forward. A seller collects during an open
- * day (ATT-010), from the stores they manage. The cash ledger joins in M7.
+ * day (ATT-010), from the stores they manage.
  */
 export async function recordPayment(
-  ctx: Ctx, input: { storeId: string; amount: string; method: 'CASH' | 'BANK_TRANSFER'; reference?: string | null | undefined },
+  ctx: Ctx, input: { storeId: string; amount: string; method: PaymentMethod; reference?: string | null | undefined },
 ): Promise<Payment> {
   authorize(ctx, 'sales.record');
   const amount = money(input.amount);
-  const reference = input.reference?.trim() || null;
-  if (input.method === 'BANK_TRANSFER' && !reference) throw new DomainError('REASON_REQUIRED', { field: 'reference' });
   return inTx(ctx, async (tx) => {
     await assertSellerWorking(tx, ctx);
     await loadStore(tx, ctx, input.storeId); // the seller's own store, or view_all
-    const id = newId();
-    const { entryId } = await postStoreCredit(tx, ctx, { storeId: input.storeId, entryType: 'PAYMENT', amount, referenceType: 'PAYMENT', referenceId: id });
-    const number = await nextDocumentNumber(tx, 'PM', ctx.now);
-    await tx.insert(payments).values({
-      id, number, storeId: input.storeId, amount, method: input.method, reference, receivedAt: ctx.now, receivedBy: ctx.user.id,
-      ledgerEntryId: entryId, branchId: ctx.branchId,
-    });
-    // TODO(M7): a cash payment raises the seller's cash in hand (CSH-001).
-    await audit(tx, ctx, { action: 'stores.payment_recorded', entityType: 'payment', entityId: id, after: { number, storeId: input.storeId, amount, method: input.method } });
+    const { id, number, reference } = await takePayment(tx, ctx, { storeId: input.storeId, amount, method: input.method, reference: input.reference });
     const store = await loadStore(tx, ctx, input.storeId);
     return { id, number, storeId: input.storeId, amount, method: input.method, reference, receivedAt: ctx.now, receivedBy: ctx.user.id, credit: store.credit };
   });
@@ -123,8 +139,9 @@ export async function getCreditStatus(ctx: Ctx, storeId: string): Promise<Credit
 
 /**
  * CRD-006, CRD-007 (OQ-018): a manager with delegated authority releases a
- * store blocked on credit for one sale today, with a reason. It never
- * releases a store that is not approved or not active.
+ * store for one sale today, with a reason — from a credit block, or from its
+ * limit for a sale above it. It never releases a store that is not approved
+ * or not active.
  */
 export async function grantCreditOverride(ctx: Ctx, storeId: string, input: { reason: string }): Promise<CreditStatus> {
   authorize(ctx, 'stores.override_credit_block');
@@ -134,7 +151,6 @@ export async function grantCreditOverride(ctx: Ctx, storeId: string, input: { re
     const all = readingAsManager(ctx);
     const store = await loadStore(tx, all, storeId);
     if (store.status !== 'ACTIVE') throw new DomainError('STORE_NOT_ACTIVE', { status: store.status });
-    if (!store.credit.blocked || store.credit.reasons.length === 0) throw new DomainError('NOT_BLOCKED');
     await tx.insert(creditOverrides).values({
       storeId, reason, businessDate: businessDate(ctx.now), grantedAt: ctx.now, grantedBy: ctx.user.id, branchId: ctx.branchId,
     }).onConflictDoNothing();
@@ -146,12 +162,12 @@ export async function grantCreditOverride(ctx: Ctx, storeId: string, input: { re
   });
 }
 
-/** M6: the sale that uses today's override marks it used, so it covers one sale only. */
-export async function consumeCreditOverride(tx: Executor, ctx: Ctx, storeId: string, saleId: string): Promise<boolean> {
-  const used = await tx.update(creditOverrides).set({ usedAt: ctx.now, usedReferenceId: saleId })
+/** SAL-009: the sale that uses today's override marks it used, so it covers one sale only. */
+export async function consumeCreditOverride(tx: Executor, ctx: Ctx, storeId: string, saleId: string): Promise<string | null> {
+  const [used] = await tx.update(creditOverrides).set({ usedAt: ctx.now, usedReferenceId: saleId })
     .where(and(eq(creditOverrides.storeId, storeId), eq(creditOverrides.businessDate, businessDate(ctx.now)), isNull(creditOverrides.usedAt)))
     .returning({ id: creditOverrides.id });
-  return used.length > 0;
+  return used?.id ?? null;
 }
 
 export type LedgerEntry = {

@@ -29,6 +29,14 @@ describe('R2 contract (ADR-0020)', () => {
     expect(await store.head(k)).toBeNull();
   });
 
+  it('DOC-005: a stored document reads back whole on the server; an absent one is null', async () => {
+    const k = key('document.pdf');
+    const pdf = new TextEncoder().encode('%PDF-1.7 contract test');
+    await store.put(k, pdf, 'application/pdf');
+    expect(await store.get(k)).toEqual(pdf);
+    expect(await store.get(`${run}/absent.pdf`)).toBeNull();
+  });
+
   it('ARCHITECTURE §6.4: a browser-style upload through a presigned URL, read back through a presigned download', async () => {
     const k = key('photo.jpg');
     const upload = await store.presignUpload(k, 'image/jpeg', 300, new Date());

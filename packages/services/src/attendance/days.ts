@@ -10,6 +10,7 @@ import { assertOwnEvidence } from '../media';
 import { notify } from '../notifications';
 import { audit, inTx, type Executor, type Tx } from '../platform';
 import { getDb } from '../runtime';
+import { expireSellerSales } from '../sales';
 import { readSettings, readToggles } from '../system';
 import { currentAssignment, lastOdometer, liveSession } from './guard';
 
@@ -241,7 +242,7 @@ export async function checkOut(ctx: Ctx, input: Capture): Promise<Today> {
       });
     }
     await tx.update(attendanceDays).set({ status, updatedAt: ctx.now, updatedBy: ctx.user.id, version: day.version + 1 }).where(eq(attendanceDays.id, day.id));
-    // TODO(M6): expire the seller's pending discount approval requests (PRC-015).
+    await expireSellerSales(tx, ctx); // PRC-015: pending requests expire, approved sales lapse
     await audit(tx, ctx, {
       action: 'attendance.checked_out', entityType: 'attendance_session', entityId: session.id,
       after: { odometer: odometer?.reading ?? null, distanceKm: sessionDistanceKm(session.checkInOdometer, odometer?.reading ?? null), flags },

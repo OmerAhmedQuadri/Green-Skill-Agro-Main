@@ -10,14 +10,16 @@
     "lint": "eslint ."
   },
   "dependencies": {
+    "@fontsource/ibm-plex-sans-arabic": "5.3.0",
     "@gsa/config": "workspace:*",
     "@gsa/core": "workspace:*",
     "@gsa/services": "workspace:*",
-    "pg-boss": "12.31.1"
+    "pg-boss": "12.31.1",
+    "playwright-core": "1.63.0"
   },
   "devDependencies": {
+    "@gsa/eslint-config": "workspace:*",
     "@gsa/tsconfig": "workspace:*",
-    "tsx": "4.23.13",
-    "@gsa/eslint-config": "workspace:*"
+    "tsx": "4.23.13"
   }
 }

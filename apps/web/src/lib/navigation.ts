@@ -7,7 +7,7 @@ import type { PermissionCode } from '@gsa/core';
  */
 export type NavIcon =
   | 'dashboard' | 'users' | 'catalogue' | 'vendors' | 'pricing' | 'settings' | 'purchaseOrders' | 'incoming' | 'stock' | 'writeOffs' | 'expiry'
-  | 'vehicles' | 'attendance' | 'closingStock' | 'stores';
+  | 'vehicles' | 'attendance' | 'closingStock' | 'stores' | 'sales' | 'auditLog';
 type Can = (p: ReadonlySet<PermissionCode>) => boolean;
 type NavItem = { href: string; key: NavIcon; icon: NavIcon; visible: Can };
 
@@ -26,6 +26,8 @@ export const canSeeVehicles = any('vehicles.manage', 'inventory.issue_to_vehicle
 export const canSeeAttendance = any('attendance.view', 'attendance.manage');
 export const canSeeClosingStock = any('inventory.audit_vehicle');
 export const canSeeStores = any('stores.view_all', 'stores.approve');
+export const canSeeSales = any('sales.view_all', 'sales.approve_discount');
+export const canSeeAuditLog = any('system.view_audit_log');
 export const canSeeSettings = any('system.configure', 'system.manage_templates', 'system.set_limits', 'returns.set_rules', 'targets.manage');
 
 export const CONSOLE_NAV: readonly NavItem[] = [
@@ -39,9 +41,11 @@ export const CONSOLE_NAV: readonly NavItem[] = [
   { href: '/console/write-offs', key: 'writeOffs', icon: 'writeOffs', visible: canSeeWriteOffs },
   { href: '/console/expiry', key: 'expiry', icon: 'expiry', visible: canSeeExpiry },
   { href: '/console/stores', key: 'stores', icon: 'stores', visible: canSeeStores },
+  { href: '/console/sales', key: 'sales', icon: 'sales', visible: canSeeSales },
   { href: '/console/vehicles', key: 'vehicles', icon: 'vehicles', visible: canSeeVehicles },
   { href: '/console/closing-stock', key: 'closingStock', icon: 'closingStock', visible: canSeeClosingStock },
   { href: '/console/attendance', key: 'attendance', icon: 'attendance', visible: canSeeAttendance },
   { href: '/console/users', key: 'users', icon: 'users', visible: canAdministerUsers },
   { href: '/console/settings', key: 'settings', icon: 'settings', visible: canSeeSettings },
+  { href: '/console/audit-log', key: 'auditLog', icon: 'auditLog', visible: canSeeAuditLog },
 ];

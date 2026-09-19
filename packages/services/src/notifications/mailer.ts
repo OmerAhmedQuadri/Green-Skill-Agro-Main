@@ -1,7 +1,12 @@
 import nodemailer from 'nodemailer';
 
+export type EmailAttachment = { readonly filename: string; readonly content: Uint8Array; readonly contentType: string };
+
 /** One rendered email. */
-export type EmailMessage = { readonly to: string; readonly subject: string; readonly text: string; readonly html: string };
+export type EmailMessage = {
+  readonly to: string; readonly subject: string; readonly text: string; readonly html: string;
+  readonly attachments?: readonly EmailAttachment[] | undefined;
+};
 
 /** Sending, behind an interface: SMTP everywhere real, in memory in tests (ADR-0022). */
 export interface Mailer {
@@ -13,7 +18,10 @@ export function createSmtpMailer(smtpUrl: string, from: string): Mailer {
   const transport = nodemailer.createTransport(smtpUrl);
   return {
     async send(message) {
-      await transport.sendMail({ from, to: message.to, subject: message.subject, text: message.text, html: message.html });
+      await transport.sendMail({
+        from, to: message.to, subject: message.subject, text: message.text, html: message.html,
+        attachments: message.attachments?.map((a) => ({ filename: a.filename, content: Buffer.from(a.content), contentType: a.contentType })),
+      });
     },
   };
 }

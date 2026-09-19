@@ -37,4 +37,9 @@ export const keys = {
   store: (id: string) => ['store', id] as const,
   storeLedger: (id: string) => ['store-ledger', id] as const,
   storeOptions: ['store-options'] as const,
+  sales: (filter?: object) => (filter ? ['sales', filter] as const : ['sales'] as const),
+  sale: (id: string) => ['sale', id] as const,
+  saleOptions: (storeId: string) => ['sale-options', storeId] as const,
+  cashInHand: ['cash-in-hand'] as const,
+  auditLog: (filter?: object) => (filter ? ['audit-log', filter] as const : ['audit-log'] as const),
 };

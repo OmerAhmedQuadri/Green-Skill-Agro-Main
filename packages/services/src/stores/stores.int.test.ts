@@ -189,7 +189,9 @@ describe('credit (CRD-001..007, OQ-018)', () => {
 
   it('CRD-006, CRD-007, OQ-018: a delegated manager releases a blocked store for one sale today, with a reason', async () => {
     const { ctx, seller, store } = await activeStore();
-    expect(await code(grantCreditOverride(ctx, store.id, { reason: 'Nothing owed' }))).toBe('NOT_BLOCKED');
+    // OQ-018: a store not blocked can be released too — for one sale above its credit limit.
+    const unblocked = await activeStore();
+    expect(await grantCreditOverride(unblocked.ctx, unblocked.store.id, { reason: 'Large order today' })).toMatchObject({ blocked: false, overrideAvailable: true });
     await adjustBalance(ctx, store.id, { amount: '100.00', reason: 'Debt', dueOn: '2026-10-01' });
     const plain = await manager(['stores.view_all']);
     expect(await code(grantCreditOverride(plain, store.id, { reason: 'x' }))).toBe('FORBIDDEN');

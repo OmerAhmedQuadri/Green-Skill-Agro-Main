@@ -5,10 +5,12 @@ import type { EmailMessage } from './mailer';
  * place text is built on the server; interface text stays in the web app's
  * message files. Arabic renders right-to-left.
  */
-export type EmailTemplate = 'password-reset';
+export type EmailTemplate = 'password-reset' | 'delivery-document';
 export type Locale = 'en' | 'ar';
 
-type Rendered = Omit<EmailMessage, 'to'>;
+/** A stored file to attach, fetched when the email is sent (DOC-003). */
+export type AttachmentRef = { readonly filename: string; readonly storageKey: string; readonly contentType: string };
+type Rendered = Omit<EmailMessage, 'to' | 'attachments'> & { readonly attachments?: readonly AttachmentRef[] };
 const escape = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
 function layout(locale: Locale, bodyHtml: string): string {
@@ -32,8 +34,43 @@ const PASSWORD_RESET = {
   },
 } as const;
 
+/**
+ * DOC-003: the store may read either language, so both are in every copy —
+ * the sender's first. Words only; the document itself is the attachment.
+ */
+const DELIVERY_DOCUMENT = {
+  en: {
+    subject: (n: string) => `Delivery document ${n}`,
+    lines: (p: Readonly<Record<string, string>>) => [
+      `Hello ${p.store ?? ''},`,
+      `Attached is delivery document ${p.number ?? ''} from Green Agro for goods delivered by ${p.seller ?? ''}, totalling ${p.total ?? ''} SAR.`,
+      'This is not a tax invoice. It is an unofficial record of goods delivered.',
+    ],
+  },
+  ar: {
+    subject: (n: string) => `سند تسليم ${n}`,
+    lines: (p: Readonly<Record<string, string>>) => [
+      `مرحباً ${p.store ?? ''}،`,
+      `مرفق سند التسليم ${p.number ?? ''} من غرين أغرو للبضاعة التي سلّمها ${p.seller ?? ''}، بإجمالي ${p.total ?? ''} ر.س.`,
+      'هذه ليست فاتورة ضريبية، وإنما سجل غير رسمي بالبضاعة المسلّمة.',
+    ],
+  },
+} as const;
+
 export function renderEmail(template: EmailTemplate, locale: Locale, params: Readonly<Record<string, string>>): Rendered {
   switch (template) {
+    case 'delivery-document': {
+      const order: Locale[] = locale === 'ar' ? ['ar', 'en'] : ['en', 'ar'];
+      const number = params.number ?? '';
+      const html = order.map((l) => `<div dir="${l === 'ar' ? 'rtl' : 'ltr'}" lang="${l}" style="text-align:start;margin-bottom:16px">${
+        DELIVERY_DOCUMENT[l].lines(params).map((line, i) => `<p${i === 2 ? ' style="font-weight:bold;color:#b91c1c"' : ''}>${escape(line)}</p>`).join('')}</div>`).join('<hr style="border:none;border-top:1px solid #e7e5e4">');
+      return {
+        subject: `${DELIVERY_DOCUMENT[order[0] ?? 'en'].subject(number)} · ${DELIVERY_DOCUMENT[order[1] ?? 'ar'].subject(number)}`,
+        text: order.map((l) => DELIVERY_DOCUMENT[l].lines(params).join('\n\n')).join('\n\n—\n\n'),
+        html: layout(locale, html),
+        attachments: params.attachmentKey ? [{ filename: params.attachmentName ?? `${number}.pdf`, storageKey: params.attachmentKey, contentType: 'application/pdf' }] : [],
+      };
+    }
     case 'password-reset': {
       const t = PASSWORD_RESET[locale];
       const name = params.name ?? '';

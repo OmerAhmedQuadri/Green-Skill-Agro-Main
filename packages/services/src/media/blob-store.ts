@@ -21,6 +21,8 @@ export interface BlobStore {
   head(key: string): Promise<BlobInfo | null>;
   /** The first bytes of an object — the magic-byte check (SECURITY §5). */
   readPrefix(key: string, bytes: number): Promise<Uint8Array>;
+  /** A whole object, server-side — a delivery document to serve or attach; null if absent. */
+  get(key: string): Promise<Uint8Array<ArrayBuffer> | null>;
   /** Server-side write, e.g. a generated delivery document. */
   put(key: string, body: Uint8Array<ArrayBuffer> | string, contentType: string): Promise<void>;
   delete(key: string): Promise<void>;

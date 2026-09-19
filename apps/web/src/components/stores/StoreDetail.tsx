@@ -75,10 +75,11 @@ export function StoreDetail({ id, can }: { id: string; can: Can }) {
             <CreditPanel credit={s.credit} />
             {s.override ? <p className="mt-2 text-sm text-stone-600">{t('overrideBy', { name: s.override.grantedBy, reason: s.override.reason })}</p> : null}
           </div>
-          {can.override && s.status === 'ACTIVE' && s.credit.blocked ? (
+          {/* OQ-018: for a blocked store, or for one sale above its limit. */}
+          {can.override && s.status === 'ACTIVE' && !s.credit.overrideAvailable && !s.credit.overridden ? (
             <form className="flex flex-wrap items-end gap-2 border-t border-stone-200 p-5" noValidate
               onSubmit={form((f) => act.run({ path: '/credit-overrides', method: 'POST', body: { reason: formText(f, 'reason') } }))}>
-              <Field id="ov-reason" label={t('overrideReason')}><Input id="ov-reason" name="reason" maxLength={500} /></Field>
+              <Field id="ov-reason" label={t('overrideReason')} hint={t('overrideHint')}><Input id="ov-reason" name="reason" maxLength={500} /></Field>
               <Button type="submit" variant="secondary" disabled={act.isPending}>{t('releaseForOneSale')}</Button>
             </form>
           ) : null}
