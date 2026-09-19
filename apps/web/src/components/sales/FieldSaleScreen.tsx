@@ -84,7 +84,7 @@ export function FieldSaleScreen({ id }: { id: string }) {
       ) : null}
 
       <Card><SaleLinesTable sale={s} /></Card>
-      {s.payment ? <p className="text-sm text-stone-600">{t('paidWith', { method: ts(`methods.${s.payment.method}`), amount: format.money(s.payment.amount) })}</p> : null}
+      {s.payment ? <p className="text-sm text-stone-600" data-testid="paid">{t('paidWith', { method: ts(`methods.${s.payment.method}`), amount: format.money(s.payment.amount) })}</p> : null}
       {s.creditOverride ? <p className="text-sm text-stone-600">{t('overrideUsed', { name: s.creditOverride.grantedBy, reason: s.creditOverride.reason })}</p> : null}
 
       {act.error ? <Alert>{errorText(act.error)}</Alert> : null}

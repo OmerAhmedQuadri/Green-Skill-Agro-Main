@@ -120,8 +120,12 @@ export async function positionsOf(page: Page, skuId: string) {
 /** Takes a photo with the live camera component labelled `label` — the fake camera in tests. */
 export async function takePhoto(page: Page, container: string, m: { camera: { open: string; take: string; ready: string } }) {
   const box = page.locator(`[id="${container}"]`);
-  await box.getByRole('button', { name: m.camera.open }).click();
-  await expect(box.locator('video')).toBeVisible();
+  const video = box.locator('video');
+  // The fake camera can still be held by the previous photo for a moment: open again until it shows.
+  await expect(async () => {
+    if (!(await video.isVisible())) await box.getByRole('button', { name: m.camera.open }).click({ timeout: 2_000 });
+    await expect(video).toBeVisible({ timeout: 4_000 });
+  }).toPass({ timeout: 20_000 });
   // The first camera of a run can take a while to deliver frames.
   await expect.poll(() => box.locator('video').evaluate((v: HTMLVideoElement) => v.videoWidth), { timeout: 20_000 }).toBeGreaterThan(0);
   await box.getByRole('button', { name: m.camera.take }).click();
