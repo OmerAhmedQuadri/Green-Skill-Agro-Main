@@ -19,7 +19,7 @@ const manager = async (grants: PermissionCode[]) => ctxFor(await anAccount('MANA
 const t = (day: string, hhmm = '10:00') => new Date(`${day}T${hhmm}:00+03:00`);
 
 describe('onboarding (workflow H, STO-001..010)', () => {
-  it('STO-001..006: identity, storefront photo, coordinates, optional registrations and terms; the seller manages it', async () => {
+  it('STO-001, STO-002, STO-003, STO-005, STO-006: identity, storefront photo, coordinates and terms; the seller manages it', async () => {
     const seller = await aSeller();
     const store = await aStore(seller.ctx, { name: 'Al Amal Seeds', ownerName: 'Khalid', contactNumber: '050 123 4567', category: 'Nursery', address: 'King Fahd Rd' });
     expect(store).toMatchObject({
