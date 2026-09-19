@@ -641,13 +641,21 @@
         "weekly_enabled": "Offer a weekly cycle",
         "monthly_enabled": "Offer a monthly cycle",
         "custom_enabled": "Offer a custom cycle",
-        "grace_days": "Days of grace after a cycle closes"
+        "grace_days": "Days of grace after a cycle closes",
+        "week_closes_on": "A weekly cycle closes on"
       }
     },
     "choices": {
       "TRAILING": "Trailing 30 days",
       "SEASONAL": "Same period last season",
-      "CONSERVATIVE": "Whichever is more conservative"
+      "CONSERVATIVE": "Whichever is more conservative",
+      "SUNDAY": "Sunday",
+      "MONDAY": "Monday",
+      "TUESDAY": "Tuesday",
+      "WEDNESDAY": "Wednesday",
+      "THURSDAY": "Thursday",
+      "FRIDAY": "Friday",
+      "SATURDAY": "Saturday"
     },
     "range": "Between {min} and {max}.",
     "toggles": "Features",

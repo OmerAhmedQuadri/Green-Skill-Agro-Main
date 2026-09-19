@@ -8,6 +8,7 @@ import { authorize, authorizeAny, type Ctx } from '../context';
 import { notify } from '../notifications';
 import { audit, inTx, nextDocumentNumber, type Executor, type Tx } from '../platform';
 import { getDb } from '../runtime';
+import { readSettings } from '../system';
 import { loadStore, openDebits, readingAsManager } from './access';
 
 const { stores, storeLedgerEntries, paymentAllocations, payments, creditOverrides, storeAssignments, users } = schema;
@@ -25,7 +26,7 @@ export async function postStoreDebit(
   await lockLedger(tx, input.storeId);
   const [store] = await tx.select({ mode: stores.creditMode, days: stores.creditCycleDays }).from(stores).where(eq(stores.id, input.storeId));
   if (!store) throw new DomainError('NOT_FOUND', { entity: 'store', id: input.storeId });
-  const dueOn = input.dueOn ?? dueDateFor(store.mode, store.days, businessDate(ctx.now));
+  const dueOn = input.dueOn ?? dueDateFor(store.mode, store.days, businessDate(ctx.now), (await readSettings(tx))['credit.week_closes_on']);
   const [row] = await tx.insert(storeLedgerEntries).values({
     storeId: input.storeId, occurredAt: ctx.now, entryType: input.entryType, amount: input.amount, dueOn,
     referenceType: input.referenceType, referenceId: input.referenceId, note: input.note ?? null, branchId: ctx.branchId, createdBy: ctx.user.id,

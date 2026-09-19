@@ -641,13 +641,21 @@
         "weekly_enabled": "إتاحة الدورة الأسبوعية",
         "monthly_enabled": "إتاحة الدورة الشهرية",
         "custom_enabled": "إتاحة دورة مخصصة",
-        "grace_days": "أيام السماح بعد إغلاق الدورة"
+        "grace_days": "أيام السماح بعد إغلاق الدورة",
+        "week_closes_on": "تُغلق الدورة الأسبوعية يوم"
       }
     },
     "choices": {
       "TRAILING": "آخر 30 يوماً",
       "SEASONAL": "الفترة نفسها من الموسم السابق",
-      "CONSERVATIVE": "الأكثر تحفظاً بينهما"
+      "CONSERVATIVE": "الأكثر تحفظاً بينهما",
+      "SUNDAY": "الأحد",
+      "MONDAY": "الاثنين",
+      "TUESDAY": "الثلاثاء",
+      "WEDNESDAY": "الأربعاء",
+      "THURSDAY": "الخميس",
+      "FRIDAY": "الجمعة",
+      "SATURDAY": "السبت"
     },
     "range": "بين {min} و{max}.",
     "toggles": "الميزات",

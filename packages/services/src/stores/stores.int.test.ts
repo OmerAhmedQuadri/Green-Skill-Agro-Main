@@ -129,6 +129,10 @@ describe('credit (CRD-001..007, OQ-018)', () => {
     expect(entry).toMatchObject({ entryType: 'ADJUSTMENT', amount: '300.00', dueOn: '2026-10-10', open: '300.00', balance: '300.00', note: 'Opening balance' });
     const later = await ctxFor({ id: ctx.user.id, role: 'ADMIN' }, { now: t('2026-10-10', '23:00') });
     expect(await getCreditStatus(later, store.id)).toMatchObject({ blocked: false, outstanding: '300.00' }); // due today, not yet past
+    // OQ-018: the Admin closes weeks on Thursday — new debts follow; the one above keeps its date.
+    await updateSettings(ctx, [{ key: 'credit.week_closes_on', value: 'THURSDAY' }]);
+    await adjustBalance(ctx, store.id, { amount: '50.00', reason: 'After the change' });
+    expect((await listStoreLedger(ctx, store.id)).map((e) => e.dueOn)).toEqual(['2026-10-10', '2026-10-08']);
   });
 
   it('CRD-004, CRD-005: a store past due is blocked with the reason and the oldest due date; paying clears it', async () => {

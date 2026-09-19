@@ -6,6 +6,10 @@ import { nextBusinessDate } from '../time';
 export const CREDIT_MODES = ['BILL_TO_BILL', 'WEEKLY', 'MONTHLY', 'CUSTOM'] as const;
 export type CreditMode = (typeof CREDIT_MODES)[number];
 
+/** OQ-018: the day a weekly cycle closes is an Admin setting — Saturday unless changed. */
+export const WEEKDAYS = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'] as const;
+export type Weekday = (typeof WEEKDAYS)[number];
+
 export function assertCreditTerms(mode: CreditMode, customDays: number | null | undefined, available: ReadonlySet<CreditMode>): number | null {
   if (!available.has(mode)) throw new DomainError('CREDIT_MODE_UNAVAILABLE', { mode });
   if (mode !== 'CUSTOM') return null;
@@ -23,16 +27,17 @@ const addDays = (date: string, days: number) => {
 
 /**
  * OQ-018, ADR-0036: when a debit posted on `postedOn` (a Riyadh business date)
- * falls due. Bill to bill — the same day; weekly — the Saturday closing its
- * Sunday-to-Saturday week; monthly — the month's last day; custom — N days on.
- * Fixed at posting: a later change of cycle never moves it.
+ * falls due. Bill to bill — the same day; weekly — the next closing day, that
+ * day itself included (Saturday unless the Admin changes it); monthly — the
+ * month's last day; custom — N days on. Fixed at posting: a later change of
+ * cycle or closing day never moves it.
  */
-export function dueDateFor(mode: CreditMode, customDays: number | null, postedOn: string): string {
+export function dueDateFor(mode: CreditMode, customDays: number | null, postedOn: string, weekClosesOn: Weekday = 'SATURDAY'): string {
   switch (mode) {
     case 'BILL_TO_BILL': return postedOn;
     case 'WEEKLY': {
       const weekday = new Date(`${postedOn}T00:00:00Z`).getUTCDay(); // 0 Sunday … 6 Saturday
-      return addDays(postedOn, 6 - weekday);
+      return addDays(postedOn, (WEEKDAYS.indexOf(weekClosesOn) - weekday + 7) % 7);
     }
     case 'MONTHLY': {
       const [y, m] = postedOn.split('-').map(Number) as [number, number];

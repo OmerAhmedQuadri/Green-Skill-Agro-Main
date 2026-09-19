@@ -63,6 +63,12 @@ describe('credit cycles (CRD-001..007, OQ-018)', () => {
     expect(dueDateFor('WEEKLY', null, '2026-10-10')).toBe('2026-10-10'); // Saturday itself
   });
 
+  it('CRD-001, OQ-018: the Admin may close the week on another day — Thursday, say', () => {
+    expect(dueDateFor('WEEKLY', null, '2026-10-04', 'THURSDAY')).toBe('2026-10-08'); // Sunday → Thursday
+    expect(dueDateFor('WEEKLY', null, '2026-10-08', 'THURSDAY')).toBe('2026-10-08'); // Thursday itself
+    expect(dueDateFor('WEEKLY', null, '2026-10-09', 'THURSDAY')).toBe('2026-10-15'); // Friday → next Thursday
+  });
+
   it('CRD-001, OQ-018: monthly is due on the month\'s last day; custom N days after each sale', () => {
     expect(dueDateFor('MONTHLY', null, '2026-02-10')).toBe('2026-02-28');
     expect(dueDateFor('MONTHLY', null, '2028-02-10')).toBe('2028-02-29');
