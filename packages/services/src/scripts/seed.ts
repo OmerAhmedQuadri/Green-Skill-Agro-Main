@@ -8,7 +8,7 @@ import { closeDb, defaultBranchId, getDb } from '../runtime';
 // Development accounts only (DEVELOPMENT §7). Never production; never UI-v1's demo credentials (ADR-0014).
 if (process.env.NODE_ENV === 'production') throw new Error('Refusing to seed a production database');
 const password = process.env.DEV_SEED_PASSWORD ?? '';
-if (password.length < 10) throw new Error('Set DEV_SEED_PASSWORD (10+ characters) in .env first');
+if (password.length < 10) throw new Error("Set DEV_SEED_PASSWORD (10+ characters) in .env first — in single quotes if it contains # (an unquoted # starts a comment)");
 // SEED_RESET_PASSWORDS=1: existing development accounts take the current DEV_SEED_PASSWORD
 // and are signed out everywhere — for rotating it (on staging too) after it was exposed.
 const resetPasswords = process.env.SEED_RESET_PASSWORDS === '1';

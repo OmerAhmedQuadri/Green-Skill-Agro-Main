@@ -28,7 +28,7 @@ log "Restart";       pm2 startOrReload deploy/ecosystem.config.cjs --update-env 
 
 log "Health"
 for _ in $(seq 1 30); do
-  if curl -fsS http://127.0.0.1:3000/api/v1/health; then echo; exit 0; fi
+  if curl -fs http://127.0.0.1:3000/api/v1/health; then echo; exit 0; fi   # quiet while it starts
   sleep 2
 done
 echo "The app did not become healthy — see:  pm2 logs gsa-web"
