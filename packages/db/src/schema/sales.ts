@@ -16,7 +16,7 @@ export const saleChannel = pgEnum('sale_channel', ['VEHICLE', 'DISPATCH']);
 export const discountRequestStatus = pgEnum('discount_request_status', ['PENDING', 'APPROVED', 'REDUCED', 'REJECTED', 'EXPIRED', 'WITHDRAWN']);
 export const deliveryDocumentStatus = pgEnum('delivery_document_status', ['PENDING', 'READY', 'FAILED']);
 export const documentSendChannel = pgEnum('document_send_channel', ['SHARE', 'EMAIL']);
-export const cashLedgerEntryType = pgEnum('cash_ledger_entry_type', ['COLLECTION', 'SETTLEMENT_APPROVED', 'DISCREPANCY']);
+export const cashLedgerEntryType = pgEnum('cash_ledger_entry_type', ['COLLECTION', 'SETTLEMENT_APPROVED', 'DISCREPANCY', 'REFUND']);
 
 const money = (name: string) => numeric(name, { precision: 14, scale: 2 });
 const percent = (name: string) => numeric(name, { precision: 6, scale: 3 });
@@ -203,6 +203,7 @@ export const cashLedgerEntries = pgTable(
     index('cash_ledger_entries_seller_idx').on(t.sellerId, t.occurredAt),
     index('cash_ledger_entries_reference_idx').on(t.referenceType, t.referenceId),
     uniqueIndex('cash_ledger_entries_one_collection').on(t.referenceType, t.referenceId).where(sql`${t.entryType} = 'COLLECTION'`),
-    check('cash_ledger_sign', sql`(${t.entryType} = 'COLLECTION' and ${t.amount} > 0) or (${t.entryType} = 'SETTLEMENT_APPROVED' and ${t.amount} < 0) or (${t.entryType} = 'DISCREPANCY' and ${t.amount} <> 0)`),
+    // Settlements and refunds (ADR-0039) take cash out; written without naming REFUND, which its migration adds.
+    check('cash_ledger_sign', sql`(${t.entryType} = 'COLLECTION' and ${t.amount} > 0) or (${t.entryType} = 'DISCREPANCY' and ${t.amount} <> 0) or (${t.entryType} not in ('COLLECTION', 'DISCREPANCY') and ${t.amount} < 0)`),
   ],
 );

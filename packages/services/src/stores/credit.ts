@@ -14,7 +14,7 @@ import { loadStore, openDebits, readingAsManager } from './access';
 
 const { stores, storeLedgerEntries, paymentAllocations, payments, creditOverrides, storeAssignments, users } = schema;
 
-const lockLedger = (tx: Tx, storeId: string) => tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`store-ledger:${storeId}`}, 0))`);
+const lockLedger = (tx: Executor, storeId: string) => tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`store-ledger:${storeId}`}, 0))`);
 
 /**
  * A debit on the store ledger: + what the store owes, due by its cycle when
@@ -43,10 +43,13 @@ export async function postStoreDebit(
  */
 export async function postStoreCredit(
   tx: Tx, ctx: Ctx,
-  input: { storeId: string; entryType: 'PAYMENT' | 'CREDIT_NOTE' | 'ADJUSTMENT'; amount: Money; referenceType: string; referenceId: string; note?: string | null },
+  input: {
+    storeId: string; entryType: 'PAYMENT' | 'CREDIT_NOTE' | 'ADJUSTMENT'; amount: Money; referenceType: string; referenceId: string; note?: string | null;
+    /** ADR-0039: a credit note settles its own sale first. */ firstDebitId?: string | null;
+  },
 ): Promise<{ entryId: string; allocations: { debitId: string; amount: Money }[] }> {
   await lockLedger(tx, input.storeId);
-  const allocations = allocateCredit(input.amount, await openDebits(tx, [input.storeId]));
+  const allocations = allocateCredit(input.amount, await openDebits(tx, [input.storeId]), input.firstDebitId ?? undefined);
   const [row] = await tx.insert(storeLedgerEntries).values({
     storeId: input.storeId, occurredAt: ctx.now, entryType: input.entryType, amount: toMoney(dec(input.amount).negated()),
     referenceType: input.referenceType, referenceId: input.referenceId, note: input.note ?? null, branchId: ctx.branchId, createdBy: ctx.user.id,
@@ -54,6 +57,19 @@ export async function postStoreCredit(
   if (!row) throw new Error('ledger insert returned nothing');
   await tx.insert(paymentAllocations).values(allocations.map((a) => ({ creditEntryId: row.id, debitEntryId: a.debitId, amount: a.amount })));
   return { entryId: row.id, allocations };
+}
+
+/**
+ * RET-002, RET-008 (ADR-0039): what is still unpaid on one debit, and what
+ * the store owes besides. In a transaction it takes the ledger's lock, so a
+ * credit note posted in it sees exactly these figures.
+ */
+export async function debtsAround(tx: Executor, storeId: string, debitId: string | null): Promise<{ unpaid: Money; otherDebts: Money }> {
+  await lockLedger(tx, storeId);
+  const open = await openDebits(tx, [storeId]);
+  const unpaid = open.find((d) => d.id === debitId)?.open ?? money('0.00');
+  const others = open.filter((d) => d.id !== debitId).reduce((sum, d) => sum.plus(dec(d.open)), dec('0'));
+  return { unpaid, otherDebts: toMoney(others) };
 }
 
 export type Payment = {

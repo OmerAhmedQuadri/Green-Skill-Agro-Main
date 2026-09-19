@@ -11,6 +11,7 @@ import { useFormat } from '@/lib/format';
 import { decimalText } from '@/lib/forms';
 import { useCommand, useErrorText } from '@/lib/hooks';
 import { keys } from '@/lib/query-keys';
+import { SaleReturns } from '@/components/returns/SaleReturns';
 import { DeliveryDocumentPanel } from './DeliveryDocumentPanel';
 import { SaleLinesTable, trimPercent } from './SaleLinesTable';
 import { SALE_TONE, type Sale } from './types';
@@ -21,9 +22,10 @@ import { SALE_TONE, type Sale } from './types';
  * that released it, and the delivery document. An approver decides here:
  * approve as asked, lower any line, or reject — first decision wins.
  */
-export function SaleDetail({ id, canDecide }: { id: string; canDecide: boolean }) {
+export function SaleDetail({ id, canDecide, canReturn = false }: { id: string; canDecide: boolean; canReturn?: boolean }) {
   const t = useTranslations('sales');
   const ts = useTranslations('stores');
+  const tr = useTranslations('returns');
   const format = useFormat();
   const errorText = useErrorText();
   const queryClient = useQueryClient();
@@ -85,6 +87,8 @@ export function SaleDetail({ id, canDecide }: { id: string; canDecide: boolean }
       ) : null}
 
       <Section title={t('lines')}><SaleLinesTable sale={s} showBatches /></Section>
+
+      {s.status === 'COMPLETED' ? <Section title={tr('sectionTitle')}><div className="p-5"><SaleReturns saleId={s.id} surface="console" canReturn={canReturn} /></div></Section> : null}
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Section title={t('details')}>

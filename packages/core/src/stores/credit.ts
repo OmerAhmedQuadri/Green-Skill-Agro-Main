@@ -54,14 +54,17 @@ export type CreditAllocation = { readonly debitId: string; readonly amount: Mone
 /**
  * CRD-003: a payment — or a credit adjustment — settles the oldest due debts
  * first; partial payments leave the rest carrying forward. It cannot exceed
- * what is owed (ADR-0036: no credit balances in Phase 1).
+ * what is owed (ADR-0036: no credit balances in Phase 1). A credit note
+ * settles its own sale first (ADR-0039).
  */
-export function allocateCredit(amount: Money, debits: readonly OpenDebit[]): CreditAllocation[] {
+export function allocateCredit(amount: Money, debits: readonly OpenDebit[], firstDebitId?: string): CreditAllocation[] {
   let left = dec(amount);
   if (!left.gt(0)) throw new DomainError('INVALID_MONEY', { value: amount });
   const owed = debits.reduce((sum, d) => sum.plus(dec(d.open)), new Dec(0));
   if (left.gt(owed)) throw new DomainError('PAYMENT_EXCEEDS_BALANCE', { amount, owed: toMoney(owed) });
   const ordered = [...debits].sort((a, b) => (a.dueOn === b.dueOn ? a.occurredAt.getTime() - b.occurredAt.getTime() : a.dueOn < b.dueOn ? -1 : 1));
+  const first = ordered.findIndex((d) => d.id === firstDebitId);
+  if (first > 0) ordered.unshift(...ordered.splice(first, 1));
   const out: CreditAllocation[] = [];
   for (const d of ordered) {
     if (!left.gt(0)) break;

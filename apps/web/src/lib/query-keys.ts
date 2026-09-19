@@ -46,4 +46,8 @@ export const keys = {
   dispatchOrder: (id: string) => ['dispatch-order', id] as const,
   dispatchOptions: (storeId: string) => ['dispatch-options', storeId] as const,
   dispatchStores: (search: string) => ['dispatch-stores', search] as const,
+  returnable: (saleId: string) => ['returnable', saleId] as const,
+  returns: (filter?: object) => (filter ? ['returns', filter] as const : ['returns'] as const),
+  return: (id: string) => ['return', id] as const,
+  salesMonth: ['sales-month'] as const,
 };

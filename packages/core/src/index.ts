@@ -17,3 +17,4 @@ export * from './stores';
 export * from './sales';
 export * from './cash';
 export * from './dispatch';
+export * from './returns';

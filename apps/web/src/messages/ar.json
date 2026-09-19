@@ -465,7 +465,18 @@
     "RECEIPT_MISMATCH": "يجب أن يساوي مجموع المستلم والناقص والتالف في كل صنف ما أُرسل.",
     "NOTHING_RECEIVED": "إن لم يصل شيء، فأبلغ عن فقدان الطلب بدلًا من ذلك.",
     "CLAIM_PENDING": "توجد مطالبة طلب مفقود بانتظار القرار.",
-    "STORE_HAS_NO_SELLER": "لا يوجد مندوب لهذا المتجر لينسب إليه الطلب."
+    "STORE_HAS_NO_SELLER": "لا يوجد مندوب لهذا المتجر لينسب إليه الطلب.",
+    "EMPTY_RETURN": "أدخل عدد العبوات المرتجعة.",
+    "SALE_NOT_COMPLETED": "لا يمكن الإرجاع إلا من بيع مكتمل.",
+    "RETURN_CONDITION_DISABLED": "لا يسمح المسؤول بالإرجاع لهذا السبب.",
+    "RETURN_WINDOW_CLOSED": "انتهت المدة المسموح بها لهذا الإرجاع.",
+    "SALE_ALREADY_PAID": "هذا البيع مدفوع بالكامل. لا تُرجع البضاعة المدفوعة إلا إذا كانت معيبة.",
+    "RETURN_EXCEEDS_UNPAID": "قيمة ذلك أكبر من المبلغ غير المدفوع من هذا البيع.",
+    "RETURN_EXCEEDS_HELD": "هذا أكثر مما لدى المتجر من هذا البيع.",
+    "REPLACEMENT_ONLY_DEFECTIVE": "لا يُستبدل إلا الصنف المعيب.",
+    "REPLACEMENT_NEEDS_VEHICLE": "يُسلَّم الاستبدال من مركبة البائع، لذا يسجّله البائع في المتجر.",
+    "REFUND_NEEDS_SELLER": "يتطلب هذا الإرجاع إعادة نقد، لذا يسجّله البائع في المتجر.",
+    "REFUND_EXCEEDS_CASH_IN_HAND": "لا يكفي النقد الذي بحوزتك لهذا الاسترداد. اعرض الاستبدال بدلًا منه."
   },
   "format": {
     "grams": "{value} جم",
@@ -1479,7 +1490,10 @@
     },
     "toOrder": "أمر الإرسال {number}",
     "sendToWarehouse": "إرسال إلى المستودع",
-    "fromWarehouse": "من المستودع"
+    "fromWarehouse": "من المستودع",
+    "monthSold": "مبيعات هذا الشهر",
+    "monthReturned": "المرتجع",
+    "monthNet": "الصافي"
   },
   "audit": {
     "title": "سجل التدقيق",
@@ -1612,5 +1626,78 @@
       "FURTHER_ORDER": "إرسال طلب آخر",
       "NOT_NEEDED": "لا حاجة"
     }
+  },
+  "returns": {
+    "loading": "جارٍ التحميل…",
+    "title": "مرتجع من {store}",
+    "sectionTitle": "المرتجعات",
+    "backToSale": "العودة إلى البيع",
+    "sale": "البيع",
+    "soldOn": "تاريخ البيع",
+    "saleTotal": "إجمالي البيع",
+    "unpaid": "المتبقي غير المدفوع من هذا البيع",
+    "why": "لماذا تُرجَع البضاعة؟",
+    "conditions": {
+      "UNCLEARED_PAYMENT": "لم تُدفع بعد",
+      "DEFECTIVE": "معيبة"
+    },
+    "blocked": {
+      "RETURN_CONDITION_DISABLED": "غير مسموح به من المسؤول",
+      "RETURN_WINDOW_CLOSED": "انتهت المدة المسموح بها لهذا الإرجاع",
+      "SALE_ALREADY_PAID": "هذا البيع مدفوع بالكامل"
+    },
+    "daysLeft": "{days, plural, =0 {آخر يوم للإرجاع} one {يوم واحد متبقٍ} two {يومان متبقيان} few {# أيام متبقية} many {# يومًا متبقيًا} other {# يوم متبقٍ}}",
+    "unpaidNote": "يمكن إرجاع البضاعة غير المدفوعة فقط بهذه الطريقة، بحد أقصى {unpaid}.",
+    "outcome": "ما يحصل عليه المتجر",
+    "outcomeOptions": {
+      "REPLACEMENT": "الصنف نفسه من مركبتي",
+      "CREDIT_NOTE": "إشعار دائن أو استرداد نقدي"
+    },
+    "kinds": {
+      "CREDIT_NOTE": "إشعار دائن",
+      "REPLACEMENT": "استبدال"
+    },
+    "nothingOpen": "لا يمكن إجراء أي إرجاع على هذا البيع الآن.",
+    "whatComesBack": "ما يُرجَع",
+    "nothingHeld": "لم يعد لدى المتجر شيء من هذا البيع.",
+    "batchHeld": "الدفعة {lot}، تنتهي {expiry} — لدى المتجر {packs}",
+    "expired": "منتهية الصلاحية: ستُشطب",
+    "packsFor": "العبوات المرتجعة — {code}، الدفعة {lot}",
+    "unsaleable": "لا يمكن بيعها مجددًا — تُشطب",
+    "unsaleableFor": "لا يمكن بيعها مجددًا — {code}، الدفعة {lot}",
+    "tooMany": "هذا أكثر مما لدى المتجر من هذا البيع.",
+    "creditTotal": "المبلغ الدائن",
+    "toSale": "يُخصم من هذا البيع",
+    "toOtherDebts": "يُخصم من ديون المتجر الأخرى",
+    "refund": "نقد يُعاد إلى المتجر",
+    "refundHint": "أعد هذا المبلغ نقدًا إلى المتجر. يُخصم من النقد الذي بحوزتك.",
+    "replaceHint": "{packs, plural, one {ستُسلَّم عبوة واحدة} two {ستُسلَّم عبوتان} few {ستُسلَّم # عبوات} many {ستُسلَّم # عبوة} other {ستُسلَّم # عبوة}} من مركبتك وتُشطب العبوات المعيبة. لا تنتقل أي أموال.",
+    "refundTooBig": "بحوزتك {cash} نقدًا، وهذا لا يكفي لهذا الاسترداد. اعرض الاستبدال بدلًا منه.",
+    "toWarehouse": "إعادة إلى",
+    "note": "ملاحظة (اختيارية)",
+    "saving": "جارٍ الحفظ…",
+    "recordCredit": "تسجيل الإشعار الدائن",
+    "recordReplacement": "تسجيل الاستبدال",
+    "start": "إرجاع البضاعة أو استبدالها",
+    "packsCount": "{packs, plural, one {عبوة واحدة} two {عبوتان} few {# عبوات} many {# عبوة} other {# عبوة}}",
+    "processedBy": "سجّله {name}",
+    "sellerOfSale": "بائع هذا البيع: {name}",
+    "onVehicle": "المركبة {registration}",
+    "intoWarehouse": "أُعيد إلى {name}",
+    "againstSale": "مقابل البيع",
+    "noteLine": "ملاحظة: {note}",
+    "item": "الصنف",
+    "batch": "الدفعة",
+    "packs": "العبوات",
+    "outcomeHead": "ما آلت إليه",
+    "amount": "المبلغ الدائن",
+    "handedOver": "ما سُلِّم",
+    "lotExpiry": "{lot}، تنتهي {expiry}",
+    "outcomes": {
+      "RESTOCK": "أُعيد إلى المخزون",
+      "WRITE_OFF": "شُطب"
+    },
+    "replacementLine": "{packs} من الدفعة {lot}، تنتهي {expiry}",
+    "replacementNote": "الاستبدال لا ينقل أي أموال ويترك البيع كما هو."
   }
 }

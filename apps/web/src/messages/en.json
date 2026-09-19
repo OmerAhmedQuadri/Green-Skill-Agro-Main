@@ -465,7 +465,18 @@
     "RECEIPT_MISMATCH": "Each line's received, short and damaged packs must add up to what was sent.",
     "NOTHING_RECEIVED": "If nothing arrived, report the order lost instead.",
     "CLAIM_PENDING": "A lost-order claim is waiting for a decision.",
-    "STORE_HAS_NO_SELLER": "This store has no seller to attribute the order to."
+    "STORE_HAS_NO_SELLER": "This store has no seller to attribute the order to.",
+    "EMPTY_RETURN": "Enter how many packs come back.",
+    "SALE_NOT_COMPLETED": "Only a completed sale can have returns.",
+    "RETURN_CONDITION_DISABLED": "The Admin does not allow returns for this reason.",
+    "RETURN_WINDOW_CLOSED": "The time allowed for this return has passed.",
+    "SALE_ALREADY_PAID": "This sale is fully paid. Paid-for goods can come back only as defective.",
+    "RETURN_EXCEEDS_UNPAID": "That is worth more than is still unpaid on this sale.",
+    "RETURN_EXCEEDS_HELD": "That is more than the store holds from this sale.",
+    "REPLACEMENT_ONLY_DEFECTIVE": "Only a defective item can be replaced.",
+    "REPLACEMENT_NEEDS_VEHICLE": "A replacement is handed over from a seller's vehicle, so the seller records it at the store.",
+    "REFUND_NEEDS_SELLER": "This return needs cash handed back, so the seller records it at the store.",
+    "REFUND_EXCEEDS_CASH_IN_HAND": "You don't hold enough cash for this refund. Offer a replacement instead."
   },
   "format": {
     "grams": "{value} g",
@@ -1479,7 +1490,10 @@
     },
     "toOrder": "Dispatch order {number}",
     "sendToWarehouse": "Send to the warehouse",
-    "fromWarehouse": "From the warehouse"
+    "fromWarehouse": "From the warehouse",
+    "monthSold": "Sold this month",
+    "monthReturned": "Returned",
+    "monthNet": "Net"
   },
   "audit": {
     "title": "Audit log",
@@ -1612,5 +1626,78 @@
       "FURTHER_ORDER": "Send another order",
       "NOT_NEEDED": "Not needed"
     }
+  },
+  "returns": {
+    "loading": "Loading…",
+    "title": "Return from {store}",
+    "sectionTitle": "Returns",
+    "backToSale": "Back to the sale",
+    "sale": "Sale",
+    "soldOn": "Sold",
+    "saleTotal": "Sale total",
+    "unpaid": "Still unpaid on this sale",
+    "why": "Why is it coming back?",
+    "conditions": {
+      "UNCLEARED_PAYMENT": "Not paid for yet",
+      "DEFECTIVE": "Defective"
+    },
+    "blocked": {
+      "RETURN_CONDITION_DISABLED": "Not allowed by the Admin",
+      "RETURN_WINDOW_CLOSED": "The time allowed for this return has passed",
+      "SALE_ALREADY_PAID": "This sale is fully paid"
+    },
+    "daysLeft": "{days, plural, =0 {Last day to return} one {# day left} other {# days left}}",
+    "unpaidNote": "Only goods not yet paid for — up to {unpaid} — can come back this way.",
+    "outcome": "What the store gets",
+    "outcomeOptions": {
+      "REPLACEMENT": "The same item, from my vehicle",
+      "CREDIT_NOTE": "A credit, or cash back"
+    },
+    "kinds": {
+      "CREDIT_NOTE": "Credit note",
+      "REPLACEMENT": "Replacement"
+    },
+    "nothingOpen": "No return can be made on this sale now.",
+    "whatComesBack": "What comes back",
+    "nothingHeld": "The store holds nothing more from this sale.",
+    "batchHeld": "Batch {lot}, expires {expiry} — the store holds {packs}",
+    "expired": "expired: it will be written off",
+    "packsFor": "Packs back — {code}, batch {lot}",
+    "unsaleable": "Can't be sold again — write it off",
+    "unsaleableFor": "Can't be sold again — {code}, batch {lot}",
+    "tooMany": "That is more than the store holds from this sale.",
+    "creditTotal": "Credit",
+    "toSale": "Off this sale",
+    "toOtherDebts": "Off the store's other debts",
+    "refund": "Cash back to the store",
+    "refundHint": "Hand this cash back to the store. It comes out of your cash in hand.",
+    "replaceHint": "{packs, plural, one {# pack} other {# packs}} will be handed over from your vehicle and the defective ones written off. No money changes hands.",
+    "refundTooBig": "You hold {cash} in cash, which is not enough for this refund. Offer a replacement instead.",
+    "toWarehouse": "Back into",
+    "note": "Note (optional)",
+    "saving": "Saving…",
+    "recordCredit": "Record the credit note",
+    "recordReplacement": "Record the replacement",
+    "start": "Return or replace goods",
+    "packsCount": "{packs, plural, one {# pack} other {# packs}}",
+    "processedBy": "Recorded by {name}",
+    "sellerOfSale": "Seller of the sale: {name}",
+    "onVehicle": "Vehicle {registration}",
+    "intoWarehouse": "Back into {name}",
+    "againstSale": "Against sale",
+    "noteLine": "Note: {note}",
+    "item": "Item",
+    "batch": "Batch",
+    "packs": "Packs",
+    "outcomeHead": "Where it went",
+    "amount": "Credit",
+    "handedOver": "Handed over",
+    "lotExpiry": "{lot}, expires {expiry}",
+    "outcomes": {
+      "RESTOCK": "Back in stock",
+      "WRITE_OFF": "Written off"
+    },
+    "replacementLine": "{packs} from batch {lot}, expires {expiry}",
+    "replacementNote": "A replacement moves no money and leaves the sale as it was."
   }
 }
