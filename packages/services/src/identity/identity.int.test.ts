@@ -188,7 +188,7 @@ describe('Phase 1 has no branch scoping (USR-012, ADR-0004)', () => {
       'categories', 'sub_categories', 'product_types', 'product_type_attributes', 'products', 'varieties', 'skus',
       'vendors', 'price_lists', 'price_list_items', 'sku_discount_ceilings',
       'system_settings', 'feature_toggles', 'ceilings', 'commission_rates',
-      'purchase_order_lines', 'purchase_order_events', 'goods_receipt_lines', 'document_sequences',
+      'purchase_order_lines', 'purchase_order_events', 'goods_receipt_lines', 'document_sequences', 'stock_flags',
     ]);
     const rows = await ownerQuery<{ table_name: string; has_branch: boolean }>(`
       select t.table_name, bool_or(c.column_name = 'branch_id') as has_branch

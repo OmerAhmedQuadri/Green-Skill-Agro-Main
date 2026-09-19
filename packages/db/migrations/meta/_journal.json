@@ -57,6 +57,13 @@
       "when": 1789770639727,
       "tag": "0007_stock_ledger_guards",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1789773811793,
+      "tag": "0008_conversions_and_write_offs",
+      "breakpoints": true
     }
   ]
 }

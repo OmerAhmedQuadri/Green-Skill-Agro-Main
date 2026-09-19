@@ -66,6 +66,12 @@ const STATUS: Record<ErrorCode, number> = {
   PO_NOT_RECEIVABLE: 409,
   SKU_NOT_ON_ORDER: 422,
   INVALID_IMPORT_FILE: 422,
+  INVALID_CONVERSION: 422,
+  CONVERSION_UNBALANCED: 422,
+  FEATURE_DISABLED: 403,
+  ALREADY_DECIDED: 409,
+  FOUR_EYES: 403,
+  EVIDENCE_REQUIRED: 422,
 };
 
 export function problem(status: number, code: string, requestId: string, details?: Record<string, unknown>, headers?: HeadersInit): Response {

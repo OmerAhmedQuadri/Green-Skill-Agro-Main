@@ -5,7 +5,7 @@ import {
 import { newId, schema } from '@gsa/db';
 import { and, eq, lte } from 'drizzle-orm';
 import { authorize, type Ctx } from '../context';
-import { inTx, writeAudit } from '../platform';
+import { inTx, writeAudit, type Executor } from '../platform';
 import { defaultBranchId, getBlobStore, getDb } from '../runtime';
 import type { PresignedUpload } from './blob-store';
 
@@ -131,4 +131,15 @@ export async function purgeMedia(now: Date, batch = 500): Promise<{ expired: num
     });
   }
   return { expired, abandoned: stale.length };
+}
+
+/**
+ * Evidence attached to a record (a write-off photo, a deposit slip): a
+ * confirmed file of the right kind, uploaded by the person attaching it.
+ */
+export async function assertOwnEvidence(db: Executor, ctx: Ctx, mediaId: string, kind: MediaKind): Promise<void> {
+  const [asset] = await db.select({ kind: mediaAssets.kind, status: mediaAssets.status, uploadedBy: mediaAssets.uploadedBy })
+    .from(mediaAssets).where(eq(mediaAssets.id, mediaId));
+  if (!asset || asset.kind !== kind || asset.uploadedBy !== ctx.user.id) throw new DomainError('EVIDENCE_REQUIRED', { mediaId });
+  if (asset.status !== 'READY') throw new DomainError('MEDIA_NOT_UPLOADED', { mediaId });
 }

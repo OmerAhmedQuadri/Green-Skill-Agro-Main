@@ -1,17 +1,17 @@
 import {
-  DomainError, dec, isEditable, money, outstandingPacks, poNumber, templateFrom, transitionPo,
+  DomainError, dec, isEditable, money, outstandingPacks, templateFrom, transitionPo,
   type AttributeMode, type CountUnit, type Money, type PackSize, type PoAction, type PoCloseReason, type PoStatus, type PurchaseOrderId, type SkuId, type VendorId,
 } from '@gsa/core';
 import { schema } from '@gsa/db';
 import { and, asc, desc, eq, ilike, inArray, lt, sql, type SQL } from 'drizzle-orm';
 import { sizeOf } from '../catalogue';
 import { authorize, authorizeAny, type Ctx } from '../context';
-import { audit, inTx, likePattern, pageLimit, type Executor } from '../platform';
+import { audit, inTx, likePattern, nextDocumentNumber, pageLimit, type Executor } from '../platform';
 import { getDb } from '../runtime';
 
 const {
   purchaseOrders, purchaseOrderLines, purchaseOrderEvents, goodsReceiptLines, goodsReceipts, skus, products, varieties, productTypes,
-  vendors, warehouses, documentSequences, users, productTypeAttributes,
+  vendors, warehouses, users, productTypeAttributes,
 } = schema;
 
 /** Who may read purchase orders: anyone who raises, approves or receives them. */
@@ -163,14 +163,6 @@ async function checkVendor(db: Executor, vendorId: string) {
   if (!vendor.isActive) throw new DomainError('REFERENCE_INACTIVE', { entity: 'vendor', id: vendorId });
 }
 
-async function nextNumber(db: Executor, year: number): Promise<string> {
-  const key = `PO-${year}`;
-  const [row] = await db.insert(documentSequences).values({ key, value: 1 })
-    .onConflictDoUpdate({ target: documentSequences.key, set: { value: sql`${documentSequences.value} + 1` } })
-    .returning({ value: documentSequences.value });
-  return poNumber(year, row?.value ?? 1);
-}
-
 async function recordEvent(db: Executor, ctx: Ctx, poId: string, action: string, from: PoStatus | null, to: PoStatus, reason: string | null) {
   await db.insert(purchaseOrderEvents).values({ purchaseOrderId: poId, action, fromStatus: from, toStatus: to, reason, actorId: ctx.user.id, occurredAt: ctx.now });
 }
@@ -190,7 +182,7 @@ export async function createPurchaseOrder(
     const lines = await checkLines(tx, input.lines);
     const [warehouse] = await tx.select({ id: warehouses.id }).from(warehouses).where(eq(warehouses.isActive, true)).orderBy(asc(warehouses.createdAt)).limit(1);
     if (!warehouse) throw new Error('no active warehouse — run pnpm db:sync');
-    const number = await nextNumber(tx, Number.parseInt(ctx.now.toISOString().slice(0, 4), 10));
+    const number = await nextDocumentNumber(tx, 'PO', ctx.now);
     const [po] = await tx.insert(purchaseOrders).values({
       number, vendorId: input.vendorId, warehouseId: warehouse.id, origin: input.origin ?? 'MANUAL',
       expectedArrival: input.expectedArrival ?? null, notes: input.notes?.trim() || null, branchId: ctx.branchId,
