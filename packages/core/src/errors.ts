@@ -63,7 +63,13 @@ export type ErrorCode =
   | 'PO_NOT_EDITABLE'
   | 'PO_NOT_RECEIVABLE'
   | 'SKU_NOT_ON_ORDER'
-  | 'INVALID_IMPORT_FILE';
+  | 'INVALID_IMPORT_FILE'
+  | 'INVALID_CONVERSION'
+  | 'CONVERSION_UNBALANCED'
+  | 'FEATURE_DISABLED'
+  | 'ALREADY_DECIDED'
+  | 'FOUR_EYES'
+  | 'EVIDENCE_REQUIRED';
 
 export class DomainError extends Error {
   readonly code: ErrorCode;

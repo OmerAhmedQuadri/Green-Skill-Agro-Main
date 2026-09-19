@@ -15,6 +15,8 @@ const Env = z.object({
   S3_BUCKET: z.string().min(1),
   S3_ACCESS_KEY: z.string().min(1),
   S3_SECRET_KEY: z.string().min(8),
+  /** Optional, e.g. `ci/`: keeps one bucket's users apart (CI shares the development bucket). */
+  S3_KEY_PREFIX: z.string().regex(/^([a-z0-9-]+\/)?$/).default(''),
   SMTP_URL: z.url(),
   MAIL_FROM: z.string().min(3),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),

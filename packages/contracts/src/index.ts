@@ -23,3 +23,4 @@ export * as pricing from './pricing';
 export * as system from './system';
 export * as procurement from './procurement';
 export * as inventory from './inventory';
+export * as warehouse from './warehouse';

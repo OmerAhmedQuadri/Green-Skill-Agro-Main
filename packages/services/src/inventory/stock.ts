@@ -25,6 +25,7 @@ export type Incoming = { /** PLACED or CONFIRMED */ readonly onOrder: number; /*
 
 export type SkuStock = {
   readonly skuId: SkuId; readonly code: string; readonly product: Named; readonly variety: Named | null;
+  /** CNV-002: a conversion stays within one product and variety. */ readonly productId: string; readonly varietyId: string | null;
   readonly size: PackSize; readonly packaging: Packaging; readonly countUnit: CountUnit; readonly isActive: boolean;
   readonly positions: Positions; readonly incoming: Incoming;
 };
@@ -95,6 +96,7 @@ export async function listStock(
     const size = sizeOf(r.sku);
     return {
       skuId: r.sku.id as SkuId, code: r.sku.code, isActive: r.sku.isActive, size, packaging: r.sku.packaging, countUnit: r.countUnit,
+      productId: r.sku.productId, varietyId: r.sku.varietyId,
       product: { nameEn: r.productEn, nameAr: r.productAr },
       variety: r.varietyEn !== null && r.varietyAr !== null ? { nameEn: r.varietyEn, nameAr: r.varietyAr } : null,
       positions: positions(unitsOf(size), r), incoming: incoming.get(r.sku.id) ?? { onOrder: 0, inTransit: 0 },

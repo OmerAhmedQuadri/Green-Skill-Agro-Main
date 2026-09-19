@@ -7,6 +7,8 @@ export type S3Settings = {
   readonly bucket: string;
   readonly accessKeyId: string;
   readonly secretAccessKey: string;
+  /** Put every object under this prefix, e.g. `ci/`, to keep one bucket's users apart. */
+  readonly keyPrefix?: string | undefined;
 };
 
 /**
@@ -22,7 +24,7 @@ export function createS3BlobStore(settings: S3Settings): BlobStore {
     region: settings.region,
   });
   const base = settings.endpoint.replace(/\/+$/, '');
-  const objectUrl = (key: string) => `${base}/${settings.bucket}/${key.split('/').map(encodeURIComponent).join('/')}`;
+  const objectUrl = (key: string) => `${base}/${settings.bucket}/${`${settings.keyPrefix ?? ''}${key}`.split('/').map(encodeURIComponent).join('/')}`;
 
   const presign = async (key: string, method: 'GET' | 'PUT', expiresInSeconds: number, headers: Record<string, string> = {}) => {
     const url = new URL(objectUrl(key));

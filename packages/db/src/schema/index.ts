@@ -9,3 +9,4 @@ export * from './pricing';
 export * from './system';
 export * from './stock';
 export * from './procurement';
+export * from './warehouse';

@@ -1,5 +1,6 @@
 import {
   ATTRIBUTE_MODES, COUNT_UNITS, PACKAGING_TYPES, PO_CLOSE_REASONS, PO_STATUSES, PRODUCT_ATTRIBUTES, STOCK_ACCOUNT_KINDS, STOCK_REFERENCE_TYPES,
+  WRITE_OFF_REASONS, WRITE_OFF_STATUSES,
 } from '@gsa/core';
 import { schema } from '@gsa/db';
 import { describe, expect, it } from 'vitest';
@@ -25,5 +26,10 @@ describe('database enums mirror core', () => {
   it('PO-001, PO-007: purchase order states and close reasons', () => {
     expect(schema.poStatus.enumValues).toEqual([...PO_STATUSES]);
     expect(schema.poCloseReason.enumValues).toEqual([...PO_CLOSE_REASONS]);
+  });
+
+  it('WRO-002: write-off states and reasons', () => {
+    expect(schema.writeOffStatus.enumValues).toEqual([...WRITE_OFF_STATUSES]);
+    expect(schema.writeOffReason.enumValues).toEqual([...WRITE_OFF_REASONS]);
   });
 });

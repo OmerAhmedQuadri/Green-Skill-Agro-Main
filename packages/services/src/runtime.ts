@@ -37,7 +37,7 @@ export function getBlobStore(): BlobStore {
     const c = loadConfig();
     blobStore = createS3BlobStore({
       endpoint: c.S3_ENDPOINT, region: c.S3_REGION, bucket: c.S3_BUCKET,
-      accessKeyId: c.S3_ACCESS_KEY, secretAccessKey: c.S3_SECRET_KEY,
+      accessKeyId: c.S3_ACCESS_KEY, secretAccessKey: c.S3_SECRET_KEY, keyPrefix: c.S3_KEY_PREFIX,
     });
   }
   return blobStore;

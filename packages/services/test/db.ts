@@ -11,7 +11,7 @@ const TABLES = [
   'password_reset_tokens', 'vendors', 'categories', 'sub_categories', 'product_types', 'product_type_attributes', 'products',
   'varieties', 'skus', 'price_lists', 'price_list_items', 'sku_discount_ceilings', 'system_settings', 'feature_toggles',
   'ceilings', 'commission_rates', 'batches', 'stock_movements', 'purchase_orders', 'purchase_order_lines',
-  'purchase_order_events', 'goods_receipts', 'goods_receipt_lines', 'document_sequences',
+  'purchase_order_events', 'goods_receipts', 'goods_receipt_lines', 'document_sequences', 'sku_conversions', 'write_offs', 'stock_flags',
 ];
 
 /**
