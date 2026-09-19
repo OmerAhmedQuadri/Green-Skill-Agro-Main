@@ -13,6 +13,8 @@ export default defineConfig({
   forbidOnly: Boolean(process.env.CI),
   retries: 0,
   reporter: [['list']],
+  // A full run on a laptop, with the worker printing documents alongside: a server round trip can pass five seconds.
+  expect: { timeout: 10_000 },
   use: { baseURL: 'http://localhost:3000', trace: 'retain-on-failure' },
   projects: [{
     name: 'chromium',

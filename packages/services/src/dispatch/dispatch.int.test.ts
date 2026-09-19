@@ -86,7 +86,7 @@ describe('handling and release (DSP-004..008)', () => {
     expect(back).toMatchObject({ status: 'REQUESTED', handledBy: null });
   });
 
-  it('DSP-006..008: release needs the transport slip photo; stock leaves the warehouse for the dispatched position — never a vehicle', async () => {
+  it('DSP-006, DSP-007, DSP-008: release needs the transport slip photo; stock leaves the warehouse for the dispatched position — never a vehicle', async () => {
     const s = await aDispatchSetup();
     const { orderId } = await raiseDispatchOrder(s.seller.ctx, { storeId: s.store.id, lines: lines(s) });
     const id = orderId ?? '';

@@ -43,7 +43,8 @@ for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
     await staff.getByLabel(fill(m.warehouse.sourcePacks, { held: 10 })).fill('2');
     await staff.getByLabel(m.warehouse.targetPacks).fill('9');
     await staff.locator('form').getByRole('button', { name: m.warehouse.convert, exact: true }).click();
-    await expect(staff.getByText(fill(m.warehouse.converted, { from: 2, to: 9, code: 'OKRA-PK-1KG' }))).toBeVisible();
+    // Seen once past five seconds at the end of a full run, on a development database many runs old.
+    await expect(staff.getByText(fill(m.warehouse.converted, { from: 2, to: 9, code: 'OKRA-PK-1KG' }))).toBeVisible({ timeout: 15_000 });
     await expect(row).toContainText('8');
 
     // CNV-006: the pouches carry the bags' LOT, manufacture and expiry dates.
