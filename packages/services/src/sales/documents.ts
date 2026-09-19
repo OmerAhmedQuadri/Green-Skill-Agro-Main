@@ -34,7 +34,7 @@ export async function createDeliveryDocument(tx: Tx, ctx: Ctx, saleId: string): 
 /** DOC-001: everything the document shows, read from the committed sale. */
 async function documentData(db: Executor, saleId: string, number: string): Promise<DocumentData> {
   const [row] = await db.select({ s: sales, store: stores, seller: users.name, vehicle: vehicles.registration })
-    .from(sales).innerJoin(stores, eq(stores.id, sales.storeId)).innerJoin(users, eq(users.id, sales.sellerId)).innerJoin(vehicles, eq(vehicles.id, sales.vehicleId))
+    .from(sales).innerJoin(stores, eq(stores.id, sales.storeId)).innerJoin(users, eq(users.id, sales.sellerId)).leftJoin(vehicles, eq(vehicles.id, sales.vehicleId))
     .where(eq(sales.id, saleId));
   if (!row) throw new Error(`sale ${saleId} missing for its document`);
   const [lines, [payment], [debit]] = await inOrder([

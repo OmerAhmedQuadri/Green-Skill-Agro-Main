@@ -1,4 +1,4 @@
-export { loadStore, creditStatuses, type Store, type StoreSummary } from './access';
+export { loadStore, creditStatuses, readingAsManager, type Store, type StoreSummary } from './access';
 export { storeOptions, checkDuplicates, onboardStore, type OnboardInput } from './onboarding';
 export { listStores, getStore, decideStore, setStoreActive, updateStoreTerms, setCreditCycle, reassignStore } from './manage';
 export {

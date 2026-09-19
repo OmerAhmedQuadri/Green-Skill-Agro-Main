@@ -42,4 +42,8 @@ export const keys = {
   saleOptions: (storeId: string) => ['sale-options', storeId] as const,
   cashInHand: ['cash-in-hand'] as const,
   auditLog: (filter?: object) => (filter ? ['audit-log', filter] as const : ['audit-log'] as const),
+  dispatchOrders: (filter?: object) => (filter ? ['dispatch-orders', filter] as const : ['dispatch-orders'] as const),
+  dispatchOrder: (id: string) => ['dispatch-order', id] as const,
+  dispatchOptions: (storeId: string) => ['dispatch-options', storeId] as const,
+  dispatchStores: (search: string) => ['dispatch-stores', search] as const,
 };

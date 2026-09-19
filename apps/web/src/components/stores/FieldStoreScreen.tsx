@@ -1,7 +1,7 @@
 'use client';
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Phone, ShoppingCart } from 'lucide-react';
+import { PackageOpen, Phone, ShoppingCart } from 'lucide-react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { useState, type FormEvent } from 'react';
@@ -63,7 +63,12 @@ export function FieldStoreScreen({ id }: { id: string }) {
       {s.status === 'REJECTED' && s.decisionReason ? <Alert>{t('rejectedBecause', { reason: s.decisionReason })}</Alert> : null}
 
       <Card className="p-4"><CreditPanel credit={s.credit} /></Card>
-      {s.status === 'ACTIVE' ? <Link href={`/field/sell/${id}`} className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-md bg-brand-800 text-base font-medium text-white"><ShoppingCart className="size-5" aria-hidden />{t('newSale')}</Link> : null}
+      {s.status === 'ACTIVE' ? (
+        <div className="grid gap-2">
+          <Link href={`/field/sell/${id}`} className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-md bg-brand-800 text-base font-medium text-white"><ShoppingCart className="size-5" aria-hidden />{t('newSale')}</Link>
+          <Link href={`/field/order/${id}`} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-md border border-stone-300 text-sm font-medium"><PackageOpen className="size-4" aria-hidden />{t('orderFromWarehouse')}</Link>
+        </div>
+      ) : null}
 
       {pay.error ? <Alert>{errorText(pay.error)}</Alert> : null}
       {paying ? (

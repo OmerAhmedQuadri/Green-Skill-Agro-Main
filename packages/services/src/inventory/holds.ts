@@ -56,7 +56,8 @@ export async function saleHeld(db: Executor, batchId: string, vehicleId: string,
 /** Every batch's sale holds on the given vehicles, for listing vehicle stock. */
 export async function saleHoldsByBatch(db: Executor, vehicleIds: readonly string[]): Promise<{ vehicleId: string; batchId: string; q: string }[]> {
   if (vehicleIds.length === 0) return [];
-  return db.select({ vehicleId: sales.vehicleId, batchId: saleLineAllocations.batchId, q: sql<string>`sum(${saleLineAllocations.quantity})` })
+  // Vehicle sales only: the filter below keeps the vehicle id non-null.
+  return db.select({ vehicleId: sql<string>`${sales.vehicleId}`, batchId: saleLineAllocations.batchId, q: sql<string>`sum(${saleLineAllocations.quantity})` })
     .from(saleLineAllocations).innerJoin(saleLines, eq(saleLines.id, saleLineAllocations.saleLineId)).innerJoin(sales, eq(sales.id, saleLines.saleId))
     .where(and(inArray(sales.vehicleId, [...vehicleIds]), inArray(sales.status, [...HOLDING_SALE_STATUSES])))
     .groupBy(sales.vehicleId, saleLineAllocations.batchId);

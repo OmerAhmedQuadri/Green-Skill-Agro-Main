@@ -10,7 +10,7 @@ import { sizeCode, type CountUnit, type Money, type PackSize, type Percent } fro
 export type DocumentData = {
   readonly number: string; readonly issuedAt: Date;
   readonly store: { readonly name: string; readonly ownerName: string; readonly contactNumber: string };
-  readonly seller: string; readonly vehicle: string;
+  readonly seller: string; readonly vehicle: string | null;
   readonly lines: readonly {
     readonly code: string; readonly productEn: string; readonly productAr: string; readonly varietyEn: string | null; readonly varietyAr: string | null;
     readonly size: PackSize; readonly countUnit: CountUnit; readonly packs: number; readonly unitPrice: Money; readonly discount: Percent;
@@ -98,7 +98,7 @@ td { padding: 6px; border-bottom: 1px solid #e7e5e4; vertical-align: top; }
 <div class="notice">${both('This is not a tax invoice. It is an unofficial record of goods delivered.', 'هذه ليست فاتورة ضريبية، وإنما سجل غير رسمي بالبضاعة المسلّمة.')}</div>
 <section class="parties">
   <div><h2>${both('Store', 'المتجر')}</h2><div class="name">${escape(data.store.name)}</div><div>${escape(data.store.ownerName)}</div><div><bdi dir="ltr">${escape(data.store.contactNumber)}</bdi></div></div>
-  <div><h2>${both('Seller', 'المندوب')}</h2><div class="name">${escape(data.seller)}</div><div>${both('Vehicle', 'المركبة')} <bdi>${escape(data.vehicle)}</bdi></div></div>
+  <div><h2>${both('Seller', 'المندوب')}</h2><div class="name">${escape(data.seller)}</div>${data.vehicle ? `<div>${both('Vehicle', 'المركبة')} <bdi>${escape(data.vehicle)}</bdi></div>` : `<div>${both('Dispatched from the warehouse', 'أُرسل من المستودع')}</div>`}</div>
 </section>
 <table>
 <thead><tr>

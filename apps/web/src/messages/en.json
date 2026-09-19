@@ -94,12 +94,14 @@
     "myVehicle": "My vehicle",
     "stores": "Stores",
     "sales": "Sales",
-    "auditLog": "Audit log"
+    "auditLog": "Audit log",
+    "dispatch": "Dispatch"
   },
   "dashboard": {
     "welcome": "Welcome, {name}",
     "signedInAs": "Signed in as {role}",
-    "permissionCount": "{count, plural, one {# permission} other {# permissions}}"
+    "permissionCount": "{count, plural, one {# permission} other {# permissions}}",
+    "unconfirmedDispatch": "{count, plural, one {# dispatch order has} other {# dispatch orders have}} been on the road too long without confirmation."
   },
   "field": {
     "welcome": "Good day, {name}",
@@ -459,7 +461,11 @@
     "CREDIT_LIMIT_EXCEEDED": "This sale is above the store's available credit.",
     "PAYMENT_REQUIRED": "A bill-to-bill store pays at the sale — choose how.",
     "DOCUMENT_NOT_READY": "The delivery document is not ready yet.",
-    "DOCUMENT_SENDING_DISABLED": "Sending delivery documents is switched off."
+    "DOCUMENT_SENDING_DISABLED": "Sending delivery documents is switched off.",
+    "RECEIPT_MISMATCH": "Each line's received, short and damaged packs must add up to what was sent.",
+    "NOTHING_RECEIVED": "If nothing arrived, report the order lost instead.",
+    "CLAIM_PENDING": "A lost-order claim is waiting for a decision.",
+    "STORE_HAS_NO_SELLER": "This store has no seller to attribute the order to."
   },
   "format": {
     "grams": "{value} g",
@@ -1007,7 +1013,10 @@
     "close": "Close camera",
     "ready": "Photo saved",
     "saving": "Saving photo…",
-    "viewfinder": "Camera view"
+    "viewfinder": "Camera view",
+    "uploading": "Uploading…",
+    "chooseFile": "Choose a photo or PDF",
+    "fileReady": "{name} uploaded"
   },
   "notifications": {
     "title": "Notifications",
@@ -1035,7 +1044,13 @@
       "DISCOUNT_APPROVED": "Your discount at {store} was approved — complete the sale.",
       "DISCOUNT_REDUCED": "Your discount at {store} was approved lower — complete the sale.",
       "DISCOUNT_REJECTED": "Your discount at {store} was rejected.",
-      "DISCOUNT_EXPIRED": "Your pending sale at {store} expired and its items were released."
+      "DISCOUNT_EXPIRED": "Your pending sale at {store} expired and its items were released.",
+      "DISPATCH_REQUESTED": "Order {number} for {store} is waiting at the warehouse.",
+      "DISPATCH_CREATED_FOR_YOU": "A manager raised order {number} for your store {store}.",
+      "DISPATCH_RELEASED": "Order {number} for {store} is on its way.",
+      "DISPATCH_CANCELLED": "Order {number} for {store} was cancelled: {reason}",
+      "LOST_CLAIM_RAISED": "Order {number} for {store} was reported lost — decide the claim.",
+      "LOST_CLAIM_DECIDED": "Your lost-order claim on {number} was {outcome, select, APPROVED {approved} other {rejected}}."
     }
   },
   "vehicles": {
@@ -1334,7 +1349,8 @@
     "adjustReason": "Reason",
     "postAdjustment": "Post correction",
     "newSale": "New sale",
-    "overrideHint": "For a blocked store, or for one sale above its limit."
+    "overrideHint": "For a blocked store, or for one sale above its limit.",
+    "orderFromWarehouse": "Order from the warehouse"
   },
   "sales": {
     "title": "Sales",
@@ -1442,12 +1458,16 @@
     "cancelReasons": {
       "REJECTED": "Rejected",
       "EXPIRED": "Expired",
-      "WITHDRAWN": "Withdrawn"
+      "WITHDRAWN": "Withdrawn",
+      "REQUEST_CANCELLED": "Order cancelled",
+      "LOST": "Lost in transit"
     },
     "cancelledTitles": {
       "REJECTED": "The discount was rejected.",
       "EXPIRED": "The request expired without a decision.",
-      "WITHDRAWN": "You withdrew this sale."
+      "WITHDRAWN": "You withdrew this sale.",
+      "REQUEST_CANCELLED": "The order was cancelled before it left the warehouse.",
+      "LOST": "The order was lost in transit; nothing was billed."
     },
     "approvalStatuses": {
       "PENDING": "Waiting",
@@ -1456,7 +1476,10 @@
       "REJECTED": "Rejected",
       "EXPIRED": "Expired",
       "WITHDRAWN": "Withdrawn"
-    }
+    },
+    "toOrder": "Dispatch order {number}",
+    "sendToWarehouse": "Send to the warehouse",
+    "fromWarehouse": "From the warehouse"
   },
   "audit": {
     "title": "Audit log",
@@ -1473,5 +1496,121 @@
     "system": "System",
     "empty": "Nothing recorded matches.",
     "more": "Show more"
+  },
+  "dispatch": {
+    "title": "Dispatch orders",
+    "subtitle": "Orders sent from the warehouse to stores by hired transport — who is handling each, and what is still on its way.",
+    "loading": "Loading…",
+    "newForSeller": "New order for a seller",
+    "newForSellerHint": "The order is the store's seller's sale: they are told at once and confirm receipt.",
+    "noOrders": "No orders.",
+    "number": "Order",
+    "store": "Store",
+    "seller": "Seller",
+    "total": "Total",
+    "handledByColumn": "Handled by",
+    "unconfirmed": "Not confirmed in time",
+    "unconfirmedNote": "Released longer ago than the set number of days, and still not confirmed by the seller.",
+    "claimBadge": "Lost-order claim",
+    "raisedByLine": "Raised by {name}",
+    "raisedForYou": "Raised for you by {name}",
+    "handledBy": "Being handled by {name}",
+    "nobodyHandling": "Nobody is handling it yet.",
+    "someoneElse": "{name} is handling this order. You can take it over — it is a label, not a lock.",
+    "take": "Take it",
+    "takeOver": "Take it over",
+    "handBack": "Hand it back",
+    "handling": "Handling",
+    "releaseTitle": "Release to transport",
+    "releaseHint": "Book the transport, then upload the slip. The stock leaves the warehouse now, soonest expiry first — never through a vehicle.",
+    "transportSlip": "Transport slip",
+    "transportNote": "Transport details (optional)",
+    "release": "Release",
+    "viewSlip": "View the slip",
+    "cancelReason": "Reason for cancelling",
+    "cancelOrder": "Cancel the order",
+    "keep": "Keep it",
+    "claimTitle": "Lost-order claim",
+    "claimBy": "Raised by {name} at {time}",
+    "comment": "Comment",
+    "approveClaim": "Approve — write the stock off",
+    "rejectClaim": "Reject",
+    "lines": "Items",
+    "details": "Details",
+    "history": "History",
+    "raisedBy": "Raised",
+    "releasedLabel": "Released",
+    "confirmedLabel": "Confirmed",
+    "outcome": "Outcome",
+    "ordered": "Ordered",
+    "warehouse": "In warehouse",
+    "arrived": "Arrived",
+    "arrivedLine": "{received} received · {short} short · {damaged} damaged",
+    "orderTitle": "Order for {store}",
+    "items": "Items from the warehouse",
+    "searchItems": "Search items",
+    "inWarehouse": "{count} in the warehouse",
+    "committed": "Orders on their way to this store: {amount}",
+    "pendingNote": "Nothing is billed until the store receives it; the store pays for what arrives.",
+    "sendOrder": "Send the order",
+    "mySalesBack": "My sales",
+    "onItsWay": "On its way — released {time}.",
+    "claimPending": "You reported this order lost; a manager is deciding.",
+    "confirmTitle": "What arrived?",
+    "released": "{count} sent",
+    "receivedFor": "Received of {code}",
+    "shortFor": "Short of {code}",
+    "damagedFor": "Damaged of {code}",
+    "howConfirmed": "How you know",
+    "ownerWordNote": "Confirmations on the owner's word are reviewed at the next vehicle audit.",
+    "confirmReceipt": "Confirm receipt",
+    "claimReason": "What happened?",
+    "claimLost": "Report it lost",
+    "nothingArrived": "Nothing arrived",
+    "cancel": "Cancel",
+    "shortfallTitle": "Some packs did not arrive",
+    "shortfallHint": "The store paid for what arrived. How should the missing packs be made good?",
+    "toSaleDocument": "Open the sale and its delivery document",
+    "findStore": "Find a store",
+    "chooseStore": "Choose a store…",
+    "attributedTo": "This order will be {name}'s sale.",
+    "filters": {
+      "OPEN": "Open",
+      "UNCONFIRMED": "Released, not confirmed in time",
+      "ALL": "All"
+    },
+    "statuses": {
+      "REQUESTED": "Requested",
+      "BEING_HANDLED": "Being handled",
+      "RELEASED": "On its way",
+      "DELIVERED": "Delivered — shortfall to resolve",
+      "CLOSED": "Closed"
+    },
+    "closeReasons": {
+      "DELIVERED": "Delivered",
+      "CANCELLED": "Cancelled",
+      "LOST": "Lost"
+    },
+    "events": {
+      "RAISED": "{name} raised it",
+      "TAKEN": "{name} took it",
+      "RELEASED_BACK": "{name} handed it back",
+      "RELEASED": "{name} released it",
+      "CONFIRMED": "{name} confirmed receipt",
+      "RESOLVED": "{name} resolved the shortfall",
+      "CANCELLED": "{name} cancelled it",
+      "CLAIMED": "{name} reported it lost",
+      "CLAIM_APPROVED": "{name} approved the claim",
+      "CLAIM_REJECTED": "{name} rejected the claim"
+    },
+    "modes": {
+      "IN_PERSON": "In person",
+      "OWNER_WORD": "On the store owner's word"
+    },
+    "resolutions": {
+      "FROM_VEHICLE": "Hand them over from my vehicle",
+      "FURTHER_ORDER": "Send another order",
+      "NOT_NEEDED": "Not needed"
+    }
   }
 }

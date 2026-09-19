@@ -109,6 +109,10 @@ const STATUS: Record<ErrorCode, number> = {
   PAYMENT_REQUIRED: 422,
   DOCUMENT_NOT_READY: 409,
   DOCUMENT_SENDING_DISABLED: 409,
+  RECEIPT_MISMATCH: 422,
+  NOTHING_RECEIVED: 422,
+  CLAIM_PENDING: 409,
+  STORE_HAS_NO_SELLER: 409,
 };
 
 export function problem(status: number, code: string, requestId: string, details?: Record<string, unknown>, headers?: HeadersInit): Response {

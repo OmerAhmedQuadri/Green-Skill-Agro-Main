@@ -11,7 +11,8 @@ import { vehicles } from './vehicles';
 
 // Mirror packages/core/src/sales and packages/core/src/cash.
 export const saleStatus = pgEnum('sale_status', ['PENDING_DISCOUNT_APPROVAL', 'DISCOUNT_APPROVED', 'PENDING_DELIVERY', 'COMPLETED', 'CANCELLED']);
-export const saleCancelReason = pgEnum('sale_cancel_reason', ['REJECTED', 'EXPIRED', 'WITHDRAWN']);
+export const saleCancelReason = pgEnum('sale_cancel_reason', ['REJECTED', 'EXPIRED', 'WITHDRAWN', 'REQUEST_CANCELLED', 'LOST']);
+export const saleChannel = pgEnum('sale_channel', ['VEHICLE', 'DISPATCH']);
 export const discountRequestStatus = pgEnum('discount_request_status', ['PENDING', 'APPROVED', 'REDUCED', 'REJECTED', 'EXPIRED', 'WITHDRAWN']);
 export const deliveryDocumentStatus = pgEnum('delivery_document_status', ['PENDING', 'READY', 'FAILED']);
 export const documentSendChannel = pgEnum('document_send_channel', ['SHARE', 'EMAIL']);
@@ -31,7 +32,8 @@ export const sales = pgTable(
     id: id(),
     storeId: uuid('store_id').notNull().references(() => stores.id),
     sellerId: uuid('seller_id').notNull().references(() => users.id),
-    vehicleId: uuid('vehicle_id').notNull().references(() => vehicles.id),
+    channel: saleChannel('channel').notNull().default('VEHICLE'),       // ADR-0038: from the vehicle, or dispatched from the warehouse
+    vehicleId: uuid('vehicle_id').references(() => vehicles.id),       // vehicle sales only
     status: saleStatus('status').notNull(),
     businessDate: date('business_date').notNull(),
     gross: money('gross').notNull(),
@@ -57,6 +59,7 @@ export const sales = pgTable(
     check('sales_completed', sql`(${t.status} = 'COMPLETED') = (${t.completedAt} is not null and ${t.ledgerEntryId} is not null)`),
     check('sales_cancelled', sql`(${t.status} = 'CANCELLED') = (${t.cancelledAt} is not null and ${t.cancelReason} is not null)`),
     check('sales_total', sql`${t.total} = ${t.gross} - ${t.discount} and ${t.total} > 0`),
+    check('sales_channel_vehicle', sql`(${t.channel} = 'VEHICLE') = (${t.vehicleId} is not null)`),
   ],
 );
 
@@ -80,7 +83,8 @@ export const saleLines = pgTable(
   (t) => [
     unique('sale_lines_sku_unique').on(t.saleId, t.skuId),
     index('sale_lines_sku_id_idx').on(t.skuId),
-    check('sale_lines_packs_positive', sql`${t.packs} > 0`),
+    // OQ-019: a dispatched line can arrive entirely short — it stays, at 0 packs sold.
+    check('sale_lines_packs_non_negative', sql`${t.packs} >= 0`),
     check('sale_lines_discount', sql`${t.discount} >= 0 and ${t.discount} <= ${t.requestedDiscount}`),
     check('sale_lines_total', sql`${t.total} = ${t.gross} - ${t.discountAmount}`),
   ],

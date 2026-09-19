@@ -203,7 +203,7 @@ describe('Phase 1 has no branch scoping (USR-012, ADR-0004)', () => {
       'system_settings', 'feature_toggles', 'ceilings', 'commission_rates',
       'purchase_order_lines', 'purchase_order_events', 'goods_receipt_lines', 'document_sequences', 'stock_flags',
       'attendance_breaks', 'vehicle_loadout_lines', 'vehicle_return_lines', 'closing_stock_lines', 'payment_allocations',
-      'sale_lines', 'sale_line_allocations',
+      'sale_lines', 'sale_line_allocations', 'dispatch_order_lines', 'dispatch_line_batches', 'dispatch_order_events',
     ]);
     const rows = await ownerQuery<{ table_name: string; has_branch: boolean }>(`
       select t.table_name, bool_or(c.column_name = 'branch_id') as has_branch

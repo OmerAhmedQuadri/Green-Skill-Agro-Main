@@ -26,7 +26,7 @@ export function FieldSalesScreen() {
       <ul className="space-y-2">
         {list.data?.items.map((s) => (
           <li key={s.id}>
-            <Link href={`/field/sales/${s.id}`} className="block">
+            <Link href={s.dispatchOrderId && s.status !== 'DISCOUNT_APPROVED' && s.status !== 'PENDING_DISCOUNT_APPROVAL' ? `/field/orders/${s.dispatchOrderId}` : `/field/sales/${s.id}`} className="block">
               <Card className="flex items-center justify-between gap-3 p-4" data-testid={`sale-${s.id}`}>
                 <div className="min-w-0">
                   <div className="truncate font-medium">{s.store.name}</div>
@@ -35,6 +35,7 @@ export function FieldSalesScreen() {
                 <div className="text-end">
                   <div className="font-semibold">{format.money(s.total)}</div>
                   <Badge tone={SALE_TONE[s.status]}>{t(`statuses.${s.status}`)}</Badge>
+                  {s.channel === 'DISPATCH' ? <div className="text-xs text-stone-500">{t('fromWarehouse')}</div> : null}
                 </div>
               </Card>
             </Link>

@@ -12,20 +12,25 @@ export type SaleStatus = (typeof SALE_STATUSES)[number];
 /** DATA-MODEL §5.4a: a sale in these states holds its batches on the vehicle (PRC-011). */
 export const HOLDING_SALE_STATUSES = ['PENDING_DISCOUNT_APPROVAL', 'DISCOUNT_APPROVED'] as const satisfies readonly SaleStatus[];
 
-/** Why a sale was cancelled (PRC-014, PRC-015). */
-export const SALE_CANCEL_REASONS = ['REJECTED', 'EXPIRED', 'WITHDRAWN'] as const;
+/** Where the goods come from: the seller's vehicle, or the warehouse by hired transport (DSP-001, ADR-0038). */
+export const SALE_CHANNELS = ['VEHICLE', 'DISPATCH'] as const;
+export type SaleChannel = (typeof SALE_CHANNELS)[number];
+
+/** Why a sale was cancelled (PRC-014, PRC-015, DSP-013). */
+export const SALE_CANCEL_REASONS = ['REJECTED', 'EXPIRED', 'WITHDRAWN', 'REQUEST_CANCELLED', 'LOST'] as const;
 export type SaleCancelReason = (typeof SALE_CANCEL_REASONS)[number];
 
 /** PRC-013, PRC-015: where a discount request ended. */
 export const DISCOUNT_REQUEST_STATUSES = ['PENDING', 'APPROVED', 'REDUCED', 'REJECTED', 'EXPIRED', 'WITHDRAWN'] as const;
 export type DiscountRequestStatus = (typeof DISCOUNT_REQUEST_STATUSES)[number];
 
-export type SaleAction = 'approve' | 'reject' | 'expire' | 'withdraw' | 'complete';
+export type SaleAction = 'approve' | 'reject' | 'expire' | 'withdraw' | 'complete' | 'dispatch' | 'deliver' | 'cancel' | 'lose';
 
 const SALE_TRANSITIONS: Record<SaleStatus, Partial<Record<SaleAction, SaleStatus>>> = {
   PENDING_DISCOUNT_APPROVAL: { approve: 'DISCOUNT_APPROVED', reject: 'CANCELLED', expire: 'CANCELLED', withdraw: 'CANCELLED' },
-  DISCOUNT_APPROVED: { complete: 'COMPLETED', expire: 'CANCELLED', withdraw: 'CANCELLED' },
-  PENDING_DELIVERY: {},
+  // A vehicle sale completes; a dispatch sale goes to the warehouse (ADR-0038).
+  DISCOUNT_APPROVED: { complete: 'COMPLETED', dispatch: 'PENDING_DELIVERY', expire: 'CANCELLED', withdraw: 'CANCELLED' },
+  PENDING_DELIVERY: { deliver: 'COMPLETED', cancel: 'CANCELLED', lose: 'CANCELLED' },
   COMPLETED: {},
   CANCELLED: {},
 };
@@ -155,15 +160,19 @@ export function decideDiscount(
  * same-day override, which the sale then uses up. Bill to bill settles in
  * full at once, so the limit does not apply to it (SAL-006).
  */
-export function assertSaleCredit(credit: CreditStatus, mode: CreditMode, total: Money): { readonly usesOverride: boolean } {
+export function assertSaleCredit(
+  credit: CreditStatus, mode: CreditMode, total: Money,
+  /** ADR-0038: dispatch orders waiting for delivery — not yet owed, but already committed. */ committed: Money = '0.00' as Money,
+): { readonly usesOverride: boolean } {
   const store = credit.reasons.filter((r) => r.code === 'NOT_APPROVED' || r.code === 'REJECTED' || r.code === 'INACTIVE');
   if (store.length > 0) throw new DomainError('STORE_NOT_ACTIVE', { reasons: store });
   const blocked = credit.reasons.length > 0;
-  const overLimit = mode !== 'BILL_TO_BILL' && dec(credit.outstanding).plus(dec(total)).gt(dec(credit.limit));
+  const overLimit = mode !== 'BILL_TO_BILL' && dec(credit.outstanding).plus(dec(committed)).plus(dec(total)).gt(dec(credit.limit));
   if (!blocked && !overLimit) return { usesOverride: false };
   if (!credit.overrideAvailable) {
     if (blocked) throw new DomainError('CREDIT_BLOCKED', { reasons: credit.reasons });
-    throw new DomainError('CREDIT_LIMIT_EXCEEDED', { available: credit.available, total });
+    const available = dec(credit.available).minus(dec(committed));
+    throw new DomainError('CREDIT_LIMIT_EXCEEDED', { available: toMoney(available.gt(0) ? available : new Dec(0)), total });
   }
   return { usesOverride: true };
 }

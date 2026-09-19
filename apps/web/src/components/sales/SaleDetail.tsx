@@ -90,7 +90,7 @@ export function SaleDetail({ id, canDecide }: { id: string; canDecide: boolean }
         <Section title={t('details')}>
           <Facts items={[
             { label: t('seller'), value: s.seller.name },
-            { label: t('vehicle'), value: <bdi dir="ltr">{s.vehicle.registration}</bdi> },
+            { label: t('vehicle'), value: s.vehicle ? <bdi dir="ltr">{s.vehicle.registration}</bdi> : t('fromWarehouse') },
             { label: ts('creditMode'), value: ts(`modes.${s.store.creditMode}`) },
             { label: t('payment'), value: s.payment ? t('paidWith', { method: ts(`methods.${s.payment.method}`), amount: format.money(s.payment.amount) }) : s.status === 'COMPLETED' ? t('onAccount') : '—' },
             { label: t('override'), value: s.creditOverride ? t('overrideUsed', { name: s.creditOverride.grantedBy, reason: s.creditOverride.reason }) : '—' },

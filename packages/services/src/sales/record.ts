@@ -1,6 +1,6 @@
 import {
   allocateSale, assertSaleCredit, businessDate, dec, DomainError, percent, priceSale, toBaseUnits, transfer, transitionSale,
-  type Money, type Quantity, type SkuUnits,
+  type Money, type PricedSale, type Quantity, type SkuUnits,
 } from '@gsa/core';
 import { newId, schema } from '@gsa/db';
 import { and, eq, sql } from 'drizzle-orm';
@@ -129,18 +129,7 @@ export async function recordSale(ctx: Ctx, input: RecordSaleInput): Promise<Sale
     }
 
     if (pending) {
-      const expiresAt = new Date(ctx.now.getTime() + limits.approvalExpiryMinutes * 60_000);
-      await tx.insert(discountApprovalRequests).values({
-        saleId: id, reason: reason ?? '', requestedAt: ctx.now, requestedBy: ctx.user.id, expiresAt, branchId: ctx.branchId, createdAt: ctx.now,
-      });
-      const sale = await loadSale(tx, ctx, id);
-      // PRC-012: every holder of the permission, at once.
-      await notify(tx, ctx, { permission: 'sales.approve_discount' }, 'DISCOUNT_APPROVAL_REQUESTED',
-        { store: store.name, seller: sale.seller.name, total: priced.total }, `/console/sales/${id}`);
-      await audit(tx, ctx, {
-        action: 'sales.discount_requested', entityType: 'sale', entityId: id,
-        after: { storeId: store.id, total: priced.total, reason, expiresAt, lines: priced.lines.map((l) => ({ skuId: l.skuId, packs: l.packs, discount: l.discount, ceiling: l.ceiling })) },
-      });
+      await openDiscountRequest(tx, ctx, { saleId: id, storeName: store.name, reason: reason ?? '', expiryMinutes: limits.approvalExpiryMinutes, priced });
     } else {
       const number = await createDeliveryDocument(tx, ctx, id);
       await audit(tx, ctx, {
@@ -152,10 +141,34 @@ export async function recordSale(ctx: Ctx, input: RecordSaleInput): Promise<Sale
   });
 }
 
-async function lockOwnSale(tx: Tx, ctx: Ctx, id: string, version: number) {
+/**
+ * PRC-009..012: a sale above its ceiling becomes a request — its approvers are
+ * told at once, and it expires after the configured minutes.
+ */
+export async function openDiscountRequest(
+  tx: Tx, ctx: Ctx, input: { saleId: string; storeName: string; reason: string; expiryMinutes: number; priced: PricedSale },
+): Promise<void> {
+  const expiresAt = new Date(ctx.now.getTime() + input.expiryMinutes * 60_000);
+  await tx.insert(discountApprovalRequests).values({
+    saleId: input.saleId, reason: input.reason, requestedAt: ctx.now, requestedBy: ctx.user.id, expiresAt, branchId: ctx.branchId, createdAt: ctx.now,
+  });
+  const sale = await loadSale(tx, ctx, input.saleId);
+  // PRC-012: every holder of the permission, at once.
+  await notify(tx, ctx, { permission: 'sales.approve_discount' }, 'DISCOUNT_APPROVAL_REQUESTED',
+    { store: input.storeName, seller: sale.seller.name, total: input.priced.total }, `/console/sales/${input.saleId}`);
+  await audit(tx, ctx, {
+    action: 'sales.discount_requested', entityType: 'sale', entityId: input.saleId,
+    after: {
+      storeId: sale.store.id, channel: sale.channel, total: input.priced.total, reason: input.reason, expiresAt,
+      lines: input.priced.lines.map((l) => ({ skuId: l.skuId, packs: l.packs, discount: l.discount, ceiling: l.ceiling })),
+    },
+  });
+}
+
+export async function lockOwnSale(tx: Tx, ctx: Ctx, id: string, version: number) {
   const [row] = await tx.select().from(sales).where(eq(sales.id, id)).for('update');
-  // A sale is completed or withdrawn only by its seller (API: seller of record).
-  if (!row || row.sellerId !== ctx.user.id) throw new DomainError('NOT_FOUND', { entity: 'sale', id });
+  // Acted on only by its seller, or by whoever raised it for them (ADR-0038).
+  if (!row || (row.sellerId !== ctx.user.id && row.createdBy !== ctx.user.id)) throw new DomainError('NOT_FOUND', { entity: 'sale', id });
   if (row.version !== version) throw new DomainError('VERSION_CONFLICT', { expected: version, actual: row.version });
   return row;
 }
@@ -170,13 +183,16 @@ export async function completeSale(ctx: Ctx, id: string, input: { version: numbe
     const account = await sellerVehicleAccount(tx, ctx);
     await lockVehicle(tx, account.vehicleId);
     const row = await lockOwnSale(tx, ctx, id, input.version);
+    // A dispatch sale goes to the warehouse instead (ADR-0038), never completes here.
+    if (row.channel !== 'VEHICLE' || !row.vehicleId) throw new DomainError('INVALID_TRANSITION', { from: row.status, action: 'complete' });
     const status = transitionSale(row.status, 'complete');
     if (row.vehicleId !== account.vehicleId) throw new DomainError('VEHICLE_NOT_ASSIGNED', { vehicleId: row.vehicleId });
+    const vehicleId = row.vehicleId;
     const store = await loadStore(tx, ctx, row.storeId);
     const { usesOverride } = assertSaleCredit(store.credit, store.creditMode, row.total as Money);
     const allocations = await tx.select({ batchId: saleLineAllocations.batchId, quantity: saleLineAllocations.quantity })
       .from(saleLineAllocations).innerJoin(saleLines, eq(saleLines.id, saleLineAllocations.saleLineId)).where(eq(saleLines.saleId, id));
-    const posted = await settle(tx, ctx, { id, store, vehicleId: row.vehicleId, total: row.total as Money },
+    const posted = await settle(tx, ctx, { id, store, vehicleId, total: row.total as Money },
       allocations.map((a) => ({ batchId: a.batchId, quantity: a.quantity as Quantity })), { usesOverride, payment: input.payment });
     await tx.update(sales).set({
       status, ...posted, completedAt: ctx.now, updatedAt: ctx.now, updatedBy: ctx.user.id, version: row.version + 1,

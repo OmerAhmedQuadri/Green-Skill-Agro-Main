@@ -104,7 +104,11 @@ export type ErrorCode =
   | 'CREDIT_LIMIT_EXCEEDED'
   | 'PAYMENT_REQUIRED'
   | 'DOCUMENT_NOT_READY'
-  | 'DOCUMENT_SENDING_DISABLED';
+  | 'DOCUMENT_SENDING_DISABLED'
+  | 'RECEIPT_MISMATCH'
+  | 'NOTHING_RECEIVED'
+  | 'CLAIM_PENDING'
+  | 'STORE_HAS_NO_SELLER';
 
 export class DomainError extends Error {
   readonly code: ErrorCode;

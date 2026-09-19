@@ -94,12 +94,14 @@
     "myVehicle": "مركبتي",
     "stores": "المتاجر",
     "sales": "المبيعات",
-    "auditLog": "سجل التدقيق"
+    "auditLog": "سجل التدقيق",
+    "dispatch": "الإرسال"
   },
   "dashboard": {
     "welcome": "مرحباً، {name}",
     "signedInAs": "تم تسجيل الدخول بصفة {role}",
-    "permissionCount": "{count, plural, zero {لا توجد صلاحيات} one {صلاحية واحدة} two {صلاحيتان} few {# صلاحيات} many {# صلاحية} other {# صلاحية}}"
+    "permissionCount": "{count, plural, zero {لا توجد صلاحيات} one {صلاحية واحدة} two {صلاحيتان} few {# صلاحيات} many {# صلاحية} other {# صلاحية}}",
+    "unconfirmedDispatch": "{count, plural, zero {لا توجد أوامر إرسال متأخرة} one {أمر إرسال واحد في الطريق منذ مدة طويلة دون تأكيد.} two {أمرا إرسال في الطريق منذ مدة طويلة دون تأكيد.} few {# أوامر إرسال في الطريق منذ مدة طويلة دون تأكيد.} many {# أمر إرسال في الطريق منذ مدة طويلة دون تأكيد.} other {# أمر إرسال في الطريق منذ مدة طويلة دون تأكيد.}}"
   },
   "field": {
     "welcome": "يومك سعيد، {name}",
@@ -459,7 +461,11 @@
     "CREDIT_LIMIT_EXCEEDED": "عملية البيع هذه تتجاوز الائتمان المتاح للمتجر.",
     "PAYMENT_REQUIRED": "متجر فاتورة بفاتورة يدفع عند البيع — اختر طريقة الدفع.",
     "DOCUMENT_NOT_READY": "سند التسليم غير جاهز بعد.",
-    "DOCUMENT_SENDING_DISABLED": "إرسال سندات التسليم متوقف."
+    "DOCUMENT_SENDING_DISABLED": "إرسال سندات التسليم متوقف.",
+    "RECEIPT_MISMATCH": "يجب أن يساوي مجموع المستلم والناقص والتالف في كل صنف ما أُرسل.",
+    "NOTHING_RECEIVED": "إن لم يصل شيء، فأبلغ عن فقدان الطلب بدلًا من ذلك.",
+    "CLAIM_PENDING": "توجد مطالبة طلب مفقود بانتظار القرار.",
+    "STORE_HAS_NO_SELLER": "لا يوجد مندوب لهذا المتجر لينسب إليه الطلب."
   },
   "format": {
     "grams": "{value} جم",
@@ -1007,7 +1013,10 @@
     "close": "إغلاق الكاميرا",
     "ready": "تم حفظ الصورة",
     "saving": "جارٍ حفظ الصورة…",
-    "viewfinder": "عرض الكاميرا"
+    "viewfinder": "عرض الكاميرا",
+    "uploading": "جارٍ الرفع…",
+    "chooseFile": "اختر صورة أو ملف PDF",
+    "fileReady": "تم رفع {name}"
   },
   "notifications": {
     "title": "الإشعارات",
@@ -1035,7 +1044,13 @@
       "DISCOUNT_APPROVED": "تمت الموافقة على خصمك في {store} — أتمّ البيع.",
       "DISCOUNT_REDUCED": "تمت الموافقة على خصمك في {store} بنسبة أقل — أتمّ البيع.",
       "DISCOUNT_REJECTED": "رُفض خصمك في {store}.",
-      "DISCOUNT_EXPIRED": "انتهت مهلة عملية البيع المعلّقة في {store} وتحرّرت أصنافها."
+      "DISCOUNT_EXPIRED": "انتهت مهلة عملية البيع المعلّقة في {store} وتحرّرت أصنافها.",
+      "DISPATCH_REQUESTED": "الطلب {number} لـ {store} بانتظار المستودع.",
+      "DISPATCH_CREATED_FOR_YOU": "أنشأ مشرف الطلب {number} لمتجرك {store}.",
+      "DISPATCH_RELEASED": "الطلب {number} لـ {store} في الطريق.",
+      "DISPATCH_CANCELLED": "أُلغي الطلب {number} لـ {store}: {reason}",
+      "LOST_CLAIM_RAISED": "أُبلغ عن فقدان الطلب {number} لـ {store} — قرّر بشأن المطالبة.",
+      "LOST_CLAIM_DECIDED": "مطالبتك بفقدان الطلب {number} {outcome, select, APPROVED {قُبلت} other {رُفضت}}."
     }
   },
   "vehicles": {
@@ -1334,7 +1349,8 @@
     "adjustReason": "السبب",
     "postAdjustment": "تسجيل التصحيح",
     "newSale": "عملية بيع جديدة",
-    "overrideHint": "لمتجر موقوف، أو لعملية بيع واحدة تتجاوز حده الائتماني."
+    "overrideHint": "لمتجر موقوف، أو لعملية بيع واحدة تتجاوز حده الائتماني.",
+    "orderFromWarehouse": "طلب من المستودع"
   },
   "sales": {
     "title": "المبيعات",
@@ -1442,12 +1458,16 @@
     "cancelReasons": {
       "REJECTED": "مرفوضة",
       "EXPIRED": "انتهت مهلتها",
-      "WITHDRAWN": "مسحوبة"
+      "WITHDRAWN": "مسحوبة",
+      "REQUEST_CANCELLED": "أُلغي الطلب",
+      "LOST": "فُقد أثناء النقل"
     },
     "cancelledTitles": {
       "REJECTED": "رُفض الخصم.",
       "EXPIRED": "انتهت مهلة الطلب دون قرار.",
-      "WITHDRAWN": "سحبتَ عملية البيع هذه."
+      "WITHDRAWN": "سحبتَ عملية البيع هذه.",
+      "REQUEST_CANCELLED": "أُلغي الطلب قبل خروجه من المستودع.",
+      "LOST": "فُقد الطلب أثناء النقل، ولم يُحتسب شيء."
     },
     "approvalStatuses": {
       "PENDING": "بانتظار القرار",
@@ -1456,7 +1476,10 @@
       "REJECTED": "مرفوض",
       "EXPIRED": "انتهت مهلته",
       "WITHDRAWN": "مسحوب"
-    }
+    },
+    "toOrder": "أمر الإرسال {number}",
+    "sendToWarehouse": "إرسال إلى المستودع",
+    "fromWarehouse": "من المستودع"
   },
   "audit": {
     "title": "سجل التدقيق",
@@ -1473,5 +1496,121 @@
     "system": "النظام",
     "empty": "لا توجد سجلات مطابقة.",
     "more": "عرض المزيد"
+  },
+  "dispatch": {
+    "title": "أوامر الإرسال",
+    "subtitle": "طلبات تُرسل من المستودع إلى المتاجر بنقل مستأجر — من يعالج كلًّا منها، وما الذي ما زال في الطريق.",
+    "loading": "جارٍ التحميل…",
+    "newForSeller": "طلب جديد نيابةً عن مندوب",
+    "newForSellerHint": "يُحتسب الطلب ضمن مبيعات مندوب المتجر: يُبلَّغ فورًا ويؤكد الاستلام.",
+    "noOrders": "لا توجد طلبات.",
+    "number": "الطلب",
+    "store": "المتجر",
+    "seller": "المندوب",
+    "total": "الإجمالي",
+    "handledByColumn": "يعالجه",
+    "unconfirmed": "لم يُؤكَّد في الوقت المحدد",
+    "unconfirmedNote": "أُطلق منذ مدة تتجاوز عدد الأيام المحدد، ولم يؤكده المندوب بعد.",
+    "claimBadge": "مطالبة طلب مفقود",
+    "raisedByLine": "أنشأه {name}",
+    "raisedForYou": "أنشأه لك {name}",
+    "handledBy": "يعالجه {name}",
+    "nobodyHandling": "لم يتولّه أحد بعد.",
+    "someoneElse": "{name} يعالج هذا الطلب. يمكنك تولّيه بدلًا منه — إنها علامة وليست قفلًا.",
+    "take": "تولّي الطلب",
+    "takeOver": "تولّيه بدلًا منه",
+    "handBack": "إعادته",
+    "handling": "المعالجة",
+    "releaseTitle": "التسليم للنقل",
+    "releaseHint": "احجز النقل ثم ارفع الإيصال. يخرج المخزون من المستودع الآن، الأقرب انتهاءً أولًا — ولا يمر بأي مركبة.",
+    "transportSlip": "إيصال النقل",
+    "transportNote": "تفاصيل النقل (اختياري)",
+    "release": "إطلاق الطلب",
+    "viewSlip": "عرض الإيصال",
+    "cancelReason": "سبب الإلغاء",
+    "cancelOrder": "إلغاء الطلب",
+    "keep": "الإبقاء عليه",
+    "claimTitle": "مطالبة طلب مفقود",
+    "claimBy": "أبلغ عنه {name} في {time}",
+    "comment": "تعليق",
+    "approveClaim": "موافقة — شطب المخزون",
+    "rejectClaim": "رفض",
+    "lines": "الأصناف",
+    "details": "التفاصيل",
+    "history": "السجل",
+    "raisedBy": "أُنشئ",
+    "releasedLabel": "أُطلق",
+    "confirmedLabel": "أُكّد",
+    "outcome": "النتيجة",
+    "ordered": "المطلوب",
+    "warehouse": "في المستودع",
+    "arrived": "الواصل",
+    "arrivedLine": "{received} مستلم · {short} ناقص · {damaged} تالف",
+    "orderTitle": "طلب لـ {store}",
+    "items": "أصناف من المستودع",
+    "searchItems": "بحث في الأصناف",
+    "inWarehouse": "{count} في المستودع",
+    "committed": "طلبات في الطريق إلى هذا المتجر: {amount}",
+    "pendingNote": "لا يُحتسب شيء حتى يستلم المتجر، ويدفع المتجر مقابل ما يصل.",
+    "sendOrder": "إرسال الطلب",
+    "mySalesBack": "مبيعاتي",
+    "onItsWay": "في الطريق — أُطلق في {time}.",
+    "claimPending": "أبلغتَ عن فقدان هذا الطلب؛ والمشرف يتخذ القرار.",
+    "confirmTitle": "ما الذي وصل؟",
+    "released": "أُرسل {count}",
+    "receivedFor": "المستلم من {code}",
+    "shortFor": "الناقص من {code}",
+    "damagedFor": "التالف من {code}",
+    "howConfirmed": "كيف تأكّدت",
+    "ownerWordNote": "تُراجَع التأكيدات المبنية على كلام صاحب المتجر في تدقيق المركبة التالي.",
+    "confirmReceipt": "تأكيد الاستلام",
+    "claimReason": "ماذا حدث؟",
+    "claimLost": "الإبلاغ عن فقدانه",
+    "nothingArrived": "لم يصل شيء",
+    "cancel": "إلغاء",
+    "shortfallTitle": "لم تصل بعض العبوات",
+    "shortfallHint": "دفع المتجر مقابل ما وصل. كيف تُعوَّض العبوات الناقصة؟",
+    "toSaleDocument": "فتح عملية البيع وسند التسليم",
+    "findStore": "ابحث عن متجر",
+    "chooseStore": "اختر متجرًا…",
+    "attributedTo": "سيُحتسب هذا الطلب ضمن مبيعات {name}.",
+    "filters": {
+      "OPEN": "المفتوحة",
+      "UNCONFIRMED": "أُطلقت ولم تُؤكَّد في الوقت",
+      "ALL": "الكل"
+    },
+    "statuses": {
+      "REQUESTED": "مطلوب",
+      "BEING_HANDLED": "قيد المعالجة",
+      "RELEASED": "في الطريق",
+      "DELIVERED": "مُسلَّم — نقص بانتظار المعالجة",
+      "CLOSED": "مغلق"
+    },
+    "closeReasons": {
+      "DELIVERED": "تم التسليم",
+      "CANCELLED": "ملغى",
+      "LOST": "مفقود"
+    },
+    "events": {
+      "RAISED": "أنشأه {name}",
+      "TAKEN": "تولّاه {name}",
+      "RELEASED_BACK": "أعاده {name}",
+      "RELEASED": "أطلقه {name}",
+      "CONFIRMED": "أكّد {name} الاستلام",
+      "RESOLVED": "عالج {name} النقص",
+      "CANCELLED": "ألغاه {name}",
+      "CLAIMED": "أبلغ {name} عن فقدانه",
+      "CLAIM_APPROVED": "وافق {name} على المطالبة",
+      "CLAIM_REJECTED": "رفض {name} المطالبة"
+    },
+    "modes": {
+      "IN_PERSON": "حضوريًا",
+      "OWNER_WORD": "بناءً على كلام صاحب المتجر"
+    },
+    "resolutions": {
+      "FROM_VEHICLE": "تسليمها من مركبتي",
+      "FURTHER_ORDER": "إرسال طلب آخر",
+      "NOT_NEEDED": "لا حاجة"
+    }
   }
 }

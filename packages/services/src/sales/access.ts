@@ -1,6 +1,6 @@
 import {
   DomainError, packsHeld, quantity, type CountUnit, type CreditMode, type DeliveryDocumentStatus, type DiscountRequestStatus,
-  type DocumentSendChannel, type Money, type PackSize, type Percent, type SaleCancelReason, type SaleStatus,
+  type DocumentSendChannel, type Money, type PackSize, type Percent, type SaleCancelReason, type SaleChannel, type SaleStatus,
 } from '@gsa/core';
 import { schema } from '@gsa/db';
 import { aliasedTable, and, asc, desc, eq, inArray, lt, or, sql, type SQL } from 'drizzle-orm';
@@ -11,7 +11,7 @@ import { unitsOf } from '../vehicles';
 
 const {
   sales, saleLines, saleLineAllocations, discountApprovalRequests, deliveryDocuments, deliveryDocumentSends, stores, users, vehicles,
-  skus, products, varieties, productTypes, batches, payments, creditOverrides,
+  skus, products, varieties, productTypes, batches, payments, creditOverrides, dispatchOrders,
 } = schema;
 
 type Named = { readonly nameEn: string; readonly nameAr: string };
@@ -39,8 +39,11 @@ export type DeliveryDocumentInfo = {
 
 export type Sale = {
   readonly id: string; readonly status: SaleStatus; readonly businessDate: string;
+  /** ADR-0038: from the vehicle, or dispatched from the warehouse. */ readonly channel: SaleChannel;
+  /** Who raised it — the seller, or a manager on their behalf (DSP-015). */ readonly raisedBy: string | null;
   readonly store: { readonly id: string; readonly name: string; readonly ownerName: string; readonly contactNumber: string; readonly creditMode: CreditMode };
-  readonly seller: Person; readonly vehicle: { readonly id: string; readonly registration: string };
+  readonly seller: Person; readonly vehicle: { readonly id: string; readonly registration: string } | null;
+  /** The dispatch order carrying it, if any. */ readonly dispatchOrder: { readonly id: string; readonly number: string } | null;
   readonly gross: Money; readonly discount: Money; readonly total: Money;
   readonly lines: readonly SaleLine[];
   /** PRC-017: the request and its decision, if the sale needed one. */ readonly approval: DiscountRequest | null;
@@ -53,10 +56,11 @@ export type Sale = {
 };
 
 export type SaleSummary = {
-  readonly id: string; readonly status: SaleStatus; readonly store: { readonly id: string; readonly name: string }; readonly seller: Person;
+  readonly id: string; readonly status: SaleStatus; readonly channel: SaleChannel; readonly store: { readonly id: string; readonly name: string }; readonly seller: Person;
   readonly total: Money; readonly discount: Money; readonly createdAt: Date; readonly completedAt: Date | null;
   readonly documentNumber: string | null; readonly approvalStatus: DiscountRequestStatus | null; readonly expiresAt: Date | null;
   readonly cancelReason: SaleCancelReason | null;
+  /** ADR-0038: the dispatch order carrying a dispatch sale. */ readonly dispatchOrderId: string | null;
 };
 
 /**
@@ -65,7 +69,7 @@ export type SaleSummary = {
  */
 function visibility(ctx: Ctx): SQL | undefined {
   if (ctx.permissions.has('sales.view_all')) return undefined;
-  const own = eq(sales.sellerId, ctx.user.id);
+  const own = or(eq(sales.sellerId, ctx.user.id), eq(sales.createdBy, ctx.user.id));
   if (!ctx.permissions.has('sales.approve_discount')) return own;
   return or(own, sql`exists (select 1 from ${discountApprovalRequests} where ${discountApprovalRequests.saleId} = ${sales.id})`);
 }
@@ -79,9 +83,10 @@ const sender = aliasedTable(users, 'sender');
 export async function loadSale(db: Executor, ctx: Ctx, id: string): Promise<Sale> {
   const [row] = await db.select({
     s: sales, storeName: stores.name, ownerName: stores.ownerName, contactNumber: stores.contactNumber, creditMode: stores.creditMode,
-    sellerName: seller.name, registration: vehicles.registration,
+    sellerName: seller.name, registration: vehicles.registration, orderId: dispatchOrders.id, orderNumber: dispatchOrders.number,
   }).from(sales)
-    .innerJoin(stores, eq(stores.id, sales.storeId)).innerJoin(seller, eq(seller.id, sales.sellerId)).innerJoin(vehicles, eq(vehicles.id, sales.vehicleId))
+    .innerJoin(stores, eq(stores.id, sales.storeId)).innerJoin(seller, eq(seller.id, sales.sellerId)).leftJoin(vehicles, eq(vehicles.id, sales.vehicleId))
+    .leftJoin(dispatchOrders, eq(dispatchOrders.saleId, sales.id))
     .where(and(eq(sales.id, id), visibility(ctx)));
   if (!row) throw new DomainError('NOT_FOUND', { entity: 'sale', id });
   const s = row.s;
@@ -110,9 +115,11 @@ export async function loadSale(db: Executor, ctx: Ctx, id: string): Promise<Sale
     : [];
 
   return {
-    id: s.id, status: s.status, businessDate: s.businessDate,
+    id: s.id, status: s.status, businessDate: s.businessDate, channel: s.channel, raisedBy: s.createdBy,
     store: { id: s.storeId, name: row.storeName, ownerName: row.ownerName, contactNumber: row.contactNumber, creditMode: row.creditMode },
-    seller: { id: s.sellerId, name: row.sellerName }, vehicle: { id: s.vehicleId, registration: row.registration },
+    seller: { id: s.sellerId, name: row.sellerName },
+    vehicle: s.vehicleId && row.registration ? { id: s.vehicleId, registration: row.registration } : null,
+    dispatchOrder: row.orderId && row.orderNumber ? { id: row.orderId, number: row.orderNumber } : null,
     gross: s.gross as Money, discount: s.discount as Money, total: s.total as Money,
     lines: lineRows.map((r) => {
       const size = sizeOf(r.sku);
@@ -160,18 +167,20 @@ export async function querySales(db: Executor, ctx: Ctx, filter: SaleFilter): Pr
   }
   const rows = await db.select({
     s: sales, storeName: stores.name, sellerName: seller.name, documentNumber: deliveryDocuments.number,
-    approvalStatus: discountApprovalRequests.status, expiresAt: discountApprovalRequests.expiresAt,
+    approvalStatus: discountApprovalRequests.status, expiresAt: discountApprovalRequests.expiresAt, dispatchOrderId: dispatchOrders.id,
   }).from(sales)
     .innerJoin(stores, eq(stores.id, sales.storeId)).innerJoin(seller, eq(seller.id, sales.sellerId))
     .leftJoin(deliveryDocuments, eq(deliveryDocuments.saleId, sales.id)).leftJoin(discountApprovalRequests, eq(discountApprovalRequests.saleId, sales.id))
+    .leftJoin(dispatchOrders, eq(dispatchOrders.saleId, sales.id))
     .where(and(...where)).orderBy(desc(sales.createdAt), desc(sales.id)).limit(limit + 1);
   const page = rows.slice(0, limit);
   const last = page.at(-1);
   return {
     items: page.map((r) => ({
-      id: r.s.id, status: r.s.status, store: { id: r.s.storeId, name: r.storeName }, seller: { id: r.s.sellerId, name: r.sellerName },
+      id: r.s.id, status: r.s.status, channel: r.s.channel, store: { id: r.s.storeId, name: r.storeName }, seller: { id: r.s.sellerId, name: r.sellerName },
       total: r.s.total as Money, discount: r.s.discount as Money, createdAt: r.s.createdAt, completedAt: r.s.completedAt,
       documentNumber: r.documentNumber, approvalStatus: r.approvalStatus, expiresAt: r.expiresAt, cancelReason: r.s.cancelReason,
+      dispatchOrderId: r.dispatchOrderId,
     })),
     nextCursor: rows.length > limit && last ? encodeCursor([last.s.createdAt.toISOString(), last.s.id]) : null,
   };
