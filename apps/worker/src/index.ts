@@ -1,6 +1,6 @@
 import { loadConfig } from '@gsa/config';
 import { BUSINESS_TIME_ZONE } from '@gsa/core';
-import { getMailer, media, notifications } from '@gsa/services';
+import { attendance, getMailer, media, notifications } from '@gsa/services';
 import { PgBoss } from 'pg-boss';
 
 /**
@@ -29,6 +29,14 @@ await boss.schedule('media.retention', '0 4 * * *', null, { tz: BUSINESS_TIME_ZO
 await boss.work('media.retention', async () => {
   const result = await media.purgeMedia(new Date());
   console.log(`[worker] media.retention purged ${result.expired} expired, ${result.abandoned} abandoned`);
+});
+
+// STATE-MACHINES §10: close finished days at 03:00 Riyadh; an open multi-day trip stays open. Idempotent.
+await boss.createQueue('attendance.close-day');
+await boss.schedule('attendance.close-day', '0 3 * * *', null, { tz: BUSINESS_TIME_ZONE });
+await boss.work('attendance.close-day', async () => {
+  const result = await attendance.closeFinishedDays(new Date());
+  console.log(`[worker] attendance.close-day closed ${result.closed}, withdrew ${result.withdrawn}`);
 });
 
 // ADR-0023: deliver the email outbox every few seconds; never two passes at once.

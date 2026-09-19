@@ -72,6 +72,26 @@ const STATUS: Record<ErrorCode, number> = {
   ALREADY_DECIDED: 409,
   FOUR_EYES: 403,
   EVIDENCE_REQUIRED: 422,
+  INVALID_REGISTRATION: 422,
+  DUPLICATE_REGISTRATION: 422,
+  VEHICLE_INACTIVE: 409,
+  VEHICLE_NOT_ASSIGNED: 409,
+  SELLER_HAS_VEHICLE: 409,
+  VEHICLE_HAS_STOCK: 409,
+  HANDOVER_PENDING: 409,
+  // VEH-006: a warning, not a refusal — the client asks, then resends acknowledged.
+  CEILING_WARNING: 409,
+  EMPTY_LOAD: 422,
+  CHECK_IN_REQUIRED: 409,
+  ZONE_AUTHORISATION_PENDING: 409,
+  ON_BREAK: 409,
+  ALREADY_CHECKED_IN: 409,
+  NOT_CHECKED_IN: 409,
+  LOCATION_REQUIRED: 422,
+  ODOMETER_REQUIRED: 422,
+  INVALID_ODOMETER: 422,
+  NO_VEHICLE_TODAY: 409,
+  ALREADY_DECLARED: 409,
 };
 
 export function problem(status: number, code: string, requestId: string, details?: Record<string, unknown>, headers?: HeadersInit): Response {

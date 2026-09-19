@@ -9,4 +9,6 @@ export const CATALOGUE_READERS: readonly PermissionCode[] = [
   'catalogue.view', 'catalogue.manage_structure', 'catalogue.manage_products',
   'pricing.manage_price_lists', 'pricing.set_discount_ceilings', 'system.manage_templates',
   'procurement.view', 'procurement.manage_po', 'procurement.approve_po', 'inventory.view_all_stock', 'inventory.receive_goods',
+  // CNV-009: a seller allowed to convert picks the target SKU; VEH-005: a load is built from SKUs.
+  'inventory.convert', 'inventory.issue_to_vehicle',
 ];

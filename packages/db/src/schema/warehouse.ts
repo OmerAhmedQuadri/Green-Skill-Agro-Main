@@ -6,6 +6,7 @@ import { mediaAssets } from './media';
 import { mutable } from './mutable';
 import { branches, warehouses } from './organisation';
 import { batches, stockAccountKind } from './stock';
+import { vehicles } from './vehicles';
 
 // Mirror packages/core/src/inventory/write-offs.ts.
 export const writeOffStatus = pgEnum('write_off_status', ['SUBMITTED', 'APPROVED', 'REJECTED']);
@@ -23,7 +24,7 @@ export const skuConversions = pgTable(
     targetBatchId: uuid('target_batch_id').notNull().references(() => batches.id),
     accountKind: stockAccountKind('account_kind').notNull(),
     warehouseId: uuid('warehouse_id').references(() => warehouses.id),
-    vehicleId: uuid('vehicle_id'), // foreign key with the vehicle register (M4)
+    vehicleId: uuid('vehicle_id').references(() => vehicles.id),
     sourcePacks: integer('source_packs').notNull(),
     targetPacks: integer('target_packs').notNull(),
     sourceQuantity: numeric('source_quantity', { precision: 14, scale: 3 }).notNull(),
@@ -60,7 +61,7 @@ export const writeOffs = pgTable(
     batchId: uuid('batch_id').notNull().references(() => batches.id),
     accountKind: stockAccountKind('account_kind').notNull(),
     warehouseId: uuid('warehouse_id').references(() => warehouses.id),
-    vehicleId: uuid('vehicle_id'), // foreign key with the vehicle register (M4)
+    vehicleId: uuid('vehicle_id').references(() => vehicles.id),
     requestedPacks: integer('requested_packs'), // null for a conversion loss, which may be part of a pack
     requestedQuantity: numeric('requested_quantity', { precision: 14, scale: 3 }).notNull(),
     approvedQuantity: numeric('approved_quantity', { precision: 14, scale: 3 }),

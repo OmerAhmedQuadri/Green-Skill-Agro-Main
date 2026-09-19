@@ -17,6 +17,7 @@ const ACCOUNTS: Seed[] = [
   { role: 'MANAGER', name: 'Dev Operations Manager', email: 'manager@dev.local', preset: 'OPERATIONS_MANAGER' },
   { role: 'MANAGER', name: 'Dev Warehouse', email: 'warehouse@dev.local', preset: 'WAREHOUSE' },
   { role: 'SELLER', name: 'Dev Seller', email: 'seller@dev.local', phone: '+966500000004' },
+  { role: 'SELLER', name: 'Dev Seller Two', email: 'seller2@dev.local', phone: '+966500000005' }, // VEH-009: a handover needs two
 ];
 
 await syncReferenceData();

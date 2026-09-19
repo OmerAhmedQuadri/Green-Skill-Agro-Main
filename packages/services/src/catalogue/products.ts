@@ -8,7 +8,7 @@ import { schema } from '@gsa/db';
 import { and, asc, eq, exists, gt, ilike, inArray, or, sql, type SQL } from 'drizzle-orm';
 import { authorize, authorizeAny, type Ctx, type Patch } from '../context';
 import {
-  audit, decodeCursor, encodeCursor, inTx, likePattern, mapUniqueViolations, pageLimit, snapshot, type Executor,
+  audit, decodeCursor, encodeCursor, inOrder, inTx, likePattern, mapUniqueViolations, pageLimit, snapshot, type Executor,
 } from '../platform';
 import { getDb } from '../runtime';
 import { CATALOGUE_READERS } from './access';
@@ -151,7 +151,7 @@ export async function loadProduct(db: Executor, id: string): Promise<ProductDeta
   const p = row.product;
   const type = await loadProductType(db, p.productTypeId);
 
-  const [varietyRows, skuRows] = await Promise.all([
+  const [varietyRows, skuRows] = await inOrder([
     db.select().from(varieties).where(eq(varieties.productId, id)).orderBy(asc(varieties.nameEn)),
     db.select({ sku: skus, basePrice: priceListItems.price })
       .from(skus)

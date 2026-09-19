@@ -64,6 +64,13 @@
       "when": 1789773811793,
       "tag": "0008_conversions_and_write_offs",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1789803733119,
+      "tag": "0009_vehicles_attendance_notifications",
+      "breakpoints": true
     }
   ]
 }

@@ -12,6 +12,9 @@ const TABLES = [
   'varieties', 'skus', 'price_lists', 'price_list_items', 'sku_discount_ceilings', 'system_settings', 'feature_toggles',
   'ceilings', 'commission_rates', 'batches', 'stock_movements', 'purchase_orders', 'purchase_order_lines',
   'purchase_order_events', 'goods_receipts', 'goods_receipt_lines', 'document_sequences', 'sku_conversions', 'write_offs', 'stock_flags',
+  'vehicles', 'vehicle_assignments', 'vehicle_handovers', 'check_in_zones', 'attendance_days', 'attendance_sessions', 'attendance_breaks',
+  'odometer_readings', 'vehicle_loadouts', 'vehicle_loadout_lines', 'vehicle_returns', 'vehicle_return_lines',
+  'closing_stock_declarations', 'closing_stock_lines', 'notifications',
 ];
 
 /**

@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 import { index, integer, jsonb, pgEnum, pgTable, text, uuid } from 'drizzle-orm/pg-core';
 import { createdAt, id, timestamptz } from './columns';
 import { locale, users } from './identity';
@@ -41,4 +42,35 @@ export const passwordResetTokens = pgTable(
     requestedIp: text('requested_ip'),
   },
   (t) => [index('password_reset_tokens_user_id_idx').on(t.userId)],
+);
+
+// Mirror packages/core/src/notifications/index.ts.
+export const notificationKind = pgEnum('notification_kind', [
+  'LOAD_ISSUED', 'LOAD_DISPUTED', 'LOAD_CONFIRMED', 'LOAD_CANCELLED',
+  'HANDOVER_PROPOSED', 'HANDOVER_COMPLETED',
+  'CHECK_IN_AWAITING_AUTHORISATION', 'CHECK_IN_AUTHORISED', 'DAY_OPENED_ON_BEHALF',
+  'CLOSING_VARIANCE', 'VEHICLE_RETURN_RECORDED',
+]);
+
+/**
+ * In-app notifications (ADR-0034): a kind and its parameters, never text —
+ * the client renders them in the reader's language. Written in the same
+ * transaction as the event; polled every 30 s.
+ */
+export const notifications = pgTable(
+  'notifications',
+  {
+    id: id(),
+    userId: uuid('user_id').notNull().references(() => users.id),
+    kind: notificationKind('kind').notNull(),
+    params: jsonb('params').notNull(),
+    link: text('link'),
+    createdAt: createdAt(),
+    readAt: timestamptz('read_at'),
+    branchId: uuid('branch_id').notNull().references(() => branches.id),
+  },
+  (t) => [
+    index('notifications_user_created_idx').on(t.userId, t.createdAt),
+    index('notifications_unread_idx').on(t.userId).where(sql`${t.readAt} is null`),
+  ],
 );

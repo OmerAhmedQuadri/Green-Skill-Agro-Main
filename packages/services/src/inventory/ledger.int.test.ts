@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { ownerQuery } from '../../test/db';
 import { anAccount, ctxFor } from '../../test/factories';
 import { okraSkus } from '../../test/procurement';
+import { aVehicle } from '../../test/vehicles';
 import type { Ctx } from '../context';
 import { inTx } from '../platform';
 import { defaultBranchId, getDb } from '../runtime';
@@ -68,7 +69,7 @@ describe('the stock ledger (ADR-0001, STK-013)', () => {
   it('STK-013: nothing is un-sold beyond what was sold — the external accounts keep their direction', async () => {
     const { ctx, batch, wh, receive } = await world();
     await receive(1);
-    const vehicle = { kind: 'VEHICLE', vehicleId: newId() } as const;
+    const vehicle = { kind: 'VEHICLE', vehicleId: (await aVehicle(ctx)).id } as const;
     const returnSaleable = () => inTx(ctx, (tx) => postStockMovements(tx, ctx, {
       referenceType: 'RETURN', referenceId: newId(), legs: transfer(batch, toBaseUnits(packCount(1), bagUnits), { kind: 'SOLD' }, vehicle),
     }));

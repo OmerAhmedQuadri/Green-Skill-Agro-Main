@@ -106,7 +106,7 @@ describe('SKU conversion (workflow D, CNV-001..011)', () => {
     const attempt = () => convertStock(seller, { sourceBatchId: bagBatch?.batchId ?? '', targetSkuId: pouch.id, sourcePacks: 1, targetPacks: 5, reason: 'Field repack' });
     expect(await code(attempt())).toBe('FEATURE_DISABLED');
     await updateToggles(ctx, [{ key: 'inventory.seller_conversion', enabled: true }]);
-    expect(await code(attempt())).toBe('FORBIDDEN'); // warehouse stock is not theirs; their vehicle arrives in M4
+    expect(await code(attempt())).toBe('CHECK_IN_REQUIRED'); // ATT-010; their own vehicle stock only — see vehicles.int.test
   });
 });
 
@@ -181,10 +181,10 @@ describe('write-offs (workflow E, WRO-001..006)', () => {
     expect((await listWriteOffs(await manager(['inventory.approve_write_off']), { status: 'SUBMITTED' })).items.map((w) => w.id)).toContain(report.id);
   });
 
-  it('WRO-001: a seller writes off only their own vehicle stock (M4); warehouse stock is refused', async () => {
+  it('WRO-001, ATT-010: a seller writes off only their own vehicle stock, during an open day', async () => {
     const { batchId } = await aReport();
     const seller = await ctxFor(await anAccount('SELLER'));
     const photoId = await aPhoto(seller, 'WRITE_OFF_EVIDENCE');
-    expect(await code(submitWriteOff(seller, { batchId, packs: 1, reason: 'DAMAGED', photoId }))).toBe('FORBIDDEN');
+    expect(await code(submitWriteOff(seller, { batchId, packs: 1, reason: 'DAMAGED', photoId }))).toBe('CHECK_IN_REQUIRED');
   });
 });

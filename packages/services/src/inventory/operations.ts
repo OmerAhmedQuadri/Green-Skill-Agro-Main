@@ -4,6 +4,7 @@ import {
 } from '@gsa/core';
 import { newId, schema } from '@gsa/db';
 import { and, asc, desc, eq, lt, sql, type SQL } from 'drizzle-orm';
+import { sellerVehicleAccount } from '../attendance';
 import { sizeOf } from '../catalogue';
 import { authorize, authorizeAny, type Ctx } from '../context';
 import { assertOwnEvidence } from '../media';
@@ -33,7 +34,7 @@ async function batchInfo(db: Executor, batchId: string): Promise<BatchInfo> {
   };
 }
 
-async function warehouseAccount(db: Executor): Promise<StockAccount> {
+export async function warehouseAccount(db: Executor): Promise<StockAccount & { kind: 'WAREHOUSE' }> {
   const [w] = await db.select({ id: warehouses.id }).from(warehouses).where(eq(warehouses.isActive, true)).orderBy(asc(warehouses.createdAt)).limit(1);
   if (!w) throw new Error('no active warehouse — run pnpm db:sync');
   return { kind: 'WAREHOUSE', warehouseId: w.id };
@@ -42,15 +43,15 @@ async function warehouseAccount(db: Executor): Promise<StockAccount> {
 /**
  * Where a person may act on stock. Warehouse and management work on the
  * warehouse. A seller works only on their own vehicle, and converts only when
- * the Admin allows it (CNV-009); vehicles and their assignments arrive in M4.
+ * the Admin allows it (CNV-009) — WRO-001, CNV-009.
  */
 async function accountFor(ctx: Ctx, db: Executor, feature: 'convert' | 'write_off'): Promise<StockAccount> {
   if (ctx.user.role === 'SELLER') {
     if (feature === 'convert' && !(await readToggles(db))['inventory.seller_conversion']) {
       throw new DomainError('FEATURE_DISABLED', { feature: 'inventory.seller_conversion' });
     }
-    // TODO(M4): the seller's own assigned vehicle, once the vehicle register exists.
-    throw new DomainError('FORBIDDEN', { permission: 'inventory.view_own_vehicle', reason: 'VEHICLE_STOCK_ONLY' });
+    // ATT-010: only during an OPEN day, on the vehicle they checked in with.
+    return sellerVehicleAccount(db, ctx);
   }
   return warehouseAccount(db);
 }

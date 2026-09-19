@@ -35,10 +35,8 @@ export async function listCategories(ctx: Ctx): Promise<Category[]> {
 }
 
 async function loadStructure(db: Executor): Promise<Category[]> {
-  const [cats, subs] = await Promise.all([
-    db.select(categoryColumns).from(categories).orderBy(asc(categories.sortOrder), asc(categories.nameEn)),
-    db.select(subCategoryColumns).from(subCategories).orderBy(asc(subCategories.sortOrder), asc(subCategories.nameEn)),
-  ]);
+  const cats = await db.select(categoryColumns).from(categories).orderBy(asc(categories.sortOrder), asc(categories.nameEn));
+  const subs = await db.select(subCategoryColumns).from(subCategories).orderBy(asc(subCategories.sortOrder), asc(subCategories.nameEn));
   return cats.map((c) => ({
     ...c, id: c.id as CategoryId,
     subCategories: subs.filter((s) => s.categoryId === c.id)

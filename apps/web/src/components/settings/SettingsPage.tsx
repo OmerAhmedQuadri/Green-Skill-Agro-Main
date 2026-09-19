@@ -13,6 +13,7 @@ import { useCommand, useErrorText } from '@/lib/hooks';
 import { keys } from '@/lib/query-keys';
 import { CeilingsSection, CommissionSection } from './LimitsSections';
 import { ProductTypesSection } from './ProductTypesSection';
+import { ZonesSection } from './ZonesSection';
 
 export type SettingsCan = { configure: boolean; templates: boolean; limits: boolean; returns: boolean; commission: boolean };
 
@@ -23,6 +24,7 @@ export function SettingsPage({ can }: { can: SettingsCan }) {
       <PageHeader title={t('settings.title')} subtitle={t('settings.subtitle')} />
       {can.configure || can.returns || can.limits ? <GeneralSettings /> : null}
       {can.configure ? <TogglesSection /> : null}
+      {can.configure ? <ZonesSection /> : null}
       {can.templates ? <ProductTypesSection /> : null}
       {can.limits ? <CeilingsSection /> : null}
       {can.commission ? <CommissionSection /> : null}

@@ -1,6 +1,6 @@
 import { dec, DomainError, money, percent, type Money, type Percent, type UserId } from '@gsa/core';
 import { schema } from '@gsa/db';
-import { and, asc, eq, isNull } from 'drizzle-orm';
+import { and, asc, eq, isNull, or } from 'drizzle-orm';
 import { authorize, type Ctx } from '../context';
 import { audit, inTx, type Executor } from '../platform';
 import { getDb } from '../runtime';
@@ -102,4 +102,12 @@ export async function setCommissionRate(
     });
   });
   return getCommissionRates(ctx);
+}
+
+/** OQ-005: a seller's own ceiling, else the global one, else none. */
+export async function effectiveCeiling(db: Executor, kind: CeilingKind, sellerId: string): Promise<Money | null> {
+  const rows = await db.select({ sellerId: ceilings.sellerId, amount: ceilings.amount }).from(ceilings)
+    .where(and(eq(ceilings.kind, kind), or(eq(ceilings.sellerId, sellerId), isNull(ceilings.sellerId))));
+  const own = rows.find((r) => r.sellerId === sellerId) ?? rows.find((r) => r.sellerId === null);
+  return (own?.amount ?? null) as Money | null;
 }

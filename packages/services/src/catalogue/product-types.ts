@@ -20,10 +20,9 @@ const duplicateName = new DomainError('DUPLICATE_NAME', { field: 'nameEn' });
 const uniques = { product_types_name_en_unique: duplicateName, product_types_code_unique: duplicateName };
 
 export async function loadProductTypes(db: Executor): Promise<ProductType[]> {
-  const [types, attributes] = await Promise.all([
-    db.select().from(productTypes).orderBy(asc(productTypes.createdAt)),
-    db.select().from(productTypeAttributes),
-  ]);
+  // One after the other: `db` may be a transaction — a single connection.
+  const types = await db.select().from(productTypes).orderBy(asc(productTypes.createdAt));
+  const attributes = await db.select().from(productTypeAttributes);
   return types.map((t) => ({
     id: t.id as ProductTypeId, code: t.code, nameEn: t.nameEn, nameAr: t.nameAr, countUnit: t.countUnit,
     isActive: t.isActive, version: t.version,

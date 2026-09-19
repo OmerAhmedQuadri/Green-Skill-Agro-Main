@@ -62,6 +62,10 @@ async function world() {
   if (!warehouse) throw new Error('no warehouse');
   const batchFor = (skuId: string) => inTx(ctx, (tx) => findOrCreateBatch(tx, ctx, { skuId, lotNumber: 'P1', manufacturedOn: '2026-01-10', expiresOn: '2028-01-10', receivedAt: ctx.now }));
   const batches: Record<Sku, BatchRef> = { bag: await batchFor(okra.bag.id), pouch: await batchFor(okra.pouch.id), seeds: await batchFor(seedsSku.id) };
+  // Real vehicles: the ledger's vehicle_id is a foreign key to the register.
+  for (const [i, id] of VEHICLES.entries()) {
+    await ownerQuery(`insert into vehicles (id, registration, branch_id) select $1, $2, branch_id from warehouses limit 1 on conflict do nothing`, [id, `PROP ${i}`]);
+  }
   return { ctx, batches, wh: { kind: 'WAREHOUSE', warehouseId: warehouse.id } as const };
 }
 
