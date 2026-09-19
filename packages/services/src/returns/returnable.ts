@@ -14,7 +14,7 @@ import { readSettings } from '../system';
 import { unitsOf } from '../vehicles';
 import { batchInfo, heldFromSaleOf, queryReturns, type ReturnSummary } from './access';
 
-const { sales, warehouses } = schema;
+const { dispatchOrders, sales, warehouses } = schema;
 
 type Named = { readonly nameEn: string; readonly nameAr: string };
 
@@ -48,12 +48,15 @@ export async function returnRules(db: Executor): Promise<ReturnRules> {
 }
 
 /** The completed sale a return is raised against — the seller's own on the phone (RET-001). */
-export async function returnableSale(db: Executor, ctx: Ctx, saleId: string): Promise<{ sale: Sale; ledgerEntryId: string; completedAt: Date }> {
+export async function returnableSale(db: Executor, ctx: Ctx, saleId: string): Promise<{ sale: Sale; ledgerEntryId: string; completedAt: Date; disputable: boolean }> {
   const sale = await loadSale(db, ctx, saleId);
   if (ctx.user.role === 'SELLER' && sale.seller.id !== ctx.user.id) throw new DomainError('NOT_FOUND', { entity: 'sale', id: saleId });
-  const [row] = await db.select({ ledgerEntryId: sales.ledgerEntryId, completedAt: sales.completedAt }).from(sales).where(eq(sales.id, saleId));
+  const [row] = await db.select({ ledgerEntryId: sales.ledgerEntryId, completedAt: sales.completedAt, mode: dispatchOrders.confirmationMode })
+    .from(sales).leftJoin(dispatchOrders, eq(dispatchOrders.saleId, sales.id)).where(eq(sales.id, saleId));
   if (sale.status !== 'COMPLETED' || !row?.ledgerEntryId || !row.completedAt) throw new DomainError('SALE_NOT_COMPLETED', { status: sale.status });
-  return { sale, ledgerEntryId: row.ledgerEntryId, completedAt: row.completedAt };
+  // OQ-012: only a dispatch the store confirmed on its owner's word can be disputed afterwards, and never by its own seller.
+  const disputable = row.mode === 'OWNER_WORD' && sale.seller.id !== ctx.user.id;
+  return { sale, ledgerEntryId: row.ledgerEntryId, completedAt: row.completedAt, disputable };
 }
 
 export const saleLineUnits = (sale: Sale): Map<string, SkuUnits> => new Map(sale.lines.map((l) => [l.id, unitsOf(l.size)]));
@@ -66,7 +69,7 @@ export const saleLineUnits = (sale: Sale): Map<string, SkuUnits> => new Map(sale
 export async function getReturnable(ctx: Ctx, saleId: string): Promise<Returnable> {
   authorize(ctx, 'returns.process');
   const db = ctx.tx ?? getDb();
-  const { sale, ledgerEntryId, completedAt } = await returnableSale(db, ctx, saleId);
+  const { sale, ledgerEntryId, completedAt, disputable } = await returnableSale(db, ctx, saleId);
   const [{ held, credited }, debts, rules] = [await heldFromSaleOf(db, saleId, saleLineUnits(sale)), await debtsAround(db, sale.store.id, ledgerEntryId), await returnRules(db)];
   const info = await batchInfo(db, held.map((h) => h.batchId));
   const today = businessDate(ctx.now);
@@ -76,7 +79,7 @@ export async function getReturnable(ctx: Ctx, saleId: string): Promise<Returnabl
       .where(eq(warehouses.isActive, true)).orderBy(asc(warehouses.createdAt))).map((w) => ({ id: w.id, name: { nameEn: w.nameEn, nameAr: w.nameAr } })) };
   return {
     sale, unpaid: debts.unpaid, otherDebts: debts.otherDebts,
-    conditions: returnConditions(rules, { completedAt, unpaid: debts.unpaid }, ctx.now),
+    conditions: returnConditions(rules, { completedAt, unpaid: debts.unpaid, disputable }, ctx.now),
     lines: sale.lines.map((l) => ({
       saleLineId: l.id, skuId: l.skuId, code: l.code, product: l.product, variety: l.variety, size: l.size, countUnit: l.countUnit,
       packs: l.packs, unitPrice: l.unitPrice, discount: l.discount, total: l.total, credited: credited.get(l.id) ?? 0,

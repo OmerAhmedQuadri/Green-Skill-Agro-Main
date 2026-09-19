@@ -164,7 +164,7 @@ export async function checkCeilings(ctx: Ctx): Promise<{ raised: number; reminde
 /** LIM-002, OQ-021: the seller in the app and by email; their managers once it has been repeated. */
 async function warn(tx: Tx, ctx: Ctx, sellerId: string, kind: CeilingKind, amount: Money, ceiling: Money, escalate: boolean): Promise<void> {
   const params = { kind, amount, ceiling };
-  await notify(tx, ctx, { users: [sellerId] }, 'CEILING_BREACHED', params, '/field/cash');
+  await notify(tx, ctx, { users: [sellerId], includeActor: true }, 'CEILING_BREACHED', params, '/field/cash');
   const [seller] = await tx.select({ email: users.email, name: users.name, locale: users.locale }).from(users).where(eq(users.id, sellerId));
   if (seller?.email) {
     await enqueueEmail(tx, {

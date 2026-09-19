@@ -1647,7 +1647,8 @@
     "why": "Why is it coming back?",
     "conditions": {
       "UNCLEARED_PAYMENT": "Not paid for yet",
-      "DEFECTIVE": "Defective"
+      "DEFECTIVE": "Defective",
+      "NOT_RECEIVED": "Never arrived (disputed after confirmation)"
     },
     "blocked": {
       "RETURN_CONDITION_DISABLED": "Not allowed by the Admin",
@@ -1706,7 +1707,12 @@
       "WRITE_OFF": "Written off"
     },
     "replacementLine": "{packs} from batch {lot}, expires {expiry}",
-    "replacementNote": "A replacement moves no money and leaves the sale as it was."
+    "replacementNote": "A replacement moves no money and leaves the sale as it was.",
+    "refundsTitle": "Money to hand back",
+    "refundsHint": "A manager credited these stores. Hand the cash over on your next visit and record it here.",
+    "refundLine": "{store} · {number}",
+    "payRefund": "I handed it over",
+    "noRefunds": "Nothing to hand back."
   },
   "cash": {
     "title": "Cash",

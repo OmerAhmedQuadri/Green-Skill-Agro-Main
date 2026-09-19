@@ -4,7 +4,7 @@ import {
   ATTENDANCE_DAY_STATUSES, ATTENDANCE_SESSION_STATUSES, ODOMETER_FLAGS, CLOSING_STATUSES, NOTIFICATION_KINDS, STORE_STATUSES, CREDIT_MODES,
   SALE_STATUSES, SALE_CANCEL_REASONS, DISCOUNT_REQUEST_STATUSES, DELIVERY_DOCUMENT_STATUSES, DOCUMENT_SEND_CHANNELS, CASH_LEDGER_ENTRY_TYPES,
   SALE_CHANNELS, DISPATCH_STATUSES, DISPATCH_CLOSE_REASONS, CONFIRMATION_MODES, SHORTFALL_RESOLUTIONS, LOST_CLAIM_STATUSES, DISPATCH_EVENT_TYPES,
-  RETURN_KINDS, RETURN_CONDITIONS, RETURN_OUTCOMES,
+  RETURN_KINDS, RETURN_CONDITIONS, RETURN_OUTCOMES, SETTLEMENT_ROUTES, SETTLEMENT_STATUSES, CEILING_KINDS,
 } from '@gsa/core';
 import { schema } from '@gsa/db';
 import { describe, expect, it } from 'vitest';
@@ -77,5 +77,8 @@ describe('database enums mirror core', () => {
     expect(schema.returnKind.enumValues).toEqual([...RETURN_KINDS]);
     expect(schema.returnCondition.enumValues).toEqual([...RETURN_CONDITIONS]);
     expect(schema.returnOutcome.enumValues).toEqual([...RETURN_OUTCOMES]);
+    expect(schema.settlementRoute.enumValues).toEqual([...SETTLEMENT_ROUTES]);
+    expect(schema.settlementStatus.enumValues).toEqual([...SETTLEMENT_STATUSES]);
+    expect(schema.ceilingKindFlag.enumValues).toEqual([...CEILING_KINDS]);
   });
 });

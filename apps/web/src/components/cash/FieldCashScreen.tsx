@@ -13,6 +13,7 @@ import { useFormat } from '@/lib/format';
 import { decimalText } from '@/lib/forms';
 import { useErrorText, useOnceCommand } from '@/lib/hooks';
 import { keys } from '@/lib/query-keys';
+import type { RefundDue } from '@/components/returns/types';
 import { SETTLEMENT_TONE, type Settlement } from './types';
 
 type Page<T> = { items: T[]; nextCursor: string | null };
@@ -25,6 +26,7 @@ type Manager = { id: string; name: string };
  */
 export function FieldCashScreen() {
   const t = useTranslations('cash');
+  const tr = useTranslations('returns');
   const format = useFormat();
   const errorText = useErrorText();
   const router = useRouter();
@@ -39,6 +41,10 @@ export function FieldCashScreen() {
   const managers = managerList.data?.items ?? [];
   const mine = useQuery({ queryKey: keys.settlements(), queryFn: () => api<Page<Settlement>>('/cash/settlements?limit=20') });
   const held = useQuery({ queryKey: keys.cashInHand, queryFn: () => api<{ cashInHand: string }>('/cash/me') });
+  const refunds = useQuery({ queryKey: keys.refundsDue, queryFn: () => api<{ items: RefundDue[] }>('/returns/refunds-due') });
+  const pay = useOnceCommand((returnId: string, key) => api<{ items: RefundDue[] }>(`/returns/refunds-due/${returnId}/pay`, { method: 'POST', body: {}, idempotencyKey: key }), {
+    onSuccess: () => { for (const k of [keys.refundsDue, keys.cashInHand]) void queryClient.invalidateQueries({ queryKey: k }); },
+  });
   const submit = useOnceCommand((body: unknown, key) => api<Settlement>('/cash/settlements', { method: 'POST', body, idempotencyKey: key }), {
     onSuccess: (s) => {
       for (const k of [keys.settlements(), keys.cashInHand]) void queryClient.invalidateQueries({ queryKey: k });
@@ -55,6 +61,24 @@ export function FieldCashScreen() {
         <div className="text-sm text-stone-500">{t('inHand')}</div>
         <div className="text-2xl font-semibold" data-testid="cash-in-hand">{format.money(held.data?.cashInHand ?? '0.00')}</div>
       </Card>
+
+      {/* OQ-012: money a manager credited that the seller still has to hand over. */}
+      {(refunds.data?.items.length ?? 0) > 0 ? (
+        <Card className="space-y-3 p-4" data-testid="refunds-due">
+          <p className="font-semibold">{tr('refundsTitle')}</p>
+          <p className="text-sm text-stone-600">{tr('refundsHint')}</p>
+          {refunds.data?.items.map((r) => (
+            <div key={r.returnId} className="flex items-center justify-between gap-3 border-t border-stone-100 pt-3 text-sm">
+              <span>
+                <span className="block font-medium">{format.money(r.outstanding)}</span>
+                <span className="block text-stone-500">{tr('refundLine', { store: r.store.name, number: r.number })}</span>
+              </span>
+              <Button variant="secondary" disabled={pay.isPending} onClick={() => pay.run(r.returnId)} data-testid={`pay-${r.number}`}>{tr('payRefund')}</Button>
+            </div>
+          ))}
+          {pay.error ? <Alert>{errorText(pay.error)}</Alert> : null}
+        </Card>
+      ) : null}
 
       <Card className="space-y-3 p-4">
         <p className="font-semibold">{t('settleTitle')}</p>

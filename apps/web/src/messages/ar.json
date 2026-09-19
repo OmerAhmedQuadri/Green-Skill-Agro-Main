@@ -1647,7 +1647,8 @@
     "why": "لماذا تُرجَع البضاعة؟",
     "conditions": {
       "UNCLEARED_PAYMENT": "لم تُدفع بعد",
-      "DEFECTIVE": "معيبة"
+      "DEFECTIVE": "معيبة",
+      "NOT_RECEIVED": "لم تصل (نزاع بعد التأكيد)"
     },
     "blocked": {
       "RETURN_CONDITION_DISABLED": "غير مسموح به من المسؤول",
@@ -1706,7 +1707,12 @@
       "WRITE_OFF": "شُطب"
     },
     "replacementLine": "{packs} من الدفعة {lot}، تنتهي {expiry}",
-    "replacementNote": "الاستبدال لا ينقل أي أموال ويترك البيع كما هو."
+    "replacementNote": "الاستبدال لا ينقل أي أموال ويترك البيع كما هو.",
+    "refundsTitle": "مبالغ يجب إعادتها",
+    "refundsHint": "اعتمد مدير هذه المبالغ للمتاجر. سلّمها نقدًا في زيارتك القادمة وسجّلها هنا.",
+    "refundLine": "{store} · {number}",
+    "payRefund": "سلّمتُها",
+    "noRefunds": "لا شيء لإعادته."
   },
   "cash": {
     "title": "النقد",

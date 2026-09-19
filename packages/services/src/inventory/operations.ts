@@ -67,7 +67,7 @@ const accountColumns = (a: StockAccount) => ({
  */
 export async function recordReturnWriteOff(
   tx: Tx, ctx: Ctx,
-  input: { reason: 'DEFECTIVE' | 'EXPIRED' | 'DAMAGED'; batchId: string; packs: number; quantity: Quantity; returnId: string; movementGroupId: string; note: string | null },
+  input: { reason: 'DEFECTIVE' | 'EXPIRED' | 'DAMAGED' | 'MISSING'; batchId: string; packs: number; quantity: Quantity; returnId: string; movementGroupId: string; note: string | null },
 ): Promise<string> {
   const number = await nextDocumentNumber(tx, 'WO', ctx.now);
   await tx.insert(writeOffs).values({

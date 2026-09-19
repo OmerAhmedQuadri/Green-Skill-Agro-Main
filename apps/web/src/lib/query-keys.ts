@@ -55,4 +55,5 @@ export const keys = {
   sellerCash: ['seller-cash'] as const,
   cashManagers: ['cash-managers'] as const,
   dashboardFlags: ['dashboard-flags'] as const,
+  refundsDue: ['refunds-due'] as const,
 };

@@ -7,7 +7,9 @@ import { getDb } from '../runtime';
 
 const { notifications, users, userPermissions } = schema;
 
-export type Recipients = { readonly users: readonly string[] } | { readonly permission: PermissionCode };
+export type Recipients =
+  | { readonly users: readonly string[]; /** LIM-002: the message is about them, whoever set it off. */ readonly includeActor?: boolean }
+  | { readonly permission: PermissionCode };
 export type NotificationParams = Readonly<Record<string, string | number | null>>;
 
 /** Every active account holding a permission, by role default or override. */
@@ -27,13 +29,15 @@ export async function usersWithPermission(db: Executor, permission: PermissionCo
 
 /**
  * ADR-0034: written in the caller's transaction, so a rolled-back change
- * notifies nobody. The actor is never notified of their own action.
+ * notifies nobody. The actor is never notified of their own action, unless
+ * the message is about them rather than about what they did — a ceiling
+ * breach a seller's own sale caused, for instance (LIM-002).
  */
 export async function notify(
   tx: Executor, ctx: Ctx, to: Recipients, kind: NotificationKind, params: NotificationParams, link: string | null = null,
 ): Promise<void> {
   const ids = 'users' in to ? [...new Set(to.users)] : await usersWithPermission(tx, to.permission);
-  const recipients = ids.filter((id) => id !== ctx.user.id);
+  const recipients = 'includeActor' in to && to.includeActor ? ids : ids.filter((id) => id !== ctx.user.id);
   if (recipients.length === 0) return;
   await tx.insert(notifications).values(recipients.map((userId) => ({
     userId, kind, params, link, createdAt: ctx.now, branchId: ctx.branchId,
