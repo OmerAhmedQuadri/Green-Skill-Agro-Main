@@ -63,6 +63,17 @@ setenv APP_URL "https://$DOMAIN"
 log "PostgreSQL in Docker, on 127.0.0.1:5432"
 docker compose --env-file "$ENV_FILE" -f "$APP_DIR/deploy/docker-compose.staging.yml" up -d --wait
 
+log "Cloudflare's addresses, for the visitor's real IP (the domain is proxied)"
+realip=/etc/nginx/snippets/cloudflare-realip.conf
+if [[ ! -f $realip ]]; then
+  {
+    echo "# Cloudflare edge addresses (https://www.cloudflare.com/ips/), fetched $(date -u +%F)."
+    echo "# CF-Connecting-IP is trusted only from these. Included by the green-agro site only."
+    for list in ips-v4 ips-v6; do { curl -fsS "https://www.cloudflare.com/$list"; echo; } | sed '/^$/d; s/.*/set_real_ip_from &;/'; done
+    echo "real_ip_header CF-Connecting-IP;"
+  } > "$realip"
+fi
+
 log "nginx site for $DOMAIN"
 site=/etc/nginx/sites-available/green-agro
 if [[ ! -f $site ]]; then   # once written, certbot edits it — never overwrite
