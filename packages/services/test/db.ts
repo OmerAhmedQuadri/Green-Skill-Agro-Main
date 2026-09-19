@@ -17,7 +17,7 @@ const TABLES = [
   'closing_stock_declarations', 'closing_stock_lines', 'notifications',
   'stores', 'store_assignments', 'store_ledger_entries', 'payments', 'payment_allocations', 'credit_overrides',
   'sales', 'sale_lines', 'sale_line_allocations', 'discount_approval_requests', 'delivery_documents', 'delivery_document_sends',
-  'cash_ledger_entries',
+  'cash_ledger_entries', 'dispatch_orders', 'dispatch_order_lines', 'dispatch_line_batches', 'dispatch_order_events', 'lost_order_claims',
 ];
 
 /**

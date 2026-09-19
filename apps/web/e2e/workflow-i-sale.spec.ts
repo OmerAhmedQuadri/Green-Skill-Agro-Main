@@ -1,41 +1,11 @@
 import { expect, test, type Page } from '@playwright/test';
 import ar from '../src/messages/ar.json' with { type: 'json' };
 import en from '../src/messages/en.json' with { type: 'json' };
-import { aJpeg, aVehicle, batchOf, freshSeller, post, receiveStock, sessionPage, takePhoto } from './helpers';
+import { aStoreByApi, aVehicle, batchOf, checkIn, freshSeller, post, receiveStock, sessionPage } from './helpers';
 
-type M = typeof en;
 const headers = (origin: string) => ({ origin, 'idempotency-key': crypto.randomUUID() });
 const fill = (template: string, values: Record<string, string | number>) =>
   Object.entries(values).reduce((s, [k, v]) => s.replace(`{${k}}`, String(v)), template);
-
-/** Check in with the vehicle from the Today screen: selfie, odometer photo and reading (ATT-001, SAL-010). */
-async function checkIn(phone: Page, m: M) {
-  await phone.goto('/field/today');
-  await phone.getByTestId('day-card').getByRole('button', { name: m.field.checkIn, exact: true }).click();
-  const form = phone.getByRole('form', { name: m.field.checkIn });
-  await expect(form.getByTestId('location')).not.toContainText(m.field.locating, { timeout: 20_000 });
-  await takePhoto(phone, 'in-selfie', m);
-  await takePhoto(phone, 'in-odometer', m);
-  await form.getByLabel(m.field.odometerReading).fill('10002');
-  await form.getByRole('button', { name: m.field.checkIn, exact: true }).click();
-  await expect(phone.getByTestId('day-card')).toContainText(m.field.status.OPEN);
-}
-
-/** A store the seller onboards through the API — storefront photo uploaded to storage and confirmed, as the phone does (workflow H). */
-async function aStore(phone: Page, origin: string, name: string, terms: { creditMode: 'WEEKLY' | 'BILL_TO_BILL'; creditLimit: string }) {
-  await phone.goto('/field/stores');
-  const jpeg = await aJpeg(phone);
-  const ticket = (await post(phone, origin, '/media/uploads', { kind: 'STOREFRONT', contentType: 'image/jpeg', byteSize: jpeg.byteLength })) as unknown as
-    { mediaId: string; upload: { url: string; headers: Record<string, string> } };
-  expect((await phone.request.put(ticket.upload.url, { headers: ticket.upload.headers, data: jpeg })).ok()).toBe(true);
-  await post(phone, origin, `/media/${ticket.mediaId}/confirm`, {});
-  const options = (await (await phone.request.get('/api/v1/stores/options')).json()) as { priceLists: { id: string; isBase: boolean }[] };
-  const base = options.priceLists.find((l) => l.isBase);
-  return post(phone, origin, '/stores', {
-    name, ownerName: 'Owner', contactNumber: '0501234567', location: { lat: 18 + Math.random() * 10, lng: 40 + Math.random() * 10 },
-    ...terms, priceListId: base?.id, storefrontPhotoId: ticket.mediaId, acknowledgeDuplicates: true,
-  });
-}
 
 const salesOf = async (phone: Page, storeId: string) =>
   ((await (await phone.request.get(`/api/v1/sales?storeId=${storeId}`)).json()) as { items: { id: string; status: string }[] }).items;
@@ -79,13 +49,13 @@ for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
     });
     const vehicle = await aVehicle(admin, origin, 10_000);
     await post(admin, origin, `/vehicles/${vehicle.id}/assign`, { sellerId: seller.id });
-    await checkIn(phone, m);
+    await checkIn(phone, m, { odometer: '10002' });
     const load = await post(admin, origin, '/vehicle-loads', { vehicleId: vehicle.id, lines: [{ batchId: await batchOf(admin, skuId, lot), packs: 12 }], acknowledgeCeiling: true });
     await post(phone, origin, `/vehicle-loads/${load.id}/confirm`, { version: load.version });
 
-    const credit = await aStore(phone, origin, `I Weekly ${locale} ${stamp}`, { creditMode: 'WEEKLY', creditLimit: '1000.00' });
-    const cash = await aStore(phone, origin, `I Cash ${locale} ${stamp}`, { creditMode: 'BILL_TO_BILL', creditLimit: '0.00' });
-    const blocked = await aStore(phone, origin, `I Blocked ${locale} ${stamp}`, { creditMode: 'WEEKLY', creditLimit: '1000.00' });
+    const credit = await aStoreByApi(phone, origin, `I Weekly ${locale} ${stamp}`, { creditMode: 'WEEKLY', creditLimit: '1000.00' });
+    const cash = await aStoreByApi(phone, origin, `I Cash ${locale} ${stamp}`, { creditMode: 'BILL_TO_BILL', creditLimit: '0.00' });
+    const blocked = await aStoreByApi(phone, origin, `I Blocked ${locale} ${stamp}`, { creditMode: 'WEEKLY', creditLimit: '1000.00' });
     await post(admin, origin, `/stores/${blocked.id}/adjustments`, { amount: '100.00', reason: 'Opening balance', dueOn: '2026-01-15' });
 
     // SAL-001, SAL-002, CRD-005: a blocked store shows the block and the reason — and nothing can be added.

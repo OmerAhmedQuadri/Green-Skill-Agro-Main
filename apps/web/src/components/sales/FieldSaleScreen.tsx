@@ -2,6 +2,7 @@
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useState } from 'react';
 import { Alert, Badge, Button, Card, Field, Input, Select } from '@gsa/ui';
@@ -26,6 +27,7 @@ export function FieldSaleScreen({ id }: { id: string }) {
   const format = useFormat();
   const errorText = useErrorText();
   const queryClient = useQueryClient();
+  const router = useRouter();
   const [method, setMethod] = useState<'CASH' | 'BANK_TRANSFER'>('CASH');
   const [reference, setReference] = useState('');
   const [confirmWithdraw, setConfirmWithdraw] = useState(false);
@@ -43,6 +45,10 @@ export function FieldSaleScreen({ id }: { id: string }) {
   };
   const act = useOnceCommand((body: { action: 'complete' | 'withdraw'; version: number; payment?: unknown }, key) =>
     api<Sale>(`/sales/${id}/${body.action}`, { method: 'POST', body: { version: body.version, ...(body.payment ? { payment: body.payment } : {}) }, idempotencyKey: key }), { onSuccess: refresh });
+  // ADR-0038: an approved dispatch sale goes to the warehouse instead of completing here.
+  const send = useOnceCommand((version: number, key) => api<{ orderId: string | null }>(`/sales/${id}/dispatch`, { method: 'POST', body: { version }, idempotencyKey: key }), {
+    onSuccess: (r) => { void queryClient.invalidateQueries({ queryKey: keys.sales() }); if (r.orderId) router.push(`/field/orders/${r.orderId}`); },
+  });
 
   if (sale.isPending) return <p className="text-sm text-stone-500">{t('loading')}</p>;
   if (sale.error) return <Alert>{errorText(sale.error)}</Alert>;
@@ -88,7 +94,12 @@ export function FieldSaleScreen({ id }: { id: string }) {
       {s.creditOverride ? <p className="text-sm text-stone-600">{t('overrideUsed', { name: s.creditOverride.grantedBy, reason: s.creditOverride.reason })}</p> : null}
 
       {act.error ? <Alert>{errorText(act.error)}</Alert> : null}
-      {s.status === 'DISCOUNT_APPROVED' ? (
+      {send.error ? <Alert>{errorText(send.error)}</Alert> : null}
+      {s.dispatchOrder ? <Link href={`/field/orders/${s.dispatchOrder.id}`} className="inline-flex h-11 w-full items-center justify-center rounded-md border border-stone-300 text-sm font-medium" data-testid="to-order">{t('toOrder', { number: s.dispatchOrder.number })}</Link> : null}
+      {s.status === 'DISCOUNT_APPROVED' && s.channel === 'DISPATCH' ? (
+        <Button block disabled={send.isPending} onClick={() => send.run(s.version)}>{t('sendToWarehouse')}</Button>
+      ) : null}
+      {s.status === 'DISCOUNT_APPROVED' && s.channel === 'VEHICLE' ? (
         <Card className="space-y-3 p-4">
           {billToBill ? (
             <>

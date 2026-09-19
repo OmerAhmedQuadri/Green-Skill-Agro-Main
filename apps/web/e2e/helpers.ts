@@ -1,4 +1,5 @@
 import { expect, type Browser, type BrowserContextOptions, type Page } from '@playwright/test';
+import type en from '../src/messages/en.json';
 
 export const PASSWORD = process.env.DEV_SEED_PASSWORD ?? '';
 export const shot = (name: string) => `${process.env.SCREENSHOT_DIR ?? 'test-results/screenshots'}/${name}.png`;
@@ -139,3 +140,44 @@ export async function batchPositions(page: Page, skuId: string, lot: string) {
   const b = stock.batches.find((x) => x.lotNumber === lot)?.positions;
   return b ? { warehouse: b.warehouse, vehicles: b.vehicles, total: b.total } : null;
 }
+
+type Messages = typeof en;
+
+/** Check in from the Today screen: a selfie, and with a vehicle its odometer photo and reading (ATT-001). */
+export async function checkIn(phone: Page, m: Messages, opts: { odometer?: string } = {}) {
+  await phone.goto('/field/today');
+  await phone.getByTestId('day-card').getByRole('button', { name: m.field.checkIn, exact: true }).click();
+  const form = phone.getByRole('form', { name: m.field.checkIn });
+  await expect(form.getByTestId('location')).not.toContainText(m.field.locating, { timeout: 20_000 });
+  await takePhoto(phone, 'in-selfie', m);
+  if (opts.odometer) {
+    await takePhoto(phone, 'in-odometer', m);
+    await form.getByLabel(m.field.odometerReading).fill(opts.odometer);
+  }
+  await form.getByRole('button', { name: m.field.checkIn, exact: true }).click();
+  await expect(phone.getByTestId('day-card')).toContainText(m.field.status.OPEN);
+}
+
+/** A file uploaded through the API as the page's user, to storage and confirmed — as the app does (ARCHITECTURE §6.4). */
+export async function anUpload(page: Page, origin: string, kind: 'STOREFRONT' | 'TRANSPORT_SLIP') {
+  if (page.url() === 'about:blank') await page.goto('/');
+  const jpeg = await aJpeg(page);
+  const ticket = (await post(page, origin, '/media/uploads', { kind, contentType: 'image/jpeg', byteSize: jpeg.byteLength })) as unknown as
+    { mediaId: string; upload: { url: string; headers: Record<string, string> } };
+  expect((await page.request.put(ticket.upload.url, { headers: ticket.upload.headers, data: jpeg })).ok()).toBe(true);
+  await post(page, origin, `/media/${ticket.mediaId}/confirm`, {});
+  return ticket.mediaId;
+}
+
+/** A store the seller onboards through the API, somewhere no earlier run put one (workflow H). */
+export async function aStoreByApi(phone: Page, origin: string, name: string, terms: { creditMode: 'WEEKLY' | 'BILL_TO_BILL'; creditLimit: string }) {
+  await phone.goto('/field/stores');
+  const photo = await anUpload(phone, origin, 'STOREFRONT');
+  const options = (await (await phone.request.get('/api/v1/stores/options')).json()) as { priceLists: { id: string; isBase: boolean }[] };
+  const base = options.priceLists.find((l) => l.isBase);
+  return post(phone, origin, '/stores', {
+    name, ownerName: 'Owner', contactNumber: '0501234567', location: { lat: 18 + Math.random() * 10, lng: 40 + Math.random() * 10 },
+    ...terms, priceListId: base?.id, storefrontPhotoId: photo, acknowledgeDuplicates: true,
+  });
+}
+

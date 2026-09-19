@@ -3,6 +3,7 @@ import {
   WRITE_OFF_REASONS, WRITE_OFF_STATUSES, VEHICLE_STATUSES, HANDOVER_STATUSES, LOAD_STATUSES, VEHICLE_RETURN_REASONS,
   ATTENDANCE_DAY_STATUSES, ATTENDANCE_SESSION_STATUSES, ODOMETER_FLAGS, CLOSING_STATUSES, NOTIFICATION_KINDS, STORE_STATUSES, CREDIT_MODES,
   SALE_STATUSES, SALE_CANCEL_REASONS, DISCOUNT_REQUEST_STATUSES, DELIVERY_DOCUMENT_STATUSES, DOCUMENT_SEND_CHANNELS, CASH_LEDGER_ENTRY_TYPES,
+  SALE_CHANNELS, DISPATCH_STATUSES, DISPATCH_CLOSE_REASONS, CONFIRMATION_MODES, SHORTFALL_RESOLUTIONS, LOST_CLAIM_STATUSES, DISPATCH_EVENT_TYPES,
 } from '@gsa/core';
 import { schema } from '@gsa/db';
 import { describe, expect, it } from 'vitest';
@@ -62,5 +63,15 @@ describe('database enums mirror core', () => {
     expect(schema.deliveryDocumentStatus.enumValues).toEqual([...DELIVERY_DOCUMENT_STATUSES]);
     expect(schema.documentSendChannel.enumValues).toEqual([...DOCUMENT_SEND_CHANNELS]);
     expect(schema.cashLedgerEntryType.enumValues).toEqual([...CASH_LEDGER_ENTRY_TYPES]);
+  });
+
+  it('DSP-001, DSP-010, DSP-012, DSP-013: dispatch order enums and the sale channel', () => {
+    expect(schema.saleChannel.enumValues).toEqual([...SALE_CHANNELS]);
+    expect(schema.dispatchStatus.enumValues).toEqual([...DISPATCH_STATUSES]);
+    expect(schema.dispatchCloseReason.enumValues).toEqual([...DISPATCH_CLOSE_REASONS]);
+    expect(schema.confirmationMode.enumValues).toEqual([...CONFIRMATION_MODES]);
+    expect(schema.shortfallResolution.enumValues).toEqual([...SHORTFALL_RESOLUTIONS]);
+    expect(schema.lostClaimStatus.enumValues).toEqual([...LOST_CLAIM_STATUSES]);
+    expect(schema.dispatchEventType.enumValues).toEqual([...DISPATCH_EVENT_TYPES]);
   });
 });

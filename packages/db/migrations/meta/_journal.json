@@ -85,6 +85,20 @@
       "when": 1789829570615,
       "tag": "0011_sales_and_delivery_documents",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1789839310304,
+      "tag": "0012_dispatch_orders",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1789839463743,
+      "tag": "0013_dispatch_short_lines",
+      "breakpoints": true
     }
   ]
 }

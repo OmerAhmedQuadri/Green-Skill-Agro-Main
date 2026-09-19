@@ -15,6 +15,7 @@ import { decimalText, wholeNumber } from '@/lib/forms';
 import { useErrorText, useOnceCommand } from '@/lib/hooks';
 import { keys } from '@/lib/query-keys';
 import { trimPercent } from './SaleLinesTable';
+import type { DispatchOrder } from '@/components/dispatch/types';
 import type { Sale, SaleOptions } from './types';
 
 const asPercent = (text: string): Percent | null => {
@@ -30,13 +31,15 @@ const asPercent = (text: string): Percent | null => {
  * packs and a discount, each against its ceiling. Within the ceilings the sale
  * completes; above them the seller asks, with a reason, and waits.
  */
-export function SellScreen({ storeId, fromSaleId }: { storeId: string; fromSaleId: string | null }) {
+export function SellScreen({ storeId, fromSaleId, shortfallOf = null }: { storeId: string; fromSaleId: string | null; shortfallOf?: string | null }) {
   const t = useTranslations('sales');
   const errorText = useErrorText();
   const options = useQuery({ queryKey: keys.saleOptions(storeId), queryFn: () => api<SaleOptions>(`/sales/options?storeId=${storeId}`) });
   const from = useQuery({ queryKey: keys.sale(fromSaleId ?? ''), queryFn: () => api<Sale>(`/sales/${fromSaleId ?? ''}`), enabled: Boolean(fromSaleId) });
+  // DSP-012, OQ-019: making good a short delivery from the vehicle — the missing packs, pre-filled.
+  const gap = useQuery({ queryKey: keys.dispatchOrder(shortfallOf ?? ''), queryFn: () => api<DispatchOrder>(`/dispatch-orders/${shortfallOf ?? ''}`), enabled: Boolean(shortfallOf) });
 
-  if (options.isPending || (fromSaleId && from.isPending)) return <p className="text-sm text-stone-500">{t('loading')}</p>;
+  if (options.isPending || (fromSaleId && from.isPending) || (shortfallOf && gap.isPending)) return <p className="text-sm text-stone-500">{t('loading')}</p>;
   if (options.error) return <Alert>{errorText(options.error)}</Alert>;
   const o = options.data;
   const back = { href: `/field/stores/${storeId}`, label: o.store.name };
@@ -59,10 +62,13 @@ export function SellScreen({ storeId, fromSaleId }: { storeId: string; fromSaleI
     );
   }
 
-  return <SellForm storeId={storeId} options={o} from={from.data ?? null} back={back} />;
+  const missing = gap.data ? Object.fromEntries(gap.data.lines.map((l) => [l.skuId, (l.shortPacks ?? 0) + (l.damagedPacks ?? 0)])) : null;
+  return <SellForm storeId={storeId} options={o} from={from.data ?? null} missing={missing} back={back} />;
 }
 
-function SellForm({ storeId, options: o, from, back }: { storeId: string; options: SaleOptions; from: Sale | null; back: { href: string; label: string } }) {
+function SellForm({ storeId, options: o, from, missing, back }: {
+  storeId: string; options: SaleOptions; from: Sale | null; missing: Record<string, number> | null; back: { href: string; label: string };
+}) {
   const t = useTranslations('sales');
   const ts = useTranslations('stores');
   const format = useFormat();
@@ -70,8 +76,9 @@ function SellForm({ storeId, options: o, from, back }: { storeId: string; option
   const router = useRouter();
   const queryClient = useQueryClient();
   // PRC-014: after a rejection or expiry, a fresh sale within the ceiling, pre-filled.
-  const [packs, setPacks] = useState<Record<string, string>>(() => Object.fromEntries((from?.lines ?? [])
-    .filter((l) => o.items.some((i) => i.skuId === l.skuId)).map((l) => [l.skuId, String(l.packs)])));
+  const [packs, setPacks] = useState<Record<string, string>>(() => (missing
+    ? Object.fromEntries(Object.entries(missing).filter(([skuId, n]) => n > 0 && o.items.some((i) => i.skuId === skuId)).map(([skuId, n]) => [skuId, String(n)]))
+    : Object.fromEntries((from?.lines ?? []).filter((l) => o.items.some((i) => i.skuId === l.skuId)).map((l) => [l.skuId, String(l.packs)]))));
   const [discounts, setDiscounts] = useState<Record<string, string>>(() => Object.fromEntries((from?.lines ?? []).map((l) => {
     const ceiling = o.items.find((i) => i.skuId === l.skuId)?.ceiling ?? '0';
     return [l.skuId, trimPercent(dec(l.requestedDiscount).gt(dec(ceiling)) ? ceiling : l.requestedDiscount)];

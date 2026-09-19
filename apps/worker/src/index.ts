@@ -48,19 +48,26 @@ await boss.work('discount-approval.expire', async () => {
   if (result.expired > 0) console.log(`[worker] discount-approval.expire expired ${result.expired}`);
 });
 
-// ADR-0019, ADR-0037: print delivery documents from their outbox; Chromium runs only while there is work.
+// ADR-0019, ADR-0037: print delivery documents from their outbox. Chromium starts with the first
+// document and stays open while more keep coming — launching is the expensive part — then closes
+// after a minute with nothing to print.
 const renderer = chromiumRenderer();
+const IDLE_CLOSE_MS = 60_000;
 let rendering = false;
+let lastPrinted = 0;
 const renderDocuments = async () => {
   if (rendering) return;
   rendering = true;
   try {
     const result = await sales.renderPendingDocuments(renderer, new Date());
-    if (result.rendered + result.failed > 0) console.log(`[worker] delivery documents: ${result.rendered} ready, ${result.failed} failed`);
+    if (result.rendered + result.failed > 0) {
+      lastPrinted = Date.now();
+      console.log(`[worker] delivery documents: ${result.rendered} ready, ${result.failed} failed`);
+    }
   } catch (error) {
     console.error('[worker] delivery document pass failed', error);
   } finally {
-    await renderer.close().catch(() => undefined);
+    if (Date.now() - lastPrinted > IDLE_CLOSE_MS) await renderer.close().catch(() => undefined);
     rendering = false;
   }
 };

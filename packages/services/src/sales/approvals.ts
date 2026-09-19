@@ -41,7 +41,8 @@ export async function decideDiscountRequest(ctx: Ctx, saleId: string, input: Dec
     }
     if (request.r.expiresAt.getTime() <= ctx.now.getTime()) throw new DomainError('ALREADY_DECIDED', { status: 'EXPIRED', at: request.r.expiresAt });
     if (row.version !== input.version) throw new DomainError('VERSION_CONFLICT', { expected: input.version, actual: row.version });
-    if (row.sellerId === ctx.user.id) throw new DomainError('FOUR_EYES');
+    // Nobody decides a sale they sell or raised (ADR-0038: a manager may raise one for a seller).
+    if (row.sellerId === ctx.user.id || row.createdBy === ctx.user.id) throw new DomainError('FOUR_EYES');
 
     const lines = await tx.select().from(saleLines).where(eq(saleLines.saleId, saleId));
     const decision = decideDiscount(lines.map((l) => ({ id: l.id, requested: l.requestedDiscount as Percent })), {
