@@ -94,6 +94,15 @@ describe('credit cycles (CRD-001..007, OQ-018)', () => {
     expect(code(() => allocateCredit(m('0.00'), debits))).toBe('INVALID_MONEY');
   });
 
+  it('RET-008: a credit note settles its own sale first, then the oldest debts', () => {
+    const debits = [
+      { id: 'later', dueOn: '2026-10-17', occurredAt: new Date('2026-10-12T08:00:00Z'), open: m('300.00') },
+      { id: 'older', dueOn: '2026-10-10', occurredAt: new Date('2026-10-05T08:00:00Z'), open: m('200.00') },
+    ];
+    expect(allocateCredit(m('350.00'), debits, 'later')).toEqual([{ debitId: 'later', amount: '300.00' }, { debitId: 'older', amount: '50.00' }]);
+    expect(allocateCredit(m('100.00'), debits, 'gone')).toEqual([{ debitId: 'older', amount: '100.00' }]);
+  });
+
   it('CRD-004, CRD-005: past due or over the limit blocks, each with its reason; grace delays past due', () => {
     const base = { status: 'ACTIVE' as const, limit: m('1000.00'), graceDays: 0, today: '2026-10-12', overrideActive: false };
     expect(creditStatus({ ...base, openDebits: [{ dueOn: '2026-10-17', open: m('400.00') }] }))

@@ -5,6 +5,7 @@ import { users } from './identity';
 import { mediaAssets } from './media';
 import { mutable } from './mutable';
 import { branches, warehouses } from './organisation';
+import { returns } from './returns';
 import { batches, stockAccountKind } from './stock';
 import { vehicles } from './vehicles';
 
@@ -67,6 +68,7 @@ export const writeOffs = pgTable(
     approvedQuantity: numeric('approved_quantity', { precision: 14, scale: 3 }),
     photoId: uuid('photo_id').references(() => mediaAssets.id),
     conversionId: uuid('conversion_id').references(() => skuConversions.id),
+    returnId: uuid('return_id').references(() => returns.id), // ADR-0039: a defective or unsaleable return
     movementGroupId: uuid('movement_group_id'),
     submittedAt: timestamptz('submitted_at').notNull(),
     submittedBy: uuid('submitted_by').notNull().references(() => users.id),
@@ -83,6 +85,7 @@ export const writeOffs = pgTable(
     index('write_offs_vehicle_id_idx').on(t.vehicleId),
     index('write_offs_photo_id_idx').on(t.photoId),
     index('write_offs_conversion_id_idx').on(t.conversionId),
+    index('write_offs_return_id_idx').on(t.returnId),
     index('write_offs_submitted_by_idx').on(t.submittedBy),
     check('write_offs_quantity_positive', sql`${t.requestedQuantity} > 0`),
     check('write_offs_decided', sql`(${t.status} = 'SUBMITTED') = (${t.decidedAt} is null)`),

@@ -8,7 +8,7 @@ import { sellerVehicleAccount } from '../attendance';
 import { sizeOf } from '../catalogue';
 import { authorize, authorizeAny, type Ctx } from '../context';
 import { assertOwnEvidence } from '../media';
-import { audit, inTx, nextDocumentNumber, pageLimit, type Executor } from '../platform';
+import { audit, inTx, nextDocumentNumber, pageLimit, type Executor, type Tx } from '../platform';
 import { listPriceLists, setPriceListItems } from '../pricing';
 import { getDb } from '../runtime';
 import { readToggles } from '../system';
@@ -59,6 +59,25 @@ async function accountFor(ctx: Ctx, db: Executor, feature: 'convert' | 'write_of
 const accountColumns = (a: StockAccount) => ({
   accountKind: a.kind, warehouseId: a.kind === 'WAREHOUSE' ? a.warehouseId : null, vehicleId: a.kind === 'VEHICLE' ? a.vehicleId : null,
 });
+
+/**
+ * WRO-007, ADR-0039: goods that came back defective or unsaleable are
+ * written off in the return's own transaction — already approved, linked to
+ * the return, attributed to where they were (a store's goods: SOLD).
+ */
+export async function recordReturnWriteOff(
+  tx: Tx, ctx: Ctx,
+  input: { reason: 'DEFECTIVE' | 'EXPIRED' | 'DAMAGED'; batchId: string; packs: number; quantity: Quantity; returnId: string; movementGroupId: string; note: string | null },
+): Promise<string> {
+  const number = await nextDocumentNumber(tx, 'WO', ctx.now);
+  await tx.insert(writeOffs).values({
+    number, status: 'APPROVED', reason: input.reason, note: input.note, batchId: input.batchId, accountKind: 'SOLD', warehouseId: null, vehicleId: null,
+    requestedPacks: input.packs, requestedQuantity: input.quantity, approvedQuantity: input.quantity, returnId: input.returnId,
+    movementGroupId: input.movementGroupId, submittedAt: ctx.now, submittedBy: ctx.user.id, decidedAt: ctx.now, decidedBy: null,
+    branchId: ctx.branchId, createdBy: ctx.user.id, updatedBy: ctx.user.id,
+  });
+  return number;
+}
 
 // ---------------------------------------------------------------- conversion
 

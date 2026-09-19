@@ -113,6 +113,17 @@ const STATUS: Record<ErrorCode, number> = {
   NOTHING_RECEIVED: 422,
   CLAIM_PENDING: 409,
   STORE_HAS_NO_SELLER: 409,
+  EMPTY_RETURN: 422,
+  SALE_NOT_COMPLETED: 409,
+  RETURN_CONDITION_DISABLED: 409,
+  RETURN_WINDOW_CLOSED: 409,
+  SALE_ALREADY_PAID: 409,
+  RETURN_EXCEEDS_UNPAID: 409,
+  RETURN_EXCEEDS_HELD: 409,
+  REPLACEMENT_ONLY_DEFECTIVE: 422,
+  REPLACEMENT_NEEDS_VEHICLE: 409,
+  REFUND_NEEDS_SELLER: 409,
+  REFUND_EXCEEDS_CASH_IN_HAND: 409,
 };
 
 export function problem(status: number, code: string, requestId: string, details?: Record<string, unknown>, headers?: HeadersInit): Response {

@@ -11,6 +11,7 @@ import { api } from '@/lib/api';
 import { useFormat } from '@/lib/format';
 import { useErrorText, useOnceCommand } from '@/lib/hooks';
 import { keys } from '@/lib/query-keys';
+import { SaleReturns } from '@/components/returns/SaleReturns';
 import { DeliveryDocumentPanel } from './DeliveryDocumentPanel';
 import { SaleLinesTable } from './SaleLinesTable';
 import { SALE_TONE, type Sale } from './types';
@@ -21,7 +22,7 @@ import { SALE_TONE, type Sale } from './types';
  * withdraw. Approved, the seller completes it at the store. Completed, the
  * delivery document is shared or emailed from here.
  */
-export function FieldSaleScreen({ id }: { id: string }) {
+export function FieldSaleScreen({ id, canReturn = false }: { id: string; canReturn?: boolean }) {
   const t = useTranslations('sales');
   const ts = useTranslations('stores');
   const format = useFormat();
@@ -133,6 +134,8 @@ export function FieldSaleScreen({ id }: { id: string }) {
       {s.status === 'COMPLETED' ? (
         <Card className="space-y-4 p-4">
           <DeliveryDocumentPanel sale={s} canSend onChanged={refresh} />
+          {/* RET-001: returns start from the sale. */}
+          <SaleReturns saleId={s.id} surface="field" canReturn={canReturn} />
           {mustSend ? <Alert tone="warning" data-testid="must-send">{t('sendRequired')}</Alert> : null}
           {/* DOC-004: when sending is compulsory, the seller leaves the sale only once it is sent. */}
           {mustSend ? null : (

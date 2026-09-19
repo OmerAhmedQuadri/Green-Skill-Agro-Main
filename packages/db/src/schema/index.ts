@@ -16,3 +16,4 @@ export * from './vehicle-stock';
 export * from './stores';
 export * from './sales';
 export * from './dispatch';
+export * from './returns';
