@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Build the checked-out branch and (re)start the app (ADR-0035). Run as root:
 #
-#   bash /root/green-agro-app/deploy/deploy.sh [--seed]
+#   bash /root/gsa-sales-inventory-app/Green-Skill-Agro-Main/deploy/deploy.sh [--seed]
 #
 # --seed loads the sample catalogue and the development accounts — staging
 # only; their password is DEV_SEED_PASSWORD from .env.

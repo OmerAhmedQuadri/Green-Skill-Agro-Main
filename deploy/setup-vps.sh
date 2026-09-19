@@ -2,7 +2,7 @@
 # One-time setup of Green Agro staging on the VPS (ADR-0035). Run as root from
 # the cloned repository:
 #
-#   bash /root/green-agro-app/deploy/setup-vps.sh app.greenskillagro.com
+#   bash /root/gsa-sales-inventory-app/Green-Skill-Agro-Main/deploy/setup-vps.sh app.greenskillagro.com
 #
 # Installs Docker for PostgreSQL; pnpm for this app only; writes the
 # app's .env with generated passwords; starts the database; adds the nginx site
