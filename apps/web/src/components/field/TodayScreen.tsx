@@ -33,7 +33,7 @@ export function TodayScreen({ name }: { name: string }) {
   const vehicle = useQuery({ queryKey: keys.myVehicle, queryFn: () => api<MyVehicle>('/stock/my-vehicle') });
   const loads = useQuery({ queryKey: keys.loads({ status: 'ISSUED' }), queryFn: () => api<Load[]>('/vehicle-loads?status=ISSUED') });
   const handovers = useQuery({ queryKey: keys.handovers, queryFn: () => api<Handover[]>('/vehicle-handovers') });
-  const cash = useQuery({ queryKey: keys.cashInHand, queryFn: () => api<{ cashInHand: string }>('/cash/in-hand') });
+  const cash = useQuery({ queryKey: keys.cashInHand, queryFn: () => api<{ cashInHand: string }>('/cash/me') });
   const portfolio = useQuery({ queryKey: keys.stores(), queryFn: () => api<StoreSummary[]>('/stores') });
   const breakCmd = useCommand((action: 'start' | 'end', key) => api<Today>(`/attendance/breaks/${action}`, { method: 'POST', body: {}, idempotencyKey: key }),
     { onSuccess: (d) => queryClient.setQueryData(keys.today, d) });
