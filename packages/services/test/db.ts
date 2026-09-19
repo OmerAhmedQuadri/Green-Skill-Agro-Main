@@ -15,6 +15,7 @@ const TABLES = [
   'vehicles', 'vehicle_assignments', 'vehicle_handovers', 'check_in_zones', 'attendance_days', 'attendance_sessions', 'attendance_breaks',
   'odometer_readings', 'vehicle_loadouts', 'vehicle_loadout_lines', 'vehicle_returns', 'vehicle_return_lines',
   'closing_stock_declarations', 'closing_stock_lines', 'notifications',
+  'stores', 'store_assignments', 'store_ledger_entries', 'payments', 'payment_allocations', 'credit_overrides',
 ];
 
 /**

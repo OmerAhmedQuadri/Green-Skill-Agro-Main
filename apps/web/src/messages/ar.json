@@ -91,7 +91,8 @@
     "vehicles": "المركبات",
     "attendance": "الحضور",
     "closingStock": "مخزون نهاية اليوم",
-    "myVehicle": "مركبتي"
+    "myVehicle": "مركبتي",
+    "stores": "المتاجر"
   },
   "dashboard": {
     "welcome": "مرحباً، {name}",
@@ -304,7 +305,8 @@
       "approve": "اعتماد المتاجر الجديدة",
       "edit_terms": "تعديل حد الائتمان وقائمة الأسعار",
       "reassign": "نقل المتاجر بين المندوبين",
-      "override_credit_block": "تجاوز إيقاف الائتمان"
+      "override_credit_block": "تجاوز إيقاف الائتمان",
+      "adjust_balance": "تصحيح رصيد متجر مع ذكر السبب"
     },
     "sales": {
       "record": "تسجيل المبيعات",
@@ -435,7 +437,12 @@
     "CAMERA_UNAVAILABLE": "الكاميرا غير متاحة على هذا الجهاز أو الاتصال.",
     "CAMERA_DENIED": "اسمح بالكاميرا في إعدادات المتصفح ثم أعد المحاولة.",
     "LOCATION_DENIED": "اسمح بالموقع في إعدادات المتصفح ثم أعد المحاولة.",
-    "LOCATION_UNAVAILABLE": "تعذر تحديد موقعك. انتقل إلى مكان مكشوف وأعد المحاولة."
+    "LOCATION_UNAVAILABLE": "تعذر تحديد موقعك. انتقل إلى مكان مكشوف وأعد المحاولة.",
+    "DUPLICATE_STORE_WARNING": "قد يكون هذا المتجر مسجلًا بالفعل.",
+    "CREDIT_MODE_UNAVAILABLE": "دورة الائتمان هذه غير متاحة، أو تحتاج إلى عدد الأيام.",
+    "PAYMENT_EXCEEDS_BALANCE": "المبلغ أكبر مما على المتجر.",
+    "NOT_BLOCKED": "هذا المتجر غير موقوف.",
+    "STORE_NOT_ACTIVE": "هذا المتجر غير نشط."
   },
   "format": {
     "grams": "{value} جم",
@@ -590,7 +597,9 @@
       "expiry": "انتهاء الصلاحية",
       "operations": "العمليات",
       "limits": "الحدود",
-      "attendance": "الحضور"
+      "attendance": "الحضور",
+      "stores": "المتاجر",
+      "credit": "الائتمان"
     },
     "fields": {
       "discount": {
@@ -621,6 +630,18 @@
       "attendance": {
         "odometer_tolerance_km": "تعليم فرق العداد عن آخر قراءة إذا تجاوز (كم)",
         "max_session_km": "تعليم مسافة الفترة إذا تجاوزت (كم)"
+      },
+      "stores": {
+        "duplicate_radius_m": "التنبيه عن متجر على هذه المسافة (متر)",
+        "duplicate_name_radius_m": "مقارنة الأسماء ضمن (متر)",
+        "duplicate_name_similarity": "تشابه الأسماء الذي يرجّح أنه المتجر نفسه (%)"
+      },
+      "credit": {
+        "bill_to_bill_enabled": "إتاحة الدفع عند كل فاتورة",
+        "weekly_enabled": "إتاحة الدورة الأسبوعية",
+        "monthly_enabled": "إتاحة الدورة الشهرية",
+        "custom_enabled": "إتاحة دورة مخصصة",
+        "grace_days": "أيام السماح بعد إغلاق الدورة"
       }
     },
     "choices": {
@@ -969,7 +990,12 @@
       "CHECK_IN_AUTHORISED": "تمت الموافقة على تسجيل حضورك. يمكنك بدء العمل.",
       "DAY_OPENED_ON_BEHALF": "فتح المدير يوم عملك: {reason}",
       "CLOSING_VARIANCE": "جرد نهاية اليوم بتاريخ {workDate} يختلف عن النظام.",
-      "VEHICLE_RETURN_RECORDED": "أُعيد مخزون من المركبة {registration} إلى المستودع ({number})."
+      "VEHICLE_RETURN_RECORDED": "أُعيد مخزون من المركبة {registration} إلى المستودع ({number}).",
+      "STORE_PENDING_APPROVAL": "المتجر الجديد {name} بانتظار الاعتماد.",
+      "STORE_APPROVED": "اعتُمد المتجر {name} — يمكنك البيع له.",
+      "STORE_REJECTED": "رُفض المتجر {name}: {reason}",
+      "STORE_ASSIGNED": "أصبح المتجر {name} ضمن متاجرك.",
+      "CREDIT_OVERRIDE_GRANTED": "أُتيح البيع للمتجر {name} مرة واحدة اليوم: {reason}"
     }
   },
   "vehicles": {
@@ -1141,5 +1167,131 @@
     "reviewedBy": "{name}: {comment}",
     "comment": "ما وجدته",
     "markReviewed": "تمت المراجعة"
+  },
+  "stores": {
+    "title": "المتاجر",
+    "subtitle": "كل المتاجر، ومن يديرها، وما عليها، وهل يمكن البيع لها.",
+    "myStores": "متاجري",
+    "onboard": "تسجيل متجر",
+    "noStores": "لا توجد متاجر بعد.",
+    "owes": "عليه {amount}",
+    "statuses": {
+      "PENDING_APPROVAL": "بانتظار الاعتماد",
+      "ACTIVE": "نشط",
+      "REJECTED": "مرفوض",
+      "INACTIVE": "غير نشط"
+    },
+    "blocked": "موقوف",
+    "onboardTitle": "تسجيل متجر",
+    "approvalNote": "يعتمد المشرف المتاجر الجديدة قبل أول عملية بيع.",
+    "duplicateTitle": "قد يكون هذا المتجر مسجلًا بالفعل:",
+    "duplicateLine": "{name} — على بعد {distance} م، تشابه الاسم {similarity}%",
+    "notDuplicate": "إنه متجر مختلف — متابعة",
+    "cancel": "إلغاء",
+    "identity": "المتجر",
+    "name": "اسم المتجر",
+    "ownerName": "اسم المالك",
+    "contactNumber": "رقم التواصل",
+    "category": "الفئة",
+    "whereTitle": "الموقع",
+    "locating": "جارٍ تحديد الموقع…",
+    "locationFound": "تم تحديد الموقع (بدقة {accuracy} م)",
+    "locateAgain": "إعادة المحاولة",
+    "address": "العنوان",
+    "storefront": "صورة واجهة المتجر",
+    "registrations": "التسجيلات",
+    "crNumber": "رقم السجل التجاري",
+    "vatNumber": "الرقم الضريبي",
+    "nationalAddress": "العنوان الوطني",
+    "optional": "اختياري",
+    "terms": "الشروط",
+    "creditMode": "دورة الائتمان",
+    "choose": "اختر…",
+    "modes": {
+      "BILL_TO_BILL": "الدفع عند كل فاتورة",
+      "WEEKLY": "أسبوعية",
+      "MONTHLY": "شهرية",
+      "CUSTOM": "مخصصة"
+    },
+    "cycleDays": "أيام السداد لكل عملية بيع",
+    "creditLimit": "حد الائتمان",
+    "priceList": "قائمة الأسعار",
+    "saving": "جارٍ الحفظ…",
+    "loading": "جارٍ التحميل…",
+    "waitingApproval": "بانتظار اعتماد المشرف. لا يمكن تسجيل أي بيع قبل ذلك.",
+    "rejectedBecause": "مرفوض: {reason}",
+    "collect": "تحصيل دفعة",
+    "amount": "المبلغ",
+    "method": "طريقة الدفع",
+    "methods": {
+      "CASH": "نقدًا",
+      "BANK_TRANSFER": "تحويل بنكي"
+    },
+    "reference": "مرجع التحويل",
+    "recordPayment": "تسجيل الدفعة",
+    "changeCycle": "تغيير الدورة",
+    "customCycle": "كل عملية بيع مستحقة خلال {days} يومًا",
+    "limitIs": "الحد {amount}",
+    "customOnly": "للدورة المخصصة فقط",
+    "save": "حفظ",
+    "ledger": "كشف الحساب",
+    "noEntries": "لا توجد قيود بعد.",
+    "when": "التاريخ",
+    "entry": "القيد",
+    "balance": "الرصيد",
+    "dueOn": "الاستحقاق",
+    "stillOwed": "المتبقي",
+    "by": "بواسطة",
+    "entries": {
+      "SALE": "بيع",
+      "PAYMENT": "دفعة",
+      "CREDIT_NOTE": "إشعار دائن",
+      "ADJUSTMENT": "تصحيح"
+    },
+    "dueBy": "يستحق {date}",
+    "reasons": {
+      "NOT_APPROVED": "لم يُعتمد بعد",
+      "REJECTED": "المتجر مرفوض",
+      "INACTIVE": "المتجر غير نشط",
+      "PAST_DUE": "{amount} متأخرة منذ {date}",
+      "OVER_LIMIT": "عليه {outstanding}، فوق الحد البالغ {limit}"
+    },
+    "overridden": "موقوف ائتمانيًا، لكن المشرف أتاح البيع له مرة واحدة اليوم.",
+    "clear": "يمكن البيع له.",
+    "outstanding": "المستحق",
+    "pastDue": "المتأخر",
+    "available": "الائتمان المتبقي",
+    "search": "البحث في المتاجر",
+    "blockedOnly": "الموقوفة فقط",
+    "seller": "مندوب المبيعات",
+    "credit": "الائتمان",
+    "releasedToday": "متاح اليوم",
+    "clearShort": "سليم",
+    "approval": "الاعتماد",
+    "approvalHint": "راجع صورة الواجهة والموقع والشروط. لا يعتمد المتجرَ من سجّله.",
+    "approve": "اعتماد",
+    "reject": "رفض",
+    "rejectReason": "سبب الرفض",
+    "overrideBy": "أتاحه {name}: {reason}",
+    "overrideReason": "سبب الإتاحة",
+    "releaseForOneSale": "إتاحة البيع مرة واحدة اليوم",
+    "details": "التفاصيل",
+    "location": "الموقع",
+    "viewPhoto": "عرض الصورة",
+    "onboardedBy": "سُجّل",
+    "onboardedOn": "{name}، {date}",
+    "accountManager": "مسؤول الحساب",
+    "from": "من",
+    "to": "إلى",
+    "current": "الحالي",
+    "reassignTo": "النقل إلى",
+    "note": "ملاحظة",
+    "reassign": "نقل",
+    "adjust": "تصحيح الرصيد",
+    "adjustHint": "السبب مطلوب. المبلغ السالب يخفض المستحق. الأرصدة الافتتاحية تُدخل هنا مع تاريخ استحقاقها.",
+    "adjustAmount": "المبلغ (مثل 250.00 أو -50.00)",
+    "adjustDueOn": "تاريخ الاستحقاق",
+    "adjustReason": "السبب",
+    "postAdjustment": "تسجيل التصحيح"
   }
 }

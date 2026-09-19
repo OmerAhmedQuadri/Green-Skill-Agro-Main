@@ -16,7 +16,7 @@ type Spec =
 
 type Entry = Spec & { readonly permission: PermissionCode; readonly group: SettingGroup };
 
-export const SETTING_GROUPS = ['discounts', 'returns', 'expiry', 'operations', 'attendance', 'limits'] as const;
+export const SETTING_GROUPS = ['discounts', 'returns', 'expiry', 'operations', 'attendance', 'stores', 'credit', 'limits'] as const;
 export type SettingGroup = (typeof SETTING_GROUPS)[number];
 
 export const SETTINGS = {
@@ -39,6 +39,16 @@ export const SETTINGS = {
   // ATT-012 (ADR-0032): odometer readings outside these are flagged for review, never refused
   'attendance.odometer_tolerance_km': { kind: 'integer', min: 0, max: 100, default: 5, permission: 'system.configure', group: 'attendance' },
   'attendance.max_session_km': { kind: 'integer', min: 50, max: 2000, default: 500, permission: 'system.configure', group: 'attendance' },
+  // STO-008, OQ-006: likely duplicates — near, or a similar name within the wider radius
+  'stores.duplicate_radius_m': { kind: 'integer', min: 10, max: 5000, default: 150, permission: 'system.configure', group: 'stores' },
+  'stores.duplicate_name_radius_m': { kind: 'integer', min: 100, max: 20000, default: 1000, permission: 'system.configure', group: 'stores' },
+  'stores.duplicate_name_similarity': { kind: 'integer', min: 10, max: 100, default: 60, permission: 'system.configure', group: 'stores' },
+  // CRD-002: which credit modes are offered; OQ-018: days of grace after a cycle closes
+  'credit.bill_to_bill_enabled': { kind: 'boolean', default: true, permission: 'system.configure', group: 'credit' },
+  'credit.weekly_enabled': { kind: 'boolean', default: true, permission: 'system.configure', group: 'credit' },
+  'credit.monthly_enabled': { kind: 'boolean', default: true, permission: 'system.configure', group: 'credit' },
+  'credit.custom_enabled': { kind: 'boolean', default: true, permission: 'system.configure', group: 'credit' },
+  'credit.grace_days': { kind: 'integer', min: 0, max: 30, default: 0, permission: 'system.configure', group: 'credit' },
   // LIM-003
   'ceilings.reminder_interval_hours': { kind: 'integer', min: 1, max: 168, default: 24, permission: 'system.set_limits', group: 'limits' },
 } as const satisfies Record<string, Entry>;
@@ -107,4 +117,14 @@ export function resolveToggles(stored: readonly { key: string; enabled: boolean 
   const values: Record<string, boolean> = { ...FEATURE_TOGGLES };
   for (const { key, enabled } of stored) if (isFeatureToggle(key)) values[key] = enabled;
   return values as FeatureToggles;
+}
+
+/** CRD-002: the credit modes the Admin currently offers. */
+export function availableCreditModes(settings: Settings): Set<'BILL_TO_BILL' | 'WEEKLY' | 'MONTHLY' | 'CUSTOM'> {
+  const out = new Set<'BILL_TO_BILL' | 'WEEKLY' | 'MONTHLY' | 'CUSTOM'>();
+  if (settings['credit.bill_to_bill_enabled']) out.add('BILL_TO_BILL');
+  if (settings['credit.weekly_enabled']) out.add('WEEKLY');
+  if (settings['credit.monthly_enabled']) out.add('MONTHLY');
+  if (settings['credit.custom_enabled']) out.add('CUSTOM');
+  return out;
 }

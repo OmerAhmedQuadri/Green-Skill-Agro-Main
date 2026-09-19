@@ -27,3 +27,4 @@ export * as warehouse from './warehouse';
 export * as vehicles from './vehicles';
 export * as attendance from './attendance';
 export * as notifications from './notifications';
+export * as stores from './stores';

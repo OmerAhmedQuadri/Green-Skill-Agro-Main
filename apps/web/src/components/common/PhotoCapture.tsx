@@ -17,7 +17,7 @@ type Shot = { mediaId: string; url: string; bytes: number; width: number; height
  * finished photo carries its size so a test can prove it.
  */
 export function PhotoCapture({ id, kind, label, capture, onChange }: {
-  id: string; kind: Extract<MediaKind, 'SELFIE' | 'ODOMETER' | 'WRITE_OFF_EVIDENCE'>; label: string;
+  id: string; kind: Extract<MediaKind, 'SELFIE' | 'ODOMETER' | 'WRITE_OFF_EVIDENCE' | 'STOREFRONT'>; label: string;
   capture?: Capture; onChange: (mediaId: string | null) => void;
 }) {
   const t = useTranslations('camera');

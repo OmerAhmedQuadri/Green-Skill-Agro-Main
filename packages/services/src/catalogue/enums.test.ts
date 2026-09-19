@@ -1,7 +1,7 @@
 import {
   ATTRIBUTE_MODES, COUNT_UNITS, PACKAGING_TYPES, PO_CLOSE_REASONS, PO_STATUSES, PRODUCT_ATTRIBUTES, STOCK_ACCOUNT_KINDS, STOCK_REFERENCE_TYPES,
   WRITE_OFF_REASONS, WRITE_OFF_STATUSES, VEHICLE_STATUSES, HANDOVER_STATUSES, LOAD_STATUSES, VEHICLE_RETURN_REASONS,
-  ATTENDANCE_DAY_STATUSES, ATTENDANCE_SESSION_STATUSES, ODOMETER_FLAGS, CLOSING_STATUSES, NOTIFICATION_KINDS,
+  ATTENDANCE_DAY_STATUSES, ATTENDANCE_SESSION_STATUSES, ODOMETER_FLAGS, CLOSING_STATUSES, NOTIFICATION_KINDS, STORE_STATUSES, CREDIT_MODES,
 } from '@gsa/core';
 import { schema } from '@gsa/db';
 import { describe, expect, it } from 'vitest';
@@ -47,5 +47,10 @@ describe('database enums mirror core', () => {
     expect(schema.odometerFlag.enumValues).toEqual([...ODOMETER_FLAGS]);
     expect(schema.closingStatus.enumValues).toEqual([...CLOSING_STATUSES]);
     expect(schema.notificationKind.enumValues).toEqual([...NOTIFICATION_KINDS]);
+  });
+
+  it('STO-001, CRD-001: store states and credit modes', () => {
+    expect(schema.storeStatus.enumValues).toEqual([...STORE_STATUSES]);
+    expect(schema.creditMode.enumValues).toEqual([...CREDIT_MODES]);
   });
 });
