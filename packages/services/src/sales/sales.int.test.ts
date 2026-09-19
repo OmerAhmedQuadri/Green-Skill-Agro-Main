@@ -29,7 +29,7 @@ const vehiclePacks = async (ctx: Parameters<typeof getMyVehicle>[0]) => {
 };
 
 describe('a sale within the ceilings (workflow I, SAL-001..008)', () => {
-  it('SAL-001, SAL-003, SAL-004, SAL-005: the sale screen shows credit first, then live vehicle stock with the store price and the tighter ceiling', async () => {
+  it('SAL-001, SAL-003, SAL-004, SAL-005, PRC-006: the sale screen shows credit first, then live vehicle stock with the store price and the tighter ceiling', async () => {
     const ctx = await admin();
     const { seller, store, bag } = await aSellingSeller(ctx);
     const options = await saleOptions(seller.ctx, store.id);
@@ -105,7 +105,7 @@ describe('credit at the point of sale (SAL-002, SAL-009, CRD-004..007, OQ-018)',
     expect(refused).toMatchObject({ code: 'CREDIT_BLOCKED', details: { reasons: [{ code: 'PAST_DUE' }] } });
   });
 
-  it('OQ-018: a sale on credit stops at the limit; an override releases one sale, which uses it up', async () => {
+  it('SAL-009, CRD-006, OQ-018: a sale on credit stops at the limit; an override releases one sale, which uses it up', async () => {
     const ctx = await admin();
     const { seller, store, bag } = await aSellingSeller(ctx, { creditLimit: '200.00' });
     const three = [{ skuId: bag.id, packs: 3 }]; // 270.00
