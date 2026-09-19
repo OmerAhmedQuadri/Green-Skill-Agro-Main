@@ -107,6 +107,8 @@ for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
     const receiptsBefore = (await admin.request.get(`/api/v1/purchase-orders/${poId}`).then((r) => r.json()) as { receipts: unknown[] }).receipts;
     expect(receiptsBefore).toHaveLength(1); // previewing wrote nothing
     await admin.getByRole('button', { name: plural(m.receiving.confirmImport, 1, locale) }).click();
+    // Saved once the preview closes: the file's name shows in the preview too, and acting sooner uses the order's old version.
+    await expect(admin.getByText(plural(m.receiving.validRows, 1, locale), { exact: true })).toHaveCount(0);
     await expect(admin.getByText(`arrival-${unique}.xlsx`)).toBeVisible();
 
     // PO-007: 3 bags will not come — close short, with a reason.
