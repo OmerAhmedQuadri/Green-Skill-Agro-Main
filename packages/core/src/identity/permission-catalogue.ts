@@ -56,6 +56,7 @@ export const PERMISSION_MATRIX = [
   ['stores.edit_terms',               F, F,  OFF, NO],
   ['stores.reassign',                 F, F,  OFF, NO],
   ['stores.override_credit_block',    F, F,  OFF, NO],
+  ['stores.adjust_balance',           F, F,  OFF, NO],   // ADR-0036: corrections and opening balances
   // Sales and dispatch
   ['sales.record',                    F, F,  F,   F],
   ['sales.apply_discount',            F, F,  F,   F],

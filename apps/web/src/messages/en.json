@@ -91,7 +91,8 @@
     "vehicles": "Vehicles",
     "attendance": "Attendance",
     "closingStock": "Closing stock",
-    "myVehicle": "My vehicle"
+    "myVehicle": "My vehicle",
+    "stores": "Stores"
   },
   "dashboard": {
     "welcome": "Welcome, {name}",
@@ -304,7 +305,8 @@
       "approve": "Approve new stores",
       "edit_terms": "Change credit limit and price list",
       "reassign": "Reassign stores between sellers",
-      "override_credit_block": "Override a credit block"
+      "override_credit_block": "Override a credit block",
+      "adjust_balance": "Correct a store's balance, with a reason"
     },
     "sales": {
       "record": "Record sales",
@@ -435,7 +437,12 @@
     "CAMERA_UNAVAILABLE": "The camera is not available on this device or connection.",
     "CAMERA_DENIED": "Allow the camera in your browser settings, then try again.",
     "LOCATION_DENIED": "Allow location in your browser settings, then try again.",
-    "LOCATION_UNAVAILABLE": "Your location could not be found. Move to open sky and try again."
+    "LOCATION_UNAVAILABLE": "Your location could not be found. Move to open sky and try again.",
+    "DUPLICATE_STORE_WARNING": "This may already be registered.",
+    "CREDIT_MODE_UNAVAILABLE": "That credit cycle is not offered, or it needs its number of days.",
+    "PAYMENT_EXCEEDS_BALANCE": "That is more than the store owes.",
+    "NOT_BLOCKED": "This store is not blocked.",
+    "STORE_NOT_ACTIVE": "This store is not active."
   },
   "format": {
     "grams": "{value} g",
@@ -590,7 +597,9 @@
       "expiry": "Expiry",
       "operations": "Operations",
       "limits": "Limits",
-      "attendance": "Attendance"
+      "attendance": "Attendance",
+      "stores": "Stores",
+      "credit": "Credit"
     },
     "fields": {
       "discount": {
@@ -621,12 +630,32 @@
       "attendance": {
         "odometer_tolerance_km": "Flag an odometer gap from the last reading above (km)",
         "max_session_km": "Flag a session's distance above (km)"
+      },
+      "stores": {
+        "duplicate_radius_m": "Warn about a store this close (metres)",
+        "duplicate_name_radius_m": "Compare names within (metres)",
+        "duplicate_name_similarity": "Names this similar are likely the same store (%)"
+      },
+      "credit": {
+        "bill_to_bill_enabled": "Offer bill to bill",
+        "weekly_enabled": "Offer a weekly cycle",
+        "monthly_enabled": "Offer a monthly cycle",
+        "custom_enabled": "Offer a custom cycle",
+        "grace_days": "Days of grace after a cycle closes",
+        "week_closes_on": "A weekly cycle closes on"
       }
     },
     "choices": {
       "TRAILING": "Trailing 30 days",
       "SEASONAL": "Same period last season",
-      "CONSERVATIVE": "Whichever is more conservative"
+      "CONSERVATIVE": "Whichever is more conservative",
+      "SUNDAY": "Sunday",
+      "MONDAY": "Monday",
+      "TUESDAY": "Tuesday",
+      "WEDNESDAY": "Wednesday",
+      "THURSDAY": "Thursday",
+      "FRIDAY": "Friday",
+      "SATURDAY": "Saturday"
     },
     "range": "Between {min} and {max}.",
     "toggles": "Features",
@@ -969,7 +998,12 @@
       "CHECK_IN_AUTHORISED": "Your check-in was authorised. You can start work.",
       "DAY_OPENED_ON_BEHALF": "A manager opened your day: {reason}",
       "CLOSING_VARIANCE": "A closing-stock count for {workDate} differs from the system.",
-      "VEHICLE_RETURN_RECORDED": "Stock was returned from vehicle {registration} to the warehouse ({number})."
+      "VEHICLE_RETURN_RECORDED": "Stock was returned from vehicle {registration} to the warehouse ({number}).",
+      "STORE_PENDING_APPROVAL": "New store {name} is waiting for approval.",
+      "STORE_APPROVED": "Store {name} was approved — you can sell to it.",
+      "STORE_REJECTED": "Store {name} was rejected: {reason}",
+      "STORE_ASSIGNED": "Store {name} is now yours to manage.",
+      "CREDIT_OVERRIDE_GRANTED": "Store {name} is released for one sale today: {reason}"
     }
   },
   "vehicles": {
@@ -1141,5 +1175,131 @@
     "reviewedBy": "{name}: {comment}",
     "comment": "What you found",
     "markReviewed": "Mark reviewed"
+  },
+  "stores": {
+    "title": "Stores",
+    "subtitle": "Every store, who manages it, what it owes and whether it can be sold to.",
+    "myStores": "My stores",
+    "onboard": "Onboard a store",
+    "noStores": "No stores yet.",
+    "owes": "Owes {amount}",
+    "statuses": {
+      "PENDING_APPROVAL": "Waiting for approval",
+      "ACTIVE": "Active",
+      "REJECTED": "Rejected",
+      "INACTIVE": "Inactive"
+    },
+    "blocked": "Blocked",
+    "onboardTitle": "Onboard a store",
+    "approvalNote": "A manager approves new stores before the first sale.",
+    "duplicateTitle": "This may already be registered:",
+    "duplicateLine": "{name} — {distance} m away, name {similarity}% alike",
+    "notDuplicate": "It is a different store — continue",
+    "cancel": "Cancel",
+    "identity": "The store",
+    "name": "Store name",
+    "ownerName": "Owner's name",
+    "contactNumber": "Contact number",
+    "category": "Category",
+    "whereTitle": "Where it is",
+    "locating": "Finding the location…",
+    "locationFound": "Location found (within {accuracy} m)",
+    "locateAgain": "Try again",
+    "address": "Address",
+    "storefront": "Storefront photo",
+    "registrations": "Registrations",
+    "crNumber": "CR number",
+    "vatNumber": "VAT number",
+    "nationalAddress": "National Address",
+    "optional": "Optional",
+    "terms": "Terms",
+    "creditMode": "Credit cycle",
+    "choose": "Choose…",
+    "modes": {
+      "BILL_TO_BILL": "Bill to bill",
+      "WEEKLY": "Weekly",
+      "MONTHLY": "Monthly",
+      "CUSTOM": "Custom"
+    },
+    "cycleDays": "Days to pay each sale",
+    "creditLimit": "Credit limit",
+    "priceList": "Price list",
+    "saving": "Saving…",
+    "loading": "Loading…",
+    "waitingApproval": "Waiting for a manager's approval. No sale can be recorded until then.",
+    "rejectedBecause": "Rejected: {reason}",
+    "collect": "Collect a payment",
+    "amount": "Amount",
+    "method": "Paid by",
+    "methods": {
+      "CASH": "Cash",
+      "BANK_TRANSFER": "Bank transfer"
+    },
+    "reference": "Transfer reference",
+    "recordPayment": "Record payment",
+    "changeCycle": "Change cycle",
+    "customCycle": "Each sale due in {days} days",
+    "limitIs": "limit {amount}",
+    "customOnly": "Custom cycle only",
+    "save": "Save",
+    "ledger": "Ledger",
+    "noEntries": "Nothing recorded yet.",
+    "when": "When",
+    "entry": "Entry",
+    "balance": "Balance",
+    "dueOn": "Due",
+    "stillOwed": "Still owed",
+    "by": "By",
+    "entries": {
+      "SALE": "Sale",
+      "PAYMENT": "Payment",
+      "CREDIT_NOTE": "Credit note",
+      "ADJUSTMENT": "Adjustment"
+    },
+    "dueBy": "Due {date}",
+    "reasons": {
+      "NOT_APPROVED": "Not approved yet",
+      "REJECTED": "The store was rejected",
+      "INACTIVE": "The store is inactive",
+      "PAST_DUE": "{amount} past due since {date}",
+      "OVER_LIMIT": "Owes {outstanding}, over the limit of {limit}"
+    },
+    "overridden": "Blocked on credit, but released by a manager for one sale today.",
+    "clear": "Can be sold to.",
+    "outstanding": "Owed",
+    "pastDue": "Past due",
+    "available": "Credit left",
+    "search": "Search stores",
+    "blockedOnly": "Blocked only",
+    "seller": "Seller",
+    "credit": "Credit",
+    "releasedToday": "Released today",
+    "clearShort": "Clear",
+    "approval": "Approval",
+    "approvalHint": "Check the storefront photo, location and terms. Whoever onboarded the store cannot approve it.",
+    "approve": "Approve",
+    "reject": "Reject",
+    "rejectReason": "Why it is rejected",
+    "overrideBy": "Released by {name}: {reason}",
+    "overrideReason": "Why release it",
+    "releaseForOneSale": "Release for one sale today",
+    "details": "Details",
+    "location": "Location",
+    "viewPhoto": "View photo",
+    "onboardedBy": "Onboarded",
+    "onboardedOn": "{name}, {date}",
+    "accountManager": "Account manager",
+    "from": "From",
+    "to": "To",
+    "current": "Current",
+    "reassignTo": "Reassign to",
+    "note": "Note",
+    "reassign": "Reassign",
+    "adjust": "Correct the balance",
+    "adjustHint": "A reason is required. A negative amount lowers what is owed. Opening balances go in here, with their due date.",
+    "adjustAmount": "Amount (e.g. 250.00 or -50.00)",
+    "adjustDueOn": "Due date",
+    "adjustReason": "Reason",
+    "postAdjustment": "Post correction"
   }
 }

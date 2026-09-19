@@ -33,4 +33,8 @@ export const keys = {
   handovers: ['vehicle-handovers'] as const,
   closingStock: (filter?: object) => (filter ? ['closing-stock', filter] as const : ['closing-stock'] as const),
   zones: ['check-in-zones'] as const,
+  stores: (filter?: object) => (filter ? ['stores', filter] as const : ['stores'] as const),
+  store: (id: string) => ['store', id] as const,
+  storeLedger: (id: string) => ['store-ledger', id] as const,
+  storeOptions: ['store-options'] as const,
 };

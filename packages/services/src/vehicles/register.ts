@@ -304,9 +304,9 @@ export async function listVehicles(ctx: Ctx): Promise<(Omit<Vehicle, 'assignment
   return out;
 }
 
-/** Active sellers and the vehicle each holds — for assigning vehicles and opening days (VEH-002, ATT-011). */
+/** Active sellers and the vehicle each holds — for assigning vehicles and stores, and opening days (VEH-002, STO-007, ATT-011). */
 export async function listSellers(ctx: Ctx): Promise<{ id: string; name: string; vehicle: { id: string; registration: string } | null }[]> {
-  authorizeAny(ctx, ['vehicles.manage', 'attendance.manage', 'attendance.view', 'inventory.issue_to_vehicle']);
+  authorizeAny(ctx, ['vehicles.manage', 'attendance.manage', 'attendance.view', 'inventory.issue_to_vehicle', 'stores.reassign', 'stores.view_all']);
   const rows = await getDb().select({ id: users.id, name: users.name, vehicleId: vehicles.id, registration: vehicles.registration }).from(users)
     .leftJoin(vehicleAssignments, and(eq(vehicleAssignments.sellerId, users.id), isNull(vehicleAssignments.endedAt)))
     .leftJoin(vehicles, eq(vehicles.id, vehicleAssignments.vehicleId))

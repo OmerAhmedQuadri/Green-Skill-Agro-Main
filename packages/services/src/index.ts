@@ -14,3 +14,4 @@ export * as inventory from './inventory';
 export * as procurement from './procurement';
 export * as vehicles from './vehicles';
 export * as attendance from './attendance';
+export * as stores from './stores';

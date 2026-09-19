@@ -14,7 +14,7 @@ import { Section } from '@/components/common/Section';
 import { Cell, Table } from '@/components/common/Table';
 import { api } from '@/lib/api';
 import { useFormat } from '@/lib/format';
-import { formText } from '@/lib/forms';
+import { decimalText, formText, wholeNumber } from '@/lib/forms';
 import { useCommand, useErrorText } from '@/lib/hooks';
 import { keys } from '@/lib/query-keys';
 import type { DiscountCeilings } from './types';
@@ -114,8 +114,8 @@ function CeilingsSection() {
           setSaved(false);
           const f = new FormData(e.currentTarget);
           save.run({
-            orderCeiling: formText(f, 'orderCeiling'), itemCeiling: formText(f, 'itemCeiling'), absoluteMaximum: formText(f, 'absoluteMaximum'),
-            approvalExpiryMinutes: Number.parseInt(formText(f, 'approvalExpiryMinutes'), 10),
+            orderCeiling: decimalText(formText(f, 'orderCeiling')), itemCeiling: decimalText(formText(f, 'itemCeiling')), absoluteMaximum: decimalText(formText(f, 'absoluteMaximum')),
+            approvalExpiryMinutes: wholeNumber(formText(f, 'approvalExpiryMinutes')) ?? Number.NaN,
           });
         }}>
         {save.error ? <Alert className="sm:col-span-2 lg:col-span-4">{errorText(save.error)}</Alert> : null}
@@ -150,7 +150,7 @@ function CeilingsSection() {
         ) : null}
         <form className="mt-4 grid gap-3 sm:grid-cols-[1fr_1fr_8rem_auto]" noValidate onSubmit={(e: FormEvent<HTMLFormElement>) => {
           e.preventDefault();
-          const ceiling = formText(new FormData(e.currentTarget), 'skuCeiling');
+          const ceiling = decimalText(formText(new FormData(e.currentTarget), 'skuCeiling'));
           if (skuId && ceiling) setSku.run({ skuId, ceiling });
         }}>
           <Input value={skuSearch} onChange={(e) => setSkuSearch(e.target.value)} placeholder={t('pricing.findSku')} aria-label={t('pricing.findSku')} />

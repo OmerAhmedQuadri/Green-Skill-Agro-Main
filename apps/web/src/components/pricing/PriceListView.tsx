@@ -13,7 +13,7 @@ import { Section } from '@/components/common/Section';
 import { Cell, Table } from '@/components/common/Table';
 import { api } from '@/lib/api';
 import { useFormat } from '@/lib/format';
-import { formText } from '@/lib/forms';
+import { decimalText, formText } from '@/lib/forms';
 import { useCommand, useErrorText } from '@/lib/hooks';
 import { keys } from '@/lib/query-keys';
 import type { PriceListRow } from './types';
@@ -52,8 +52,9 @@ export function PriceListView({ id }: { id: string }) {
   if (!data.data) return <p className="text-sm text-stone-500">{t('common.loading')}</p>;
   const { list } = data.data;
   const original = new Map<string, string>(data.data.rows.map((r) => [r.skuId, r.price ?? '']));
-  const changes = Object.entries(draft).filter(([skuId, value]) => value.trim() !== (original.get(skuId) ?? ''))
-    .map(([skuId, value]) => ({ skuId, price: value.trim() === '' ? null : value.trim() }));
+  const changes = Object.entries(draft).map(([skuId, value]) => [skuId, decimalText(value)] as const)
+    .filter(([skuId, value]) => value !== (original.get(skuId) ?? ''))
+    .map(([skuId, value]) => ({ skuId, price: value === '' ? null : value }));
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">

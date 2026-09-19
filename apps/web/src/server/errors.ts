@@ -92,6 +92,12 @@ const STATUS: Record<ErrorCode, number> = {
   INVALID_ODOMETER: 422,
   NO_VEHICLE_TODAY: 409,
   ALREADY_DECLARED: 409,
+  // STO-008: a warning — the client shows the likely duplicates and resends acknowledged.
+  DUPLICATE_STORE_WARNING: 409,
+  CREDIT_MODE_UNAVAILABLE: 422,
+  PAYMENT_EXCEEDS_BALANCE: 422,
+  NOT_BLOCKED: 409,
+  STORE_NOT_ACTIVE: 409,
 };
 
 export function problem(status: number, code: string, requestId: string, details?: Record<string, unknown>, headers?: HeadersInit): Response {

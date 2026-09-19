@@ -23,6 +23,8 @@ function plural(message: string, count: number, locale: 'en' | 'ar'): string {
  * English and in Arabic, on the seeded sample catalogue (MIG-006).
  */
 for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
+  // An Arabic keyboard types Arabic-Indic digits and the Arabic decimal separator (ADR-0026).
+  const n = (v: string) => (locale === 'ar' ? v.replace(/\d/g, (d) => '٠١٢٣٤٥٦٧٨٩'[Number(d)] ?? d).replace('.', '٫') : v);
   test(`Workflow C (${locale}) — PO-001, PO-003, PO-004, PO-005, PO-006, PO-007, STK-007, RCV-001..007: a manager raises an order, an Admin approves and receives it`, async ({ browser, baseURL }) => {
     test.setTimeout(120_000);
     const origin = baseURL ?? '';
@@ -40,8 +42,8 @@ for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
     for (const [code, packs, cost] of [['OKRA-PK-5KG', '20', '70.00'], ['OKRA-PK-1KG', '10', '16.50']] as const) {
       await manager.getByLabel(m.procurement.addSku).fill(code);
       await manager.getByRole('button', { name: new RegExp(`^${code}`) }).click();
-      await manager.getByLabel(fill(m.procurement.packsFor, { code })).fill(packs);
-      await manager.getByLabel(fill(m.procurement.costFor, { code })).fill(cost);
+      await manager.getByLabel(fill(m.procurement.packsFor, { code })).fill(n(packs));
+      await manager.getByLabel(fill(m.procurement.costFor, { code })).fill(n(cost));
     }
     await manager.getByRole('button', { name: m.procurement.saveDraft }).click();
     await expect(manager).toHaveURL(/\/console\/purchase-orders\/[0-9a-f-]{36}$/);

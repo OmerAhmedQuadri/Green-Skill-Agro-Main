@@ -12,15 +12,15 @@ const FIELD: PermissionCode[] = ['attendance.self', 'inventory.confirm_load', 'i
 const errorCode = (fn: () => void) => { try { fn(); } catch (e) { return (e as DomainError).code; } return undefined; };
 
 describe('permission catalogue', () => {
-  it('USR-009: 59 unique module.action codes', () => {
-    expect(PERMISSION_CODES).toHaveLength(59);
-    expect(new Set(PERMISSION_CODES).size).toBe(59);
+  it('USR-009: 60 unique module.action codes', () => {
+    expect(PERMISSION_CODES).toHaveLength(60);
+    expect(new Set(PERMISSION_CODES).size).toBe(60);
     for (const code of PERMISSION_CODES) expect(code).toMatch(/^[a-z]+\.[a-z_]+$/);
   });
 
   it('USR-002: Super Admin holds every matrix permission, but not field self-service', () => {
     const sa = effectivePermissions('SUPER_ADMIN', none);
-    expect(sa.size).toBe(55);
+    expect(sa.size).toBe(56);
     for (const code of FIELD) expect(sa.has(code)).toBe(false);
   });
 

@@ -88,7 +88,12 @@ export type ErrorCode =
   | 'ODOMETER_REQUIRED'
   | 'INVALID_ODOMETER'
   | 'NO_VEHICLE_TODAY'
-  | 'ALREADY_DECLARED';
+  | 'ALREADY_DECLARED'
+  | 'DUPLICATE_STORE_WARNING'
+  | 'CREDIT_MODE_UNAVAILABLE'
+  | 'PAYMENT_EXCEEDS_BALANCE'
+  | 'NOT_BLOCKED'
+  | 'STORE_NOT_ACTIVE';
 
 export class DomainError extends Error {
   readonly code: ErrorCode;
