@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import { signIn } from './helpers';
 
 // Exercises the real R2 test bucket and its CORS policy, so it runs only when
-// S3_ENDPOINT points at R2: locally from .env, in CI from the R2_* secrets under
+// S3_ENDPOINT points at R2: locally from .env, in CI from the S3_* repository secrets under
 // the ci/ prefix (TESTING §6). Uploads are removed by the retention sweep.
 const usesR2 = /\.r2\.cloudflarestorage\.com$/.test(process.env.S3_ENDPOINT ?? '');
 
