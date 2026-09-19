@@ -38,6 +38,8 @@ async function capture(phone: Page, m: M, mode: 'in' | 'out', opts: { odometer?:
  * odometer, and a day without the vehicle.
  */
 for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
+  // An Arabic keyboard types Arabic-Indic digits; the app must read them (ADR-0026).
+  const n = (v: string) => (locale === 'ar' ? v.replace(/\d/g, (d) => '٠١٢٣٤٥٦٧٨٩'[Number(d)] ?? d) : v);
   test(`Workflow G (${locale}) — ATT-001..012, STK-010, 011, EXP-007, WRO-001, NFR-003, NFR-004: a seller's working day on the phone`, async ({ browser, baseURL }) => {
     test.setTimeout(300_000);
     const origin = baseURL ?? '';
@@ -59,7 +61,7 @@ for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
     // ATT-001: selfie from the live camera, location, odometer photo and reading.
     await phone.goto('/field/today');
     await expect(phone.getByTestId('day-card')).toContainText(m.field.status.NONE);
-    const selfie = await capture(phone, m, 'in', { odometer: '5002' });
+    const selfie = await capture(phone, m, 'in', { odometer: n('5002') });
     await expect(phone.getByTestId('day-card')).toContainText(m.field.status.OPEN);
     await expect(phone.locator('html')).toHaveAttribute('dir', locale === 'ar' ? 'rtl' : 'ltr');
     // NFR-009: the long edge of what was uploaded is at most 1600 px.
@@ -98,7 +100,7 @@ for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
 
     // STK-010, STK-011: closing stock is declared; a difference is flagged, not adjusted.
     await phone.getByRole('link', { name: m.field.declareClosing }).click();
-    await phone.getByLabel(/OKRA-PK-5KG/).fill('4');
+    await phone.getByLabel(/OKRA-PK-5KG/).fill(n('4'));
     await phone.getByRole('button', { name: m.field.declare }).click();
     await expect(phone.getByText(m.field.closingFlagged)).toBeVisible();
     expect(await batchPositions(admin, skuId, lot)).toEqual({ warehouse: 3, vehicles: 5, total: 8 });
@@ -110,17 +112,17 @@ for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
     await expect(declaration).toHaveCount(0); // gone from "difference to review"
 
     // ATT-002: check out — distance from the odometer and active hours.
-    await capture(phone, m, 'out', { odometer: '5097' });
+    await capture(phone, m, 'out', { odometer: n('5097') });
     await expect(phone.getByTestId('day-summary')).toContainText('95');
 
     // ATT-005: a second check-in the same day is a split shift, totalled as one day.
-    await capture(phone, m, 'in', { odometer: '5097' });
-    await capture(phone, m, 'out', { odometer: '5117' });
+    await capture(phone, m, 'in', { odometer: n('5097') });
+    await capture(phone, m, 'out', { odometer: n('5117') });
     await expect(phone.getByTestId('day-summary')).toContainText('115');
 
     // ATT-012: a reading below the vehicle's last is accepted and flagged for review.
-    await capture(phone, m, 'in', { odometer: '4000' });
-    await capture(phone, m, 'out', { odometer: '4001' });
+    await capture(phone, m, 'in', { odometer: n('4000') });
+    await capture(phone, m, 'out', { odometer: n('4001') });
     await expect(phone.getByTestId('day-summary')).toContainText(m.field.odometerFlagged);
     await admin.goto('/console/attendance');
     const day = admin.getByTestId(`day-${seller.name}`);

@@ -10,12 +10,13 @@ import { Section } from '@/components/common/Section';
 import { Cell, Table } from '@/components/common/Table';
 import { api, ApiError } from '@/lib/api';
 import { useFormat } from '@/lib/format';
+import { wholeNumber } from '@/lib/forms';
 import { useCommand, useErrorText } from '@/lib/hooks';
 import { keys } from '@/lib/query-keys';
 import type { Load, LoadProposal } from './types';
 
 type Row = { skuId: string; packs: string };
-const whole = (v: string) => (/^\d+$/.test(v) ? Number.parseInt(v, 10) : 0);
+const whole = (v: string) => wholeNumber(v) ?? 0;
 
 /**
  * Workflow F steps 2–3 (VEH-005, 006): choose SKUs and packs; batches are

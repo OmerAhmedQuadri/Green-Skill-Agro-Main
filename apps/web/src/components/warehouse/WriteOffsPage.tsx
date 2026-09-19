@@ -8,7 +8,7 @@ import { PageHeader } from '@/components/common/PageHeader';
 import { Cell, Table } from '@/components/common/Table';
 import { api } from '@/lib/api';
 import { useFormat } from '@/lib/format';
-import { formText } from '@/lib/forms';
+import { formText, wholeNumber } from '@/lib/forms';
 import { useCommand, useErrorText } from '@/lib/hooks';
 import type { WriteOff } from './types';
 
@@ -47,7 +47,7 @@ export function WriteOffsPage({ canDecide, userId }: { canDecide: boolean; userI
     e.preventDefault();
     const f = new FormData(e.currentTarget);
     const packs = formText(f, 'approvedPacks');
-    decide.run({ id: w.id, version: w.version, approve, approvedPacks: approve && /^\d+$/.test(packs) ? Number.parseInt(packs, 10) : null, comment: formText(f, 'comment') || null });
+    decide.run({ id: w.id, version: w.version, approve, approvedPacks: approve ? wholeNumber(packs) : null, comment: formText(f, 'comment') || null });
   };
 
   return (

@@ -9,13 +9,13 @@ import { Facts, Section } from '@/components/common/Section';
 import { Cell, Table } from '@/components/common/Table';
 import { api, ApiError } from '@/lib/api';
 import { useFormat } from '@/lib/format';
-import { formText } from '@/lib/forms';
+import { formText, wholeNumber } from '@/lib/forms';
 import { useCommand, useErrorText } from '@/lib/hooks';
 import { keys } from '@/lib/query-keys';
 import { LoadBuilder } from './LoadBuilder';
 import { LOAD_TONE, RETURN_REASONS, type Load, type Seller, type Vehicle, type VehicleReturn } from './types';
 
-const whole = (v: string) => (/^\d+$/.test(v) ? Number.parseInt(v, 10) : 0);
+const whole = (v: string) => wholeNumber(v) ?? 0;
 type Can = { manage: boolean; issue: boolean };
 
 /**

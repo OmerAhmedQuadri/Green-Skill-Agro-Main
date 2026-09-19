@@ -11,7 +11,7 @@ import { PageHeader } from '@/components/common/PageHeader';
 import { Section } from '@/components/common/Section';
 import { api } from '@/lib/api';
 import { useFormat } from '@/lib/format';
-import { formText } from '@/lib/forms';
+import { formText, wholeNumber } from '@/lib/forms';
 import { useCommand, useErrorText } from '@/lib/hooks';
 import { keys } from '@/lib/query-keys';
 import type { Category } from './types';
@@ -20,7 +20,7 @@ type Sub = Category['subCategories'][number];
 type CategoryBody = { nameEn: string; nameAr: string; expiryWarningDays: number | null };
 
 const namesOf = (f: FormData) => ({ nameEn: formText(f, 'nameEn'), nameAr: formText(f, 'nameAr') });
-const daysOf = (f: FormData) => (/^\d+$/.test(formText(f, 'expiryWarningDays')) ? Number.parseInt(formText(f, 'expiryWarningDays'), 10) : null);
+const daysOf = (f: FormData) => wholeNumber(formText(f, 'expiryWarningDays'));
 
 /** CAT-001..003: categories and sub-categories, maintained by the Admin in the application. */
 export function StructurePage() {

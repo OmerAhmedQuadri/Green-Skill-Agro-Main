@@ -11,7 +11,7 @@ import { Section } from '@/components/common/Section';
 import { Cell, Table } from '@/components/common/Table';
 import { api } from '@/lib/api';
 import { useFormat } from '@/lib/format';
-import { formText } from '@/lib/forms';
+import { formText, wholeNumber } from '@/lib/forms';
 import { useCommand, useErrorText } from '@/lib/hooks';
 import { keys } from '@/lib/query-keys';
 import type { Vehicle, VehicleListItem } from './types';
@@ -35,7 +35,7 @@ export function VehiclesPage({ canManage }: { canManage: boolean }) {
     e.preventDefault();
     const f = new FormData(e.currentTarget);
     const odometer = formText(f, 'odometer');
-    create.run({ registration: formText(f, 'registration'), description: formText(f, 'description') || null, odometer: /^\d+$/.test(odometer) ? Number.parseInt(odometer, 10) : -1 });
+    create.run({ registration: formText(f, 'registration'), description: formText(f, 'description') || null, odometer: wholeNumber(odometer) ?? -1 });
   };
 
   return (

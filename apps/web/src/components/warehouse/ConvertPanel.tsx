@@ -9,12 +9,12 @@ import type { BatchStock, SkuStock } from '@/components/procurement/types';
 import { Section } from '@/components/common/Section';
 import { api } from '@/lib/api';
 import { useFormat } from '@/lib/format';
-import { formText } from '@/lib/forms';
+import { formText, wholeNumber } from '@/lib/forms';
 import { useCommand, useErrorText } from '@/lib/hooks';
 import { keys } from '@/lib/query-keys';
 import type { ConversionRecord } from './types';
 
-const whole = (v: string) => (/^\d+$/.test(v) ? Number.parseInt(v, 10) : null);
+const whole = (v: string) => wholeNumber(v);
 
 /**
  * Workflow D (CNV-001..011): from this batch into another SKU of the same

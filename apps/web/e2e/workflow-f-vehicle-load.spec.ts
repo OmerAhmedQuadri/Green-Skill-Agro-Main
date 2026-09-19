@@ -26,6 +26,8 @@ async function checkIn(phone: Page, m: typeof en, odometer: string) {
  * sellers confirm.
  */
 for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
+  // An Arabic keyboard types Arabic-Indic digits; the app must read them (ADR-0026).
+  const n = (v: string) => (locale === 'ar' ? v.replace(/\d/g, (d) => '٠١٢٣٤٥٦٧٨٩'[Number(d)] ?? d) : v);
   test(`Workflow F (${locale}) — VEH-002, 005..009: assign, load with FEFO and a ceiling warning, confirm on the phone, hand over`, async ({ browser, baseURL }) => {
     test.setTimeout(240_000);
     const origin = baseURL ?? '';
@@ -64,7 +66,7 @@ for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
     // VEH-005: build the load; batches are proposed first expiry first out, a flagged one on top.
     await admin.getByRole('button', { name: m.vehicles.newLoad }).first().click();
     await admin.getByLabel(m.vehicles.sku).selectOption(skuId);
-    await admin.getByLabel(m.vehicles.packsWanted).fill('5');
+    await admin.getByLabel(m.vehicles.packsWanted).fill(n('5'));
     await admin.getByRole('button', { name: m.vehicles.propose }).click();
     await expect(admin.getByTestId(`proposed-${early}`)).toBeVisible();
     await expect(admin.getByTestId(`proposed-${late}`)).toBeVisible();
@@ -79,8 +81,8 @@ for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
     await expect.poll(async () => (await rowIndex(late)) < (await rowIndex(early))).toBe(true);
     // The manager may change the proposal: 4 from the early batch, 1 from the flagged one, nothing else.
     for (const input of await admin.getByLabel(new RegExp(fill(m.vehicles.packsFrom, { lot: '' }))).all()) await input.fill('');
-    await admin.getByLabel(fill(m.vehicles.packsFrom, { lot: early })).fill('4');
-    await admin.getByLabel(fill(m.vehicles.packsFrom, { lot: late })).fill('1');
+    await admin.getByLabel(fill(m.vehicles.packsFrom, { lot: early })).fill(n('4'));
+    await admin.getByLabel(fill(m.vehicles.packsFrom, { lot: late })).fill(n('1'));
 
     // VEH-006: over the ceiling it warns first; acknowledged, it goes ahead.
     await admin.getByRole('button', { name: m.vehicles.issueLoad }).click();

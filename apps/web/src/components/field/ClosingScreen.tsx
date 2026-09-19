@@ -7,6 +7,7 @@ import { Alert, Badge, Button, Card, Field, Input } from '@gsa/ui';
 import { PageHeader } from '@/components/common/PageHeader';
 import { api } from '@/lib/api';
 import { useFormat } from '@/lib/format';
+import { wholeNumber } from '@/lib/forms';
 import { useCommand, useErrorText } from '@/lib/hooks';
 import { keys } from '@/lib/query-keys';
 import type { ClosingDeclaration, MyVehicle } from './types';
@@ -34,7 +35,7 @@ export function ClosingScreen() {
     declare.run({
       lines: skus.map((s) => {
         const raw = f.get(`packs-${s.skuId}`);
-        return { skuId: s.skuId, packs: typeof raw === 'string' && /^\d+$/.test(raw.trim()) ? Number.parseInt(raw.trim(), 10) : 0 };
+        return { skuId: s.skuId, packs: typeof raw === 'string' ? (wholeNumber(raw) ?? 0) : 0 };
       }),
     });
   };

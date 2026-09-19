@@ -12,7 +12,7 @@ import type { Seller } from '@/components/vehicles/types';
 import { api } from '@/lib/api';
 import { useDuration } from '@/lib/duration';
 import { useFormat } from '@/lib/format';
-import { formText } from '@/lib/forms';
+import { formText, wholeNumber } from '@/lib/forms';
 import { useCommand, useErrorText } from '@/lib/hooks';
 import { keys } from '@/lib/query-keys';
 
@@ -56,7 +56,7 @@ export function AttendancePage({ canManage }: { canManage: boolean }) {
     e.preventDefault();
     const f = new FormData(e.currentTarget);
     const odometer = formText(f, 'odometer');
-    open.run({ sellerId: formText(f, 'sellerId'), reason: formText(f, 'reason'), odometer: /^\d+$/.test(odometer) ? Number.parseInt(odometer, 10) : null });
+    open.run({ sellerId: formText(f, 'sellerId'), reason: formText(f, 'reason'), odometer: wholeNumber(odometer) });
   };
 
   return (

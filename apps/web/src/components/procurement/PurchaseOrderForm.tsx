@@ -9,7 +9,7 @@ import type { Page, SkuSummary, VendorCode } from '@/components/catalogue/types'
 import { Cell, Table } from '@/components/common/Table';
 import { api, type ApiError } from '@/lib/api';
 import { useFormat } from '@/lib/format';
-import { formText } from '@/lib/forms';
+import { formText, wholeNumber } from '@/lib/forms';
 import { useErrorText } from '@/lib/hooks';
 import { keys } from '@/lib/query-keys';
 import type { PoDetail } from './types';
@@ -50,7 +50,7 @@ export function PurchaseOrderForm({ order, submitLabel, pending, error, onSubmit
     const f = new FormData(event.currentTarget);
     onSubmit({
       vendorId: formText(f, 'vendorId'), expectedArrival: formText(f, 'expectedArrival') || null, notes: formText(f, 'notes') || null,
-      lines: lines.map((l) => ({ skuId: l.skuId, orderedPacks: /^\d+$/.test(l.orderedPacks) ? Number.parseInt(l.orderedPacks, 10) : 0, expectedUnitCost: l.expectedUnitCost.trim() })),
+      lines: lines.map((l) => ({ skuId: l.skuId, orderedPacks: wholeNumber(l.orderedPacks) ?? 0, expectedUnitCost: l.expectedUnitCost.trim() })),
     });
   };
 

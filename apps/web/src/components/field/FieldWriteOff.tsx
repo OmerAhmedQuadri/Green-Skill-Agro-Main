@@ -6,7 +6,7 @@ import { Alert, Button, Field, Input, Select } from '@gsa/ui';
 import { PhotoCapture } from '@/components/common/PhotoCapture';
 import { REASONS, type WriteOff } from '@/components/warehouse/types';
 import { api } from '@/lib/api';
-import { formText } from '@/lib/forms';
+import { formText, wholeNumber } from '@/lib/forms';
 import { useCommand, useErrorText } from '@/lib/hooks';
 import type { MyVehicleBatch } from './types';
 
@@ -23,7 +23,7 @@ export function FieldWriteOff({ batch, onDone }: { batch: MyVehicleBatch; onDone
     e.preventDefault();
     const f = new FormData(e.currentTarget);
     const packs = formText(f, 'packs');
-    submit.run({ batchId: batch.batchId, packs: /^\d+$/.test(packs) ? Number.parseInt(packs, 10) : 0, reason: formText(f, 'reason'), note: formText(f, 'note') || null, photoId });
+    submit.run({ batchId: batch.batchId, packs: wholeNumber(packs) ?? 0, reason: formText(f, 'reason'), note: formText(f, 'note') || null, photoId });
   };
   return (
     <form className="space-y-3 border-t border-stone-200 p-4" noValidate onSubmit={send} aria-label={t('warehouse.writeOffTitle', { lot: batch.lotNumber ?? '—' })}>

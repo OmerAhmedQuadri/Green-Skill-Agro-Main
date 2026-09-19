@@ -8,7 +8,7 @@ import { CountrySelect } from '@/components/common/CountrySelect';
 import { NameFields } from '@/components/common/NameFields';
 import { api, type ApiError } from '@/lib/api';
 import { useFormat } from '@/lib/format';
-import { formText } from '@/lib/forms';
+import { formText, wholeNumber } from '@/lib/forms';
 import { useErrorText } from '@/lib/hooks';
 import { keys } from '@/lib/query-keys';
 import type { Category, ProductDetail, ProductType, VendorCode } from './types';
@@ -55,7 +55,7 @@ export function ProductForm({ product, submitLabel, pending, error, onSubmit, on
       hybrid: text('hybrid') === 'HYBRID' || text('hybrid') === 'NON_HYBRID' ? (text('hybrid') as 'HYBRID' | 'NON_HYBRID') : null,
       countryOfOrigin: text('countryOfOrigin') || null,
       vendorId: text('vendorId') || null,
-      shelfLifeMonths: /^\d+$/.test(months) ? Number.parseInt(months, 10) : null,
+      shelfLifeMonths: wholeNumber(months),
     });
   };
 

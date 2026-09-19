@@ -7,7 +7,7 @@ import { Alert, Button, Field, Input, Select } from '@gsa/ui';
 import type { BatchStock } from '@/components/procurement/types';
 import { Section } from '@/components/common/Section';
 import { api, ApiError } from '@/lib/api';
-import { formText } from '@/lib/forms';
+import { formText, wholeNumber } from '@/lib/forms';
 import { useCommand, useErrorText } from '@/lib/hooks';
 import { uploadMedia } from '@/lib/upload';
 import { REASONS, type WriteOff } from './types';
@@ -34,7 +34,7 @@ export function WriteOffPanel({ batch, onDone }: { batch: BatchStock; onDone: (d
     try {
       const photoId = await uploadMedia('WRITE_OFF_EVIDENCE', photo);
       const packs = formText(f, 'packs');
-      submit.run({ batchId: batch.batchId, packs: /^\d+$/.test(packs) ? Number.parseInt(packs, 10) : 0, reason: formText(f, 'reason'), note: formText(f, 'note') || null, photoId });
+      submit.run({ batchId: batch.batchId, packs: wholeNumber(packs) ?? 0, reason: formText(f, 'reason'), note: formText(f, 'note') || null, photoId });
     } catch (error) {
       setUploadError(error);
     } finally {

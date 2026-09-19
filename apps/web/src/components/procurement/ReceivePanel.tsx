@@ -8,6 +8,7 @@ import { Section } from '@/components/common/Section';
 import { Cell, Table } from '@/components/common/Table';
 import { api, ApiError } from '@/lib/api';
 import { useFormat } from '@/lib/format';
+import { wholeNumber } from '@/lib/forms';
 import { useCommand, useErrorText } from '@/lib/hooks';
 import type { PoDetail, PoLine } from './types';
 
@@ -35,11 +36,11 @@ export function ReceivePanel({ order, onDone }: { order: PoDetail; onDone: (next
   const submit = () => {
     const lines = rows.filter((r) => r.packs.trim() !== '').map((r) => ({
       purchaseOrderLineId: r.line.id,
-      packs: /^\d+$/.test(r.packs.trim()) ? Number.parseInt(r.packs.trim(), 10) : 0,
+      packs: wholeNumber(r.packs) ?? 0,
       lotNumber: r.lotNumber.trim() || null,
       manufacturedOn: r.manufacturedOn || null,
       expiresOn: r.expiresOn || null,
-      shelfLife: /^\d+$/.test(r.shelfLifeMonths.trim()) ? { months: Number.parseInt(r.shelfLifeMonths.trim(), 10) } : null,
+      shelfLife: wholeNumber(r.shelfLifeMonths) === null ? null : { months: wholeNumber(r.shelfLifeMonths) ?? 0 },
       unitCost: r.unitCost.trim() || null,
     }));
     receive.run({ version: order.version, lines });

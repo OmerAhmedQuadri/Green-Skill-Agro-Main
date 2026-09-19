@@ -8,6 +8,7 @@ import { PhotoCapture } from '@/components/common/PhotoCapture';
 import { api } from '@/lib/api';
 import { useFormat } from '@/lib/format';
 import { currentPosition, type Position } from '@/lib/geo';
+import { latinDigits } from '@/lib/forms';
 import { useCommand, useErrorText } from '@/lib/hooks';
 import type { Today } from './types';
 
@@ -85,7 +86,7 @@ export function CaptureForm({ mode, today, onDone, onCancel }: {
           <PhotoCapture id={`${mode}-odometer`} kind="ODOMETER" label={t('odometerPhoto')} capture={capture} onChange={setOdometerPhotoId} />
           <Field id={`${mode}-reading`} label={t('odometerReading')}
             hint={lastOdometer !== null ? t('lastReading', { km: format.number(lastOdometer) }) : undefined}>
-            <Input id={`${mode}-reading`} value={reading} onChange={(e) => setReading(e.target.value.replace(/\D/g, ''))} inputMode="numeric" dir="ltr" autoComplete="off" />
+            <Input id={`${mode}-reading`} value={reading} onChange={(e) => setReading(latinDigits(e.target.value).replace(/\D/g, ''))} inputMode="numeric" dir="ltr" autoComplete="off" />
           </Field>
         </div>
       ) : <p className="text-sm text-stone-600">{t('noOdometer')}</p>}
