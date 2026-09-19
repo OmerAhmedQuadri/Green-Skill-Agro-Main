@@ -8,7 +8,7 @@ import { Alert, Button, Checkbox, Field, Input, Select } from '@gsa/ui';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Section } from '@/components/common/Section';
 import { api } from '@/lib/api';
-import { formText } from '@/lib/forms';
+import { decimalText, formText, wholeNumber } from '@/lib/forms';
 import { useCommand, useErrorText } from '@/lib/hooks';
 import { keys } from '@/lib/query-keys';
 import { CeilingsSection, CommissionSection } from './LimitsSections';
@@ -59,8 +59,8 @@ function GeneralSettings() {
     const f = new FormData(event.currentTarget);
     const changes = groups.flatMap((g) => g.keys).map((k) => {
       const spec = SETTINGS[k];
-      const raw = formText(f, k);
-      const value = spec.kind === 'boolean' ? f.get(k) === 'on' : spec.kind === 'integer' ? Number.parseInt(raw, 10) : raw;
+      const raw = decimalText(formText(f, k));
+      const value = spec.kind === 'boolean' ? f.get(k) === 'on' : spec.kind === 'integer' ? (wholeNumber(raw) ?? Number.NaN) : raw;
       return { key: k, value };
     }).filter((c) => c.value !== values[c.key]);
     if (changes.length) save.run({ changes });

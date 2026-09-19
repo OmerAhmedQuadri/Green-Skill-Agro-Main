@@ -9,7 +9,7 @@ import type { BatchStock, SkuStock } from '@/components/procurement/types';
 import { Section } from '@/components/common/Section';
 import { api } from '@/lib/api';
 import { useFormat } from '@/lib/format';
-import { formText, wholeNumber } from '@/lib/forms';
+import { decimalText, formText, wholeNumber } from '@/lib/forms';
 import { useCommand, useErrorText } from '@/lib/hooks';
 import { keys } from '@/lib/query-keys';
 import type { ConversionRecord } from './types';
@@ -44,8 +44,8 @@ export function ConvertPanel({ sku, batch, held, canPrice, onDone }: {
     const f = new FormData(e.currentTarget);
     convert.run({
       sourceBatchId: batch.batchId, targetSkuId: targetId, reason: formText(f, 'reason'),
-      sourcePacks: whole(formText(f, 'sourcePacks')), targetPacks: whole(formText(f, 'targetPacks')), loss: formText(f, 'loss') || null,
-      targetBasePrice: formText(f, 'targetBasePrice') || null,
+      sourcePacks: whole(formText(f, 'sourcePacks')), targetPacks: whole(formText(f, 'targetPacks')), loss: decimalText(formText(f, 'loss')) || null,
+      targetBasePrice: decimalText(formText(f, 'targetBasePrice')) || null,
     });
   };
 

@@ -8,7 +8,7 @@ import { Section } from '@/components/common/Section';
 import { Cell, Table } from '@/components/common/Table';
 import { api } from '@/lib/api';
 import { useFormat } from '@/lib/format';
-import { formText } from '@/lib/forms';
+import { decimalText, formText } from '@/lib/forms';
 import { useCommand, useErrorText } from '@/lib/hooks';
 import { keys } from '@/lib/query-keys';
 import type { Ceilings, CommissionRate } from './types';
@@ -29,7 +29,7 @@ export function CeilingsSection() {
   const amountForm = (kind: Kind, sellerId: string | null, current: string | null, placeholder: string) => (
     <form className="flex gap-2" noValidate onSubmit={(e: FormEvent<HTMLFormElement>) => {
       e.preventDefault();
-      const value = formText(new FormData(e.currentTarget), 'amount');
+      const value = decimalText(formText(new FormData(e.currentTarget), 'amount'));
       set.run({ kind, sellerId, amount: value === '' ? null : value });
     }}>
       <Input name="amount" defaultValue={current ?? ''} placeholder={placeholder} inputMode="decimal" dir="ltr" className="w-36"
@@ -94,8 +94,8 @@ export function CommissionSection() {
                 <form className="flex flex-wrap items-center gap-2" noValidate onSubmit={(e: FormEvent<HTMLFormElement>) => {
                   e.preventDefault();
                   const f = new FormData(e.currentTarget);
-                  const onTarget = formText(f, 'onTarget');
-                  const belowTarget = formText(f, 'belowTarget');
+                  const onTarget = decimalText(formText(f, 'onTarget'));
+                  const belowTarget = decimalText(formText(f, 'belowTarget'));
                   set.run({ sellerId: r.sellerId, rate: onTarget === '' && belowTarget === '' ? null : { onTarget, belowTarget } });
                 }}>
                   <Input name="onTarget" defaultValue={r.onTarget ?? ''} inputMode="decimal" dir="ltr" className="w-24" aria-label={t('settings.onTarget')} placeholder={t('settings.onTarget')} />

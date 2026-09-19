@@ -10,7 +10,7 @@ import { Section } from '@/components/common/Section';
 import { Cell, Table } from '@/components/common/Table';
 import { api } from '@/lib/api';
 import { useFormat } from '@/lib/format';
-import { formText } from '@/lib/forms';
+import { decimalText, formText, latinDigits } from '@/lib/forms';
 import { useCommand, useErrorText } from '@/lib/hooks';
 import { keys } from '@/lib/query-keys';
 import type { CatalogueCan, PriceList, ProductDetail } from './types';
@@ -137,7 +137,7 @@ function AddSkuForm({ product, canPrice, onDone }: { product: ProductDetail; can
     if (!size) return;
     const f = new FormData(event.currentTarget);
     const prices = (lists.data ?? []).filter((l) => l.isActive)
-      .map((l) => ({ priceListId: l.id, price: formText(f, `price-${l.id}`) }))
+      .map((l) => ({ priceListId: l.id, price: decimalText(formText(f, `price-${l.id}`)) }))
       .filter((p) => p.price !== '');
     create.run({ varietyId: usesVarieties ? varietyId : null, size, packaging, ...(override !== null ? { code: override } : {}), prices });
   };
@@ -161,7 +161,7 @@ function AddSkuForm({ product, canPrice, onDone }: { product: ProductDetail; can
       {measure === 'WEIGHT' ? (
         <Field id="sku-weight" label={t('catalogue.packSize')} hint={t('catalogue.weightHint')}>
           <div className="flex gap-2">
-            <Input id="sku-weight" value={value} onChange={(e) => setValue(e.target.value.trim())} inputMode="decimal" dir="ltr" required />
+            <Input id="sku-weight" value={value} onChange={(e) => setValue(decimalText(e.target.value))} inputMode="decimal" dir="ltr" required />
             <Select value={unit} onChange={(e) => setUnit(e.target.value === 'KG' ? 'KG' : 'G')} aria-label={t('catalogue.unit')} className="w-24">
               <option value="G">{t('format.gramUnit')}</option>
               <option value="KG">{t('format.kilogramUnit')}</option>
@@ -170,7 +170,7 @@ function AddSkuForm({ product, canPrice, onDone }: { product: ProductDetail; can
         </Field>
       ) : (
         <Field id="sku-count" label={t(product.productType.countUnit === 'SEED' ? 'catalogue.seedsPerPack' : 'catalogue.piecesPerPack')}>
-          <Input id="sku-count" value={count} onChange={(e) => setCount(e.target.value.trim())} inputMode="numeric" dir="ltr" required />
+          <Input id="sku-count" value={count} onChange={(e) => setCount(latinDigits(e.target.value).trim())} inputMode="numeric" dir="ltr" required />
         </Field>
       )}
       <Field id="sku-packaging" label={t('catalogue.packaging')}>
