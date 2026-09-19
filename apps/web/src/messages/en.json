@@ -1079,7 +1079,9 @@
     "reissue": "Issue again",
     "cancelLoad": "Cancel load",
     "amend": "Amend",
-    "noLoads": "No loads yet."
+    "noLoads": "No loads yet.",
+    "chooseItemAndPacks": "Choose an item and enter how many packs to load.",
+    "noWarehouseStock": "None of this item in the warehouse. Receive it on a purchase order first."
   },
   "attendance": {
     "title": "Attendance",

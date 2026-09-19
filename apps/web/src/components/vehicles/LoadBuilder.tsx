@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Plus, Trash2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useState } from 'react';
-import { Alert, Badge, Button, Input, Select } from '@gsa/ui';
+import { Alert, Badge, Button, Field, Input, Select } from '@gsa/ui';
 import type { Page, SkuSummary } from '@/components/catalogue/types';
 import { Section } from '@/components/common/Section';
 import { Cell, Table } from '@/components/common/Table';
@@ -40,12 +40,16 @@ export function LoadBuilder({ vehicleId, onDone }: { vehicleId: string; onDone: 
     body: { vehicleId, acknowledgeCeiling: body.acknowledgeCeiling, lines: Object.entries(picked).map(([batchId, p]) => ({ batchId, packs: whole(p) })).filter((l) => l.packs > 0) },
   }), { onSuccess: onDone });
 
+  const [incomplete, setIncomplete] = useState(false);
   const propose = async () => {
+    const complete = rows.filter((r) => r.skuId && whole(r.packs) > 0);
+    setIncomplete(complete.length === 0);
+    if (complete.length === 0) return;
     setProposing(true);
     setProposeError(null);
     try {
       const qs = new URLSearchParams();
-      for (const r of rows) if (r.skuId && whole(r.packs) > 0) qs.append('line', `${r.skuId}:${whole(r.packs)}`);
+      for (const r of complete) qs.append('line', `${r.skuId}:${whole(r.packs)}`);
       const result = await api<LoadProposal[]>(`/vehicle-loads/proposal?${qs.toString()}`);
       setProposal(result);
       setPicked(Object.fromEntries(result.flatMap((p) => p.batches.filter((b) => b.packs > 0).map((b) => [b.batchId, String(b.packs)]))));
@@ -62,13 +66,19 @@ export function LoadBuilder({ vehicleId, onDone }: { vehicleId: string; onDone: 
       <div className="space-y-4 p-5">
         {rows.map((row, i) => (
           <div key={i} className="flex flex-wrap items-end gap-2">
-            <Select aria-label={t('vehicles.sku')} value={row.skuId} className="min-w-64 flex-1"
-              onChange={(e) => setRows(rows.map((r, j) => (j === i ? { ...r, skuId: e.target.value } : r)))}>
-              <option value="">{t('common.choose')}</option>
-              {(skus.data?.items ?? []).map((s) => <option key={s.id} value={s.id}>{`${s.code} · ${format.name(s.product)}`}</option>)}
-            </Select>
-            <Input aria-label={t('vehicles.packsWanted')} value={row.packs} inputMode="numeric" dir="ltr" className="w-24"
-              onChange={(e) => setRows(rows.map((r, j) => (j === i ? { ...r, packs: e.target.value } : r)))} />
+            <div className="min-w-64 flex-1">
+              <Field id={`load-sku-${i}`} label={t('vehicles.sku')}>
+                <Select id={`load-sku-${i}`} value={row.skuId}
+                  onChange={(e) => setRows(rows.map((r, j) => (j === i ? { ...r, skuId: e.target.value } : r)))}>
+                  <option value="">{t('common.choose')}</option>
+                  {(skus.data?.items ?? []).map((s) => <option key={s.id} value={s.id}>{`${s.code} · ${format.name(s.product)}`}</option>)}
+                </Select>
+              </Field>
+            </div>
+            <Field id={`load-packs-${i}`} label={t('vehicles.packsWanted')}>
+              <Input id={`load-packs-${i}`} value={row.packs} inputMode="numeric" dir="ltr" className="w-24"
+                onChange={(e) => setRows(rows.map((r, j) => (j === i ? { ...r, packs: e.target.value } : r)))} />
+            </Field>
             {rows.length > 1 ? <Button variant="ghost" size="sm" aria-label={t('common.remove')} onClick={() => setRows(rows.filter((_, j) => j !== i))}><Trash2 className="size-4" aria-hidden /></Button> : null}
           </div>
         ))}
@@ -76,6 +86,7 @@ export function LoadBuilder({ vehicleId, onDone }: { vehicleId: string; onDone: 
           <Button variant="ghost" size="sm" onClick={() => setRows([...rows, { skuId: '', packs: '' }])}><Plus className="size-4" aria-hidden />{t('vehicles.addLine')}</Button>
           <Button variant="secondary" onClick={() => void propose()} disabled={proposing}>{proposing ? t('common.loading') : t('vehicles.propose')}</Button>
         </div>
+        {incomplete ? <Alert tone="warning">{t('vehicles.chooseItemAndPacks')}</Alert> : null}
         {proposeError ? <Alert>{errorText(proposeError)}</Alert> : null}
       </div>
 
@@ -88,7 +99,8 @@ export function LoadBuilder({ vehicleId, onDone }: { vehicleId: string; onDone: 
                 {p.shortfallPacks > 0 ? <Badge tone="danger">{t('vehicles.shortfall', { count: p.shortfallPacks })}</Badge> : null}
                 {p.unitPrice === null ? <Badge tone="warning">{t('vehicles.unpriced')}</Badge> : null}
               </div>
-              <Table head={[t('receiving.lotNumber'), t('receiving.expiresOn'), t('vehicles.available'), t('vehicles.packsToLoad')]}>
+              {p.batches.length === 0 ? <p className="px-5 pb-4 pt-2 text-sm text-stone-600">{t('vehicles.noWarehouseStock')}</p> : null}
+              {p.batches.length > 0 ? <Table head={[t('receiving.lotNumber'), t('receiving.expiresOn'), t('vehicles.available'), t('vehicles.packsToLoad')]}>
                 {p.batches.map((b) => (
                   <tr key={b.batchId} data-testid={`proposed-${b.lotNumber ?? b.batchId}`}>
                     <Cell><bdi dir="ltr">{b.lotNumber ?? '—'}</bdi>{b.flagged ? <Badge tone="warning" className="ms-2">{t('vehicles.flagged')}</Badge> : null}</Cell>
@@ -100,7 +112,7 @@ export function LoadBuilder({ vehicleId, onDone }: { vehicleId: string; onDone: 
                     </Cell>
                   </tr>
                 ))}
-              </Table>
+              </Table> : null}
             </div>
           ))}
           <div className="space-y-3 p-5">

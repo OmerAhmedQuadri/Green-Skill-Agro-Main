@@ -122,7 +122,8 @@ export async function takePhoto(page: Page, container: string, m: { camera: { op
   const box = page.locator(`[id="${container}"]`);
   await box.getByRole('button', { name: m.camera.open }).click();
   await expect(box.locator('video')).toBeVisible();
-  await expect.poll(() => box.locator('video').evaluate((v: HTMLVideoElement) => v.videoWidth)).toBeGreaterThan(0);
+  // The first camera of a run can take a while to deliver frames.
+  await expect.poll(() => box.locator('video').evaluate((v: HTMLVideoElement) => v.videoWidth), { timeout: 20_000 }).toBeGreaterThan(0);
   await box.getByRole('button', { name: m.camera.take }).click();
   await expect(box.getByText(m.camera.ready)).toBeVisible({ timeout: 30_000 });
   return box.locator('img');
