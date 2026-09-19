@@ -6,7 +6,7 @@ import { schema } from '@gsa/db';
 import { and, asc, desc, eq, ilike, inArray, lt, sql, type SQL } from 'drizzle-orm';
 import { sizeOf } from '../catalogue';
 import { authorize, authorizeAny, type Ctx } from '../context';
-import { audit, inTx, likePattern, nextDocumentNumber, pageLimit, type Executor } from '../platform';
+import { audit, inOrder, inTx, likePattern, nextDocumentNumber, pageLimit, type Executor } from '../platform';
 import { getDb } from '../runtime';
 
 const {
@@ -96,7 +96,7 @@ export async function loadPurchaseOrder(db: Executor, id: string): Promise<PoDet
     })
     .from(purchaseOrders).innerJoin(vendors, eq(vendors.id, purchaseOrders.vendorId)).where(eq(purchaseOrders.id, id));
   if (!head) throw new DomainError('NOT_FOUND', { entity: 'purchase_order', id });
-  const [lines, events, receipts] = await Promise.all([
+  const [lines, events, receipts] = await inOrder([
     db.select({
       line: purchaseOrderLines, sku: skus, productEn: products.nameEn, productAr: products.nameAr, productTypeId: products.productTypeId,
       shelfLifeMonths: products.shelfLifeMonths, varietyEn: varieties.nameEn, varietyAr: varieties.nameAr, countUnit: productTypes.countUnit, received: receivedPacks,

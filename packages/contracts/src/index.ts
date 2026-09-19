@@ -24,3 +24,6 @@ export * as system from './system';
 export * as procurement from './procurement';
 export * as inventory from './inventory';
 export * as warehouse from './warehouse';
+export * as vehicles from './vehicles';
+export * as attendance from './attendance';
+export * as notifications from './notifications';

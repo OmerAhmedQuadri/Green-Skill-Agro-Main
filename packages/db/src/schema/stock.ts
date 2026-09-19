@@ -4,6 +4,7 @@ import { skus } from './catalogue';
 import { createdAt, id, timestamptz } from './columns';
 import { users } from './identity';
 import { branches, warehouses } from './organisation';
+import { vehicles } from './vehicles';
 
 // Mirror packages/core/src/inventory/postings.ts; a services test keeps them in step.
 export const stockAccountKind = pgEnum('stock_account_kind', ['WAREHOUSE', 'VEHICLE', 'DISPATCHED', 'SUPPLIER', 'SOLD', 'WRITTEN_OFF']);
@@ -42,7 +43,6 @@ export const batches = pgTable(
  * The stock ledger (ADR-0001, DATA-MODEL §3.1). Signed legs in base units;
  * every group balances per batch (per variety for a conversion), checked at
  * commit by a constraint trigger. UPDATE, DELETE and TRUNCATE are revoked.
- * `vehicle_id` gains its foreign key when the vehicle register arrives (M4).
  */
 export const stockMovements = pgTable(
   'stock_movements',
@@ -54,7 +54,7 @@ export const stockMovements = pgTable(
     quantity: numeric('quantity', { precision: 14, scale: 3 }).notNull(),
     accountKind: stockAccountKind('account_kind').notNull(),
     warehouseId: uuid('warehouse_id').references(() => warehouses.id),
-    vehicleId: uuid('vehicle_id'),
+    vehicleId: uuid('vehicle_id').references(() => vehicles.id),
     referenceType: stockReferenceType('reference_type').notNull(),
     referenceId: uuid('reference_id').notNull(),
     branchId: uuid('branch_id').notNull().references(() => branches.id),

@@ -1,6 +1,8 @@
 'use client';
 
-import { CalendarClock, ClipboardList, LayoutDashboard, PackageX, Menu, Package, Settings, Ship, Tag, Truck, Users, Warehouse, X } from 'lucide-react';
+import {
+  CalendarCheck, CalendarClock, Car, ClipboardCheck, ClipboardList, LayoutDashboard, PackageX, Menu, Package, Settings, Ship, Tag, Truck, Users, Warehouse, X,
+} from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
@@ -9,11 +11,13 @@ import { Button, cn } from '@gsa/ui';
 import type { NavIcon } from '@/lib/navigation';
 import { BrandMark } from './BrandMark';
 import { LocaleSwitch } from './LocaleSwitch';
+import { NotificationBell } from './NotificationBell';
 import { SignOutButton } from './SignOutButton';
 
 const ICONS = {
   dashboard: LayoutDashboard, users: Users, catalogue: Package, vendors: Truck, pricing: Tag, settings: Settings,
   purchaseOrders: ClipboardList, incoming: Ship, stock: Warehouse, writeOffs: PackageX, expiry: CalendarClock,
+  vehicles: Car, attendance: CalendarCheck, closingStock: ClipboardCheck,
 } satisfies Record<NavIcon, unknown>;
 
 type Props = { items: { href: string; label: string; icon: NavIcon }[]; user: { name: string; role: string }; children: ReactNode };
@@ -56,16 +60,19 @@ export function ConsoleShell({ items, user, children }: Props) {
   return (
     <div className="min-h-dvh lg:flex">
       <aside className="hidden w-64 shrink-0 flex-col gap-6 bg-brand-900 p-4 lg:flex">
-        <BrandMark inverse />
+        <div className="flex items-center justify-between"><BrandMark inverse /><NotificationBell inverse /></div>
         {nav}
         {footer}
       </aside>
 
       <header className="flex items-center justify-between bg-brand-900 px-4 py-3 lg:hidden">
         <BrandMark inverse />
-        <Button variant="ghost" size="sm" className="text-white hover:bg-white/10" onClick={() => setOpen(true)} aria-label={t('menu')}>
-          <Menu className="size-5" aria-hidden />
-        </Button>
+        <div className="flex items-center gap-1">
+          <NotificationBell inverse />
+          <Button variant="ghost" size="sm" className="text-white hover:bg-white/10" onClick={() => setOpen(true)} aria-label={t('menu')}>
+            <Menu className="size-5" aria-hidden />
+          </Button>
+        </div>
       </header>
       {open ? (
         <div className="fixed inset-0 z-40 lg:hidden">

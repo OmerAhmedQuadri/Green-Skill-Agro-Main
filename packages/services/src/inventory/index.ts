@@ -4,7 +4,7 @@ export {
   listStock, getSkuStock, searchLots, type SkuStock, type BatchStock, type LotMatch, type Positions, type Incoming,
 } from './stock';
 export {
-  convertStock, listConversions, submitWriteOff, decideWriteOffRequest, listWriteOffs, getWriteOff,
+  convertStock, listConversions, warehouseAccount, submitWriteOff, decideWriteOffRequest, listWriteOffs, getWriteOff,
   type ConversionRecord, type WriteOff,
 } from './operations';
-export { listExpiryFlags, flaggedBatchIds, setClearancePriority, type ExpiryFlag } from './expiry';
+export { listExpiryFlags, computeExpiryFlags, flaggedBatchIds, setClearancePriority, type ExpiryFlag } from './expiry';

@@ -12,3 +12,5 @@ export * as vendors from './vendors';
 export * as pricing from './pricing';
 export * as inventory from './inventory';
 export * as procurement from './procurement';
+export * as vehicles from './vehicles';
+export * as attendance from './attendance';

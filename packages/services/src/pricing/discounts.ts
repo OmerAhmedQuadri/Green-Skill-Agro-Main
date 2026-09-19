@@ -19,12 +19,11 @@ export type DiscountCeilings = {
 /** PRC-004..007: the overall ceiling, the item ceilings, and the limits on approval. */
 export async function getDiscountCeilings(ctx: Ctx): Promise<DiscountCeilings> {
   authorize(ctx, 'pricing.set_discount_ceilings');
-  const db = getDb();
-  const [settings, items] = await Promise.all([
-    readSettings(db),
-    db.select({ skuId: skuDiscountCeilings.skuId, code: skus.code, ceiling: skuDiscountCeilings.ceiling })
-      .from(skuDiscountCeilings).innerJoin(skus, eq(skus.id, skuDiscountCeilings.skuId)).orderBy(asc(skus.code)),
-  ]);
+  // After a change, the request's own transaction holds rows no other connection can see yet.
+  const db = ctx.tx ?? getDb();
+  const settings = await readSettings(db);
+  const items = await db.select({ skuId: skuDiscountCeilings.skuId, code: skus.code, ceiling: skuDiscountCeilings.ceiling })
+    .from(skuDiscountCeilings).innerJoin(skus, eq(skus.id, skuDiscountCeilings.skuId)).orderBy(asc(skus.code));
   return {
     orderCeiling: percent(settings['discount.order_ceiling']),
     itemCeiling: percent(settings['discount.item_ceiling']),

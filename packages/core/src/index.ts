@@ -10,3 +10,6 @@ export * from './pricing';
 export * from './system';
 export * from './inventory';
 export * from './procurement';
+export * from './vehicles';
+export * from './attendance';
+export * from './notifications';

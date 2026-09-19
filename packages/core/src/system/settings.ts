@@ -16,7 +16,7 @@ type Spec =
 
 type Entry = Spec & { readonly permission: PermissionCode; readonly group: SettingGroup };
 
-export const SETTING_GROUPS = ['discounts', 'returns', 'expiry', 'operations', 'limits'] as const;
+export const SETTING_GROUPS = ['discounts', 'returns', 'expiry', 'operations', 'attendance', 'limits'] as const;
 export type SettingGroup = (typeof SETTING_GROUPS)[number];
 
 export const SETTINGS = {
@@ -36,6 +36,9 @@ export const SETTINGS = {
   // DSP-014 / SYS-007, VEH-015
   'dispatch.unconfirmed_after_days': { kind: 'integer', min: 1, max: 60, default: 5, permission: 'system.configure', group: 'operations' },
   'vehicles.audit_interval_days': { kind: 'integer', min: 1, max: 365, default: 30, permission: 'system.configure', group: 'operations' },
+  // ATT-012 (ADR-0032): odometer readings outside these are flagged for review, never refused
+  'attendance.odometer_tolerance_km': { kind: 'integer', min: 0, max: 100, default: 5, permission: 'system.configure', group: 'attendance' },
+  'attendance.max_session_km': { kind: 'integer', min: 50, max: 2000, default: 500, permission: 'system.configure', group: 'attendance' },
   // LIM-003
   'ceilings.reminder_interval_hours': { kind: 'integer', min: 1, max: 168, default: 24, permission: 'system.set_limits', group: 'limits' },
 } as const satisfies Record<string, Entry>;

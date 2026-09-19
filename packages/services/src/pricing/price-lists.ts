@@ -48,7 +48,7 @@ export async function listPriceLists(ctx: Ctx): Promise<PriceList[]> {
 /** One row per SKU — priced or not — so a list can be filled in from one screen. */
 export async function getPriceList(ctx: Ctx, id: string): Promise<{ list: PriceList; rows: PriceListRow[] }> {
   authorize(ctx, 'pricing.manage_price_lists');
-  const db = getDb();
+  const db = ctx.tx ?? getDb(); // after a change, the request's transaction sees it
   const list = await loadList(db, id);
   const rows = await db.select({
     sku: skus, productEn: products.nameEn, productAr: products.nameAr, varietyEn: varieties.nameEn, varietyAr: varieties.nameAr,

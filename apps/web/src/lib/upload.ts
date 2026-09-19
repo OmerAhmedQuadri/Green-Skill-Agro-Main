@@ -42,9 +42,9 @@ async function withRetry<T>(work: () => Promise<T>, attempts = 3): Promise<T> {
   }
 }
 
-/** Uploads one file and returns its confirmed media id. */
-export async function uploadMedia(kind: MediaKind, file: Blob, capture: Capture = {}): Promise<string> {
-  const body = PHOTO_ONLY.has(kind) || file.type === 'image/jpeg' ? await compressPhoto(file) : file;
+/** Uploads one file and returns its confirmed media id. A photo already compressed is sent as it is. */
+export async function uploadMedia(kind: MediaKind, file: Blob, capture: Capture = {}, options: { compressed?: boolean } = {}): Promise<string> {
+  const body = !options.compressed && (PHOTO_ONLY.has(kind) || file.type === 'image/jpeg') ? await compressPhoto(file) : file;
 
   const requestKey = crypto.randomUUID();
   const ticket = await withRetry(() => api<Ticket>('/media/uploads', {

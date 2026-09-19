@@ -33,9 +33,22 @@ const iso = (d: Date) => d.toISOString().slice(0, 10);
  */
 export async function listExpiryFlags(ctx: Ctx, filter: { onlyFlagged?: boolean | undefined } = {}): Promise<ExpiryFlag[]> {
   authorizeAny(ctx, ['inventory.view_all_stock', 'inventory.manage_expiry']);
+  const flags = await computeExpiryFlags(ctx.now);
+  return flags
+    .filter((f) => !filter.onlyFlagged || f.time || f.rate.flagged || f.prioritised)
+    .sort((a, b) => Number(b.prioritised) - Number(a.prioritised) || a.expiresOn.localeCompare(b.expiresOn));
+}
+
+/**
+ * The flags without the permission check — for use cases that have already
+ * authorised their caller, such as a seller's own vehicle stock (EXP-007).
+ * `batchIds` narrows the batches considered.
+ */
+export async function computeExpiryFlags(now: Date, batchIds?: readonly string[]): Promise<ExpiryFlag[]> {
+  if (batchIds?.length === 0) return [];
   const db = getDb();
   const settings = await readSettings(db);
-  const today = businessDate(ctx.now);
+  const today = businessDate(now);
   const held = sql<string>`coalesce(sum(${stockMovements.quantity}) filter (where ${stockMovements.accountKind} in ('WAREHOUSE', 'VEHICLE', 'DISPATCHED')), 0)`;
   const rows = await db.select({
     batch: batches, sku: skus, productEn: products.nameEn, productAr: products.nameAr, categoryEn: categories.nameEn, categoryAr: categories.nameAr,
@@ -44,26 +57,26 @@ export async function listExpiryFlags(ctx: Ctx, filter: { onlyFlagged?: boolean 
     .innerJoin(skus, eq(skus.id, batches.skuId)).innerJoin(products, eq(products.id, skus.productId))
     .innerJoin(categories, eq(categories.id, products.categoryId)).innerJoin(productTypes, eq(productTypes.id, products.productTypeId))
     .innerJoin(stockMovements, eq(stockMovements.batchId, batches.id))
-    .where(isNotNull(batches.expiresOn))
+    .where(and(isNotNull(batches.expiresOn), batchIds ? inArray(batches.id, [...batchIds]) : undefined))
     .groupBy(batches.id, skus.id, products.id, categories.id, productTypes.id)
     .having(sql`${held} > 0`);
   if (rows.length === 0) return [];
 
-  const batchIds = rows.map((r) => r.batch.id);
+  const heldIds = rows.map((r) => r.batch.id);
   const skuIds = [...new Set(rows.map((r) => r.sku.id))];
-  const windowStart = new Date(ctx.now.getTime() - RATE_WINDOW_DAYS * DAY);
-  const seasonEnd = new Date(ctx.now.getTime() - 365 * DAY);
+  const windowStart = new Date(now.getTime() - RATE_WINDOW_DAYS * DAY);
+  const seasonEnd = new Date(now.getTime() - 365 * DAY);
   const seasonStart = new Date(seasonEnd.getTime() - RATE_WINDOW_DAYS * DAY);
   const sold = (from: Date, to: Date) => and(eq(stockMovements.accountKind, 'SOLD'), gte(stockMovements.occurredAt, from), lt(stockMovements.occurredAt, to));
   const [trailing, seasonal, firstSale, flags] = await Promise.all([
     db.select({ batchId: stockMovements.batchId, q: sql<string>`sum(${stockMovements.quantity})` }).from(stockMovements)
-      .where(and(inArray(stockMovements.batchId, batchIds), sold(windowStart, ctx.now))).groupBy(stockMovements.batchId),
+      .where(and(inArray(stockMovements.batchId, heldIds), sold(windowStart, now))).groupBy(stockMovements.batchId),
     // A batch did not exist a year ago; its SKU's sales in the same window stand in for it (ADR-0030).
     db.select({ skuId: batches.skuId, q: sql<string>`sum(${stockMovements.quantity})` }).from(stockMovements)
       .innerJoin(batches, eq(batches.id, stockMovements.batchId))
       .where(and(inArray(batches.skuId, skuIds), sold(seasonStart, seasonEnd))).groupBy(batches.skuId),
     db.select({ at: sql<Date | null>`min(${stockMovements.occurredAt})` }).from(stockMovements).where(eq(stockMovements.accountKind, 'SOLD')),
-    db.select().from(stockFlags).where(inArray(stockFlags.batchId, batchIds)),
+    db.select().from(stockFlags).where(inArray(stockFlags.batchId, heldIds)),
   ]);
   // EXP-008: seasonal figures mean something only after a full trading year.
   const firstSaleAt = firstSale[0]?.at ? new Date(firstSale[0].at) : null;
@@ -89,9 +102,7 @@ export async function listExpiryFlags(ctx: Ctx, filter: { onlyFlagged?: boolean 
       prioritised: flag?.prioritised ?? false, note: flag?.note ?? null,
     };
   });
-  return out
-    .filter((f) => !filter.onlyFlagged || f.time || f.rate.flagged || f.prioritised)
-    .sort((a, b) => Number(b.prioritised) - Number(a.prioritised) || a.expiresOn.localeCompare(b.expiresOn));
+  return out;
 }
 
 const stockFlagFor = (flags: (typeof stockFlags.$inferSelect)[], batchId: string) => flags.find((f) => f.batchId === batchId);

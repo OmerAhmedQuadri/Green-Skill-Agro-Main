@@ -21,3 +21,16 @@ export function businessDate(instant: Date): string {
 export function businessMonth(instant: Date): string {
   return businessDate(instant).slice(0, 7);
 }
+
+/**
+ * The instant a Riyadh business day starts. Saudi Arabia keeps UTC+3 all year
+ * (no daylight saving), so the offset is fixed.
+ */
+export function businessDayStart(date: string): Date {
+  return new Date(`${date}T00:00:00+03:00`);
+}
+
+/** The next business day after `date`, as `YYYY-MM-DD`. */
+export function nextBusinessDate(date: string): string {
+  return businessDate(new Date(businessDayStart(date).getTime() + 36 * 3_600_000));
+}

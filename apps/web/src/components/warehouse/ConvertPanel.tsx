@@ -9,19 +9,23 @@ import type { BatchStock, SkuStock } from '@/components/procurement/types';
 import { Section } from '@/components/common/Section';
 import { api } from '@/lib/api';
 import { useFormat } from '@/lib/format';
-import { formText } from '@/lib/forms';
+import { formText, wholeNumber } from '@/lib/forms';
 import { useCommand, useErrorText } from '@/lib/hooks';
 import { keys } from '@/lib/query-keys';
 import type { ConversionRecord } from './types';
 
-const whole = (v: string) => (/^\d+$/.test(v) ? Number.parseInt(v, 10) : null);
+const whole = (v: string) => wholeNumber(v);
 
 /**
  * Workflow D (CNV-001..011): from this batch into another SKU of the same
  * variety and measure. Enter any two of packs from, packs made and loss — the
  * third is worked out, and quantities that do not balance are refused.
  */
-export function ConvertPanel({ sku, batch, canPrice, onDone }: { sku: SkuStock; batch: BatchStock; canPrice: boolean; onDone: (done: ConversionRecord | null) => void }) {
+export function ConvertPanel({ sku, batch, held, canPrice, onDone }: {
+  sku: Pick<SkuStock, 'skuId' | 'productId' | 'varietyId' | 'size' | 'countUnit'>; batch: Pick<BatchStock, 'batchId' | 'lotNumber'>;
+  /** Packs of the batch where the converter works — the warehouse, or their own vehicle (CNV-009). */ held: number;
+  canPrice: boolean; onDone: (done: ConversionRecord | null) => void;
+}) {
   const t = useTranslations();
   const format = useFormat();
   const errorText = useErrorText();
@@ -55,7 +59,7 @@ export function ConvertPanel({ sku, batch, canPrice, onDone }: { sku: SkuStock; 
             {options.map((s) => <option key={s.id} value={s.id}>{`${s.code} · ${format.size(s.size, s.countUnit)} · ${t(`catalogue.packagingValues.${s.packaging}`)}`}</option>)}
           </Select>
         </Field>
-        <Field id="cv-source" label={t('warehouse.sourcePacks', { held: batch.positions.warehouse })}>
+        <Field id="cv-source" label={t('warehouse.sourcePacks', { held })}>
           <Input id="cv-source" name="sourcePacks" inputMode="numeric" dir="ltr" />
         </Field>
         <Field id="cv-made" label={t('warehouse.targetPacks')}><Input id="cv-made" name="targetPacks" inputMode="numeric" dir="ltr" /></Field>

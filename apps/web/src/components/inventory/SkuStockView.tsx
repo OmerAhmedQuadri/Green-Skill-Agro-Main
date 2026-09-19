@@ -60,7 +60,7 @@ export function SkuStockView({ skuId, can }: { skuId: string; can: WarehouseCan 
       </Section>
       {notice ? <Alert tone="success">{notice}</Alert> : null}
       {acting?.kind === 'convert' && actingOn ? (
-        <ConvertPanel sku={sku} batch={actingOn} canPrice={can.price}
+        <ConvertPanel sku={sku} batch={actingOn} held={actingOn.positions.warehouse} canPrice={can.price}
           onDone={(r) => done(r ? t('warehouse.converted', { from: r.sourcePacks, to: r.targetPacks, code: r.targetCode }) : null)} />
       ) : null}
       {acting?.kind === 'writeOff' && actingOn ? (

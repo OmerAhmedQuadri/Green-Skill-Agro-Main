@@ -1,0 +1,28 @@
+# PostgreSQL for staging on the VPS (ADR-0035): the development image and the
+# same setup scripts — the two roles (ADR-0008) and bootstrap.sql. Published
+# on loopback only: Docker's port rules bypass the host firewall.
+# Used by deploy/setup-vps.sh and deploy/deploy.sh with --env-file ../.env.
+name: green-agro-staging
+
+services:
+  postgres:
+    image: postgres:17.11
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: gsa_owner
+      POSTGRES_PASSWORD: ${POSTGRES_OWNER_PASSWORD:?set in .env}
+      POSTGRES_DB: gsa
+      GSA_APP_PASSWORD: ${POSTGRES_APP_PASSWORD:?set in .env}
+    ports: ["127.0.0.1:5432:5432"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ../docker/postgres/init:/docker-entrypoint-initdb.d:ro
+      - ../packages/db/sql:/bootstrap:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gsa_owner -d gsa"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  pgdata:
