@@ -17,6 +17,9 @@ PORT=3000                       # loopback only; nginx proxies to it
 
 log() { printf '\n== %s\n' "$*"; }
 [[ $EUID -eq 0 ]] || { echo "Run as root."; exit 1; }
+# Package installs ask nothing, and needrestart only lists what it would
+# restart — it never restarts nginx, MySQL or anything the other app relies on.
+export DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=l NEEDRESTART_SUSPEND=1
 node -e 'process.exit(Number(process.versions.node.split(".")[0]) >= 24 ? 0 : 1)' \
   || { echo "Node 24 or later is needed (found $(node -v))."; exit 1; }
 
