@@ -47,7 +47,7 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
  * answer before the system can be used in earnest.
  */
 export function cleansingReport({ assessed, workbook, at }: ReportInput): string {
-  const parts = Object.entries(assessed) as [string, Assessed[keyof Assessed]][];
+  const parts = Object.entries(assessed);
   const issues = parts.flatMap(([, part]) => part.issues);
   const lines: string[] = [];
 

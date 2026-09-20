@@ -215,8 +215,11 @@ function disagreesWithCode(code: string, packSize: string, unit: string): boolea
 export type Assessed = {
   readonly categories: Assessment<CategoryRow>;
   readonly vendors: Assessment<VendorRow>;
+  readonly products: Assessment<ProductRow>;
   readonly skus: Assessment<SkuRow>;
   readonly stores: Assessment<StoreRow>;
+  readonly users: Assessment<UserRow>;
+  readonly vehicles: Assessment<VehicleRow>;
 };
 
 const find = (sheets: readonly Sheet[], name: string): Sheet => {
@@ -225,14 +228,222 @@ const find = (sheets: readonly Sheet[], name: string): Sheet => {
   return sheet;
 };
 
-/** The whole workbook, sheet by sheet. */
+/**
+ * The whole workbook, in the order the sheets depend on each other: products
+ * name a category and a vendor, and vehicles name a user, so those are read
+ * first and a reference to something absent is reported rather than invented.
+ */
 export function assess(sheets: readonly Sheet[]): Assessed {
+  const categories = assessCategories(find(sheets, 'Categories'));
+  const vendors = assessVendors(find(sheets, 'Vendors'));
+  const users = assessUsers(find(sheets, 'Users'));
   return {
-    categories: assessCategories(find(sheets, 'Categories')),
-    vendors: assessVendors(find(sheets, 'Vendors')),
+    categories,
+    vendors,
+    products: assessProducts(find(sheets, 'Products'), { categories: categories.loadable, vendors: vendors.loadable }),
     skus: assessSkus(find(sheets, 'SKUs')),
     stores: assessStores(find(sheets, 'Stores')),
+    users,
+    vehicles: assessVehicles(find(sheets, 'Vehicles'), users.loadable),
   };
 }
 
 export type { Issue, Sheet, SheetRows };
+
+export type ProductRow = {
+  readonly row: number; readonly nameEn: string; readonly nameAr: string;
+  readonly category: string; readonly subCategory: string; readonly productType: string;
+  readonly vendorCode: string; readonly origin: string; readonly shelfLifeMonths: number | null;
+  readonly varieties: readonly { readonly nameEn: string; readonly nameAr: string; readonly hybrid: boolean }[];
+};
+
+/**
+ * Sheet 3. One row per SKU, so a product with four varieties appears four
+ * times — expected, and the reason this folds rows into products rather than
+ * reading each as its own (CLIENT-DATA: 33 products, 37 product–variety pairs).
+ *
+ * A product whose category or vendor is not in the workbook is a broken
+ * reference, not something to create silently.
+ */
+export function assessProducts(
+  sheet: Sheet,
+  known: { readonly categories: readonly CategoryRow[]; readonly vendors: readonly VendorRow[] },
+): Assessment<ProductRow> {
+  const rows = sheetRows(sheet);
+  const at = {
+    type: columnOf(rows.headers, 'Product type'), category: columnOf(rows.headers, 'Category'),
+    sub: columnOf(rows.headers, 'Sub-category'), nameEn: columnOf(rows.headers, 'Product name (English)'),
+    nameAr: columnOf(rows.headers, 'Product name (Arabic)'), varietyEn: columnOf(rows.headers, 'Variety name (English)'),
+    varietyAr: columnOf(rows.headers, 'Variety name (Arabic)'), hybrid: columnOf(rows.headers, 'Hybrid'),
+    origin: columnOf(rows.headers, 'Country of origin'), vendor: columnOf(rows.headers, 'Vendor code'),
+    shelfLife: columnOf(rows.headers, 'Default shelf life'), shelfUnit: columnOf(rows.headers, 'Shelf life unit'),
+  };
+  const categories = new Set(known.categories.map((c) => c.nameEn.toLowerCase()));
+  const subCategories = new Set(known.categories.map((c) => c.subEn.toLowerCase()));
+  const vendors = new Set(known.vendors.map((v) => v.code.toLowerCase()));
+
+  const byProduct = new Map<string, { row: number; product: ProductRow; varieties: Map<string, { nameEn: string; nameAr: string; hybrid: boolean }> }>();
+  const issues: Issue[] = [];
+
+  for (const { row, cells } of rows.rows) {
+    const nameEn = valueAt(cells, at.nameEn);
+    const nameAr = valueAt(cells, at.nameAr);
+    if (!nameEn || !nameAr) {
+      issues.push(issue(rows.sheet, row, 'MISSING_REQUIRED_FIELD', 'needs a product name in both languages'));
+      continue;
+    }
+    const category = valueAt(cells, at.category);
+    const subCategory = valueAt(cells, at.sub);
+    const vendorCode = valueAt(cells, at.vendor);
+    if (category && !categories.has(category.toLowerCase())) {
+      issues.push(issue(rows.sheet, row, 'UNKNOWN_REFERENCE', `${nameEn} is in category "${category}", which the Categories sheet does not list`));
+      continue;
+    }
+    if (subCategory && !subCategories.has(subCategory.toLowerCase())) {
+      issues.push(issue(rows.sheet, row, 'UNKNOWN_REFERENCE', `${nameEn} is in sub-category "${subCategory}", which the Categories sheet does not list`));
+      continue;
+    }
+    if (vendorCode && !vendors.has(vendorCode.toLowerCase())) {
+      issues.push(issue(rows.sheet, row, 'UNKNOWN_REFERENCE', `${nameEn} names vendor ${vendorCode}, which the Vendors sheet does not list`));
+      continue;
+    }
+
+    const months = shelfLifeMonths(valueAt(cells, at.shelfLife), valueAt(cells, at.shelfUnit));
+    const key = nameEn.toLowerCase();
+    const existing = byProduct.get(key);
+    const varietyEn = valueAt(cells, at.varietyEn);
+    const variety = varietyEn
+      ? { nameEn: varietyEn, nameAr: valueAt(cells, at.varietyAr) || varietyEn, hybrid: /hybrid/i.test(valueAt(cells, at.hybrid)) && !/non/i.test(valueAt(cells, at.hybrid)) }
+      : null;
+
+    if (!existing) {
+      const varieties = new Map<string, { nameEn: string; nameAr: string; hybrid: boolean }>();
+      if (variety) varieties.set(variety.nameEn.toLowerCase(), variety);
+      byProduct.set(key, {
+        row,
+        product: { row, nameEn, nameAr, category, subCategory, productType: valueAt(cells, at.type), vendorCode, origin: valueAt(cells, at.origin), shelfLifeMonths: months, varieties: [] },
+        varieties,
+      });
+      continue;
+    }
+    // The same product on a later row must not disagree with itself.
+    if (existing.product.nameAr !== nameAr) {
+      issues.push(issue(rows.sheet, row, 'CONFLICTING_VALUE', `${nameEn} has one Arabic name on row ${existing.row} and another here`));
+    }
+    if (variety) existing.varieties.set(variety.nameEn.toLowerCase(), variety);
+  }
+
+  const loadable = [...byProduct.values()].map(({ product, varieties }) => ({ ...product, varieties: [...varieties.values()] }));
+  return { loadable, issues };
+}
+
+const shelfLifeMonths = (value: string, unit: string): number | null => {
+  const n = Number(value);
+  if (!value || Number.isNaN(n) || n <= 0) return null;
+  if (/month/i.test(unit)) return n;
+  if (/year/i.test(unit)) return n * 12;
+  if (/day/i.test(unit)) return Math.round(n / 30);
+  return null;
+};
+
+export type UserRow = {
+  readonly row: number; readonly name: string; readonly email: string | null;
+  readonly phone: string | null; readonly role: string;
+};
+
+/**
+ * Sheet 7. Four accounts. One seller signs in by phone rather than email
+ * (ADR-0018), which is allowed, so an account needs a name, a role, and at
+ * least one of the two ways to sign in.
+ */
+export function assessUsers(sheet: Sheet): Assessment<UserRow> {
+  const rows = sheetRows(sheet);
+  const at = {
+    name: columnOf(rows.headers, 'Full name'), email: columnOf(rows.headers, 'Email'),
+    phone: columnOf(rows.headers, 'Phone'), role: columnOf(rows.headers, 'Role'),
+  };
+  const roles = new Map([['super admin', 'ADMIN'], ['admin', 'ADMIN'], ['manager', 'MANAGER'], ['seller', 'SELLER'], ['warehouse', 'MANAGER']]);
+  const loadable: UserRow[] = [];
+  const issues: Issue[] = [];
+  const seen = new Set<string>();
+  for (const { row, cells } of rows.rows) {
+    const name = valueAt(cells, at.name);
+    const rawRole = valueAt(cells, at.role);
+    const role = roles.get(rawRole.toLowerCase());
+    if (!name || !rawRole) {
+      issues.push(issue(rows.sheet, row, 'MISSING_REQUIRED_FIELD', 'needs a full name and a role'));
+      continue;
+    }
+    if (!role) {
+      issues.push(issue(rows.sheet, row, 'UNKNOWN_REFERENCE', `"${rawRole}" is not a role this system has`));
+      continue;
+    }
+    const email = valueAt(cells, at.email) || null;
+    const phone = valueAt(cells, at.phone) ? safePhone(valueAt(cells, at.phone)) : null;
+    if (!email && !phone) {
+      issues.push(issue(rows.sheet, row, 'MISSING_REQUIRED_FIELD', `${name} has neither an email nor a usable phone, so they cannot sign in`));
+      continue;
+    }
+    const key = (email ?? phone ?? '').toLowerCase();
+    if (seen.has(key)) {
+      issues.push(issue(rows.sheet, row, 'CONFLICTING_VALUE', 'two accounts share the same email or phone'));
+      continue;
+    }
+    seen.add(key);
+    loadable.push({ row, name, email, phone, role });
+  }
+  return { loadable, issues };
+}
+
+export type VehicleRow = {
+  readonly row: number; readonly registration: string; readonly description: string;
+  readonly odometer: number; readonly assignee: string | null;
+};
+
+/**
+ * Sheet 8. Two vehicles. The assignee is a name typed by hand, so it is matched
+ * against the accounts rather than trusted: one matches a user by first name
+ * only and one matches nobody (CLIENT-DATA), and neither should quietly become
+ * an assignment to the wrong seller.
+ */
+export function assessVehicles(sheet: Sheet, users: readonly UserRow[]): Assessment<VehicleRow> {
+  const rows = sheetRows(sheet);
+  const at = {
+    registration: columnOf(rows.headers, 'Registration number'), description: columnOf(rows.headers, 'Description'),
+    odometer: columnOf(rows.headers, 'Current odometer'), status: columnOf(rows.headers, 'Status'),
+    assignee: columnOf(rows.headers, 'Currently assigned to'),
+  };
+  const loadable: VehicleRow[] = [];
+  const issues: Issue[] = [];
+  for (const { row, cells } of rows.rows) {
+    const registration = valueAt(cells, at.registration);
+    if (!registration) {
+      issues.push(issue(rows.sheet, row, 'MISSING_REQUIRED_FIELD', 'needs a registration number'));
+      continue;
+    }
+    const odometer = Number(valueAt(cells, at.odometer));
+    if (!valueAt(cells, at.odometer) || Number.isNaN(odometer) || odometer < 0) {
+      issues.push(issue(rows.sheet, row, 'MISSING_REQUIRED_FIELD', `${registration} needs a current odometer reading — it is the baseline every day's distance is measured from`));
+      continue;
+    }
+    const typed = valueAt(cells, at.assignee);
+    const assignee = typed ? matchUser(typed, users) : null;
+    if (typed && !assignee) {
+      issues.push(issue(rows.sheet, row, 'UNKNOWN_REFERENCE', `${registration} is assigned to a name that matches no account on the Users sheet`));
+    }
+    if (typed && assignee && assignee.partial) {
+      issues.push(issue(rows.sheet, row, 'NEEDS_CONFIRMATION', `${registration} is assigned by first name only — confirm which account is meant`));
+    }
+    loadable.push({ row, registration, description: valueAt(cells, at.description), odometer, assignee: assignee?.name ?? null });
+  }
+  return { loadable, issues };
+}
+
+/** A hand-typed name against the accounts: exact wins, a lone first-name match is flagged. */
+function matchUser(typed: string, users: readonly UserRow[]): { name: string; partial: boolean } | null {
+  const wanted = typed.trim().toLowerCase();
+  const exact = users.find((u) => u.name.toLowerCase() === wanted);
+  if (exact) return { name: exact.name, partial: false };
+  const byFirst = users.filter((u) => u.name.toLowerCase().split(/\s+/)[0] === wanted.split(/\s+/)[0]);
+  return byFirst.length === 1 && byFirst[0] ? { name: byFirst[0].name, partial: true } : null;
+}

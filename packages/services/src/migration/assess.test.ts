@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { assessCategories, assessSkus, assessStores, assessVendors } from './assess';
+import { assessCategories, assessProducts, assessSkus, assessStores, assessUsers, assessVehicles, assessVendors } from './assess';
 import { HEADER_ROW, type Cell, type Sheet } from './workbook';
 
 /** Synthetic, shaped like the workbook: client data never enters the repo. */
@@ -114,5 +114,96 @@ describe('assessing the workbook (MIG-001, MIG-003, MIG-005)', () => {
     const wrong = ['Shop name', 'Owner name', 'Phone', 'Store category', 'Address', 'City', 'Credit cycle', 'Custom cycle (days)', 'Credit limit (SAR)', 'Price list', 'Assigned seller'];
     expect(() => assessStores(aSheet('6. Stores', wrong, [['A', null, null, null, null, null, null, null, null, null, null]])))
       .toThrow(/no "Store name" column/);
+  });
+});
+
+describe('products, users and vehicles (MIG-001, MIG-003)', () => {
+  const PRODUCT_HEADERS = ['Product type', 'Category', 'Sub-category', 'Product name (English)', 'Product name (Arabic)',
+    'Variety name (English)', 'Variety name (Arabic)', 'Hybrid / Non-hybrid', 'Country of origin', 'Vendor code',
+    'Default shelf life', 'Shelf life unit'];
+  const known = {
+    categories: [{ nameEn: 'Seeds', nameAr: 'بذور', subEn: 'Hybrid', subAr: 'هجين' }],
+    vendors: [{ code: 'VEN-1', name: 'Supplier', contact: 'P', phone: null, email: null, country: 'IN' }],
+  };
+  const product = (name: string, ar: string, variety: string, hybrid = 'Hybrid F1'): Cell[] =>
+    ['Seed', 'Seeds', 'Hybrid', name, ar, variety, `${variety} AR`, hybrid, 'India', 'VEN-1', '24', 'Months'];
+
+  it('rows repeat per SKU, so a product with several varieties is still one product', () => {
+    const sheet = aSheet('3. Products', PRODUCT_HEADERS, [
+      product('Okra', 'بامية', 'Parbhani Kranti'),
+      product('Okra', 'بامية', 'Pusa Sawani'),
+      product('Radish', 'فجل', 'Cherry Belle'),
+    ]);
+    const { loadable, issues } = assessProducts(sheet, known);
+    expect(loadable.map((p) => p.nameEn)).toEqual(['Okra', 'Radish']);
+    expect(loadable[0]?.varieties.map((v) => v.nameEn)).toEqual(['Parbhani Kranti', 'Pusa Sawani']);
+    expect(issues).toEqual([]);
+  });
+
+  it('MIG-003: the same product with two different Arabic names is a conflict, not the later row winning', () => {
+    const sheet = aSheet('3. Products', PRODUCT_HEADERS, [
+      product('Bottle Gourd', 'قرع', 'F1'),
+      product('Bottle Gourd', 'يقطين', 'F2'),
+    ]);
+    const { loadable, issues } = assessProducts(sheet, known);
+    expect(loadable).toHaveLength(1);
+    expect(loadable[0]?.nameAr).toBe('قرع');
+    expect(issues).toMatchObject([{ kind: 'CONFLICTING_VALUE', row: 6 }]);
+  });
+
+  it('a product naming a vendor the workbook does not list is a broken reference, not a new vendor', () => {
+    const sheet = aSheet('3. Products', PRODUCT_HEADERS, [
+      ['Essential', 'Seeds', 'Hybrid', 'Shade Net', 'شبك', '', '', '', 'India', 'VEN-999', '24', 'Months'],
+    ]);
+    const { loadable, issues } = assessProducts(sheet, known);
+    expect(loadable).toEqual([]);
+    expect(issues).toMatchObject([{ kind: 'UNKNOWN_REFERENCE' }]);
+  });
+
+  it('shelf life is read in whatever unit it was given', () => {
+    const years = aSheet('3. Products', PRODUCT_HEADERS, [
+      ['Seed', 'Seeds', 'Hybrid', 'Okra', 'بامية', 'PK', 'PK AR', 'Hybrid F1', 'India', 'VEN-1', '2', 'Years'],
+    ]);
+    expect(assessProducts(years, known).loadable[0]?.shelfLifeMonths).toBe(24);
+  });
+
+  it('ADR-0018: a seller with a phone and no email can still sign in', () => {
+    const headers = ['Full name', 'Email', 'Phone', 'Role', 'Modules this person may access', 'Notes'];
+    const sheet = aSheet('7. Users', headers, [
+      ['A Person', 'a@dev.local', null, 'Admin', null, null],
+      ['B Person', null, '0512345678', 'Seller', null, null],
+      ['C Person', null, null, 'Seller', null, null],
+    ]);
+    const { loadable, issues } = assessUsers(sheet);
+    expect(loadable.map((u) => u.role)).toEqual(['ADMIN', 'SELLER']);
+    // The third has no way to sign in at all.
+    expect(issues).toMatchObject([{ kind: 'MISSING_REQUIRED_FIELD', row: 7 }]);
+  });
+
+  it('a role the system does not have is reported rather than guessed at', () => {
+    const headers = ['Full name', 'Email', 'Phone', 'Role', 'Modules this person may access', 'Notes'];
+    const sheet = aSheet('7. Users', headers, [['A Person', 'a@dev.local', null, 'Supervisor', null, null]]);
+    expect(assessUsers(sheet).issues).toMatchObject([{ kind: 'UNKNOWN_REFERENCE' }]);
+  });
+
+  it('ATT-012: a vehicle without an odometer reading has no baseline, so it is a question', () => {
+    const headers = ['Registration number', 'Description', 'Current odometer (km)', 'Status', 'Currently assigned to'];
+    const sheet = aSheet('8. Vehicles', headers, [['ABC 123', 'Pickup', null, 'Active', null]]);
+    expect(assessVehicles(sheet, []).issues).toMatchObject([{ kind: 'MISSING_REQUIRED_FIELD' }]);
+  });
+
+  it('an assignee is matched against the accounts, and a first-name-only match is confirmed not assumed', () => {
+    const headers = ['Registration number', 'Description', 'Current odometer (km)', 'Status', 'Currently assigned to'];
+    const users = [{ row: 5, name: 'Ahmed Hassan', email: 'a@dev.local', phone: null, role: 'SELLER' }];
+    const sheet = aSheet('8. Vehicles', headers, [
+      ['ABC 123', 'Pickup', '10000', 'Active', 'Ahmed'],
+      ['DEF 456', 'Pickup', '20000', 'Active', 'Someone Else'],
+    ]);
+    const { loadable, issues } = assessVehicles(sheet, users);
+    expect(loadable).toHaveLength(2);
+    expect(issues.map((i) => i.kind)).toEqual(['NEEDS_CONFIRMATION', 'UNKNOWN_REFERENCE']);
+    // Matched, but only tentatively — the loader must not assign on this alone.
+    expect(loadable[0]?.assignee).toBe('Ahmed Hassan');
+    expect(loadable[1]?.assignee).toBeNull();
   });
 });
