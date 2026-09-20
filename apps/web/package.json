@@ -27,6 +27,7 @@
     "zod": "4.6.5"
   },
   "devDependencies": {
+    "@formatjs/icu-messageformat-parser": "3.5.19",
     "@gsa/eslint-config": "workspace:*",
     "@gsa/tsconfig": "workspace:*",
     "@playwright/test": "1.63.0",

@@ -224,6 +224,9 @@ importers:
         specifier: 4.6.5
         version: 4.6.5
     devDependencies:
+      '@formatjs/icu-messageformat-parser':
+        specifier: 3.5.19
+        version: 3.5.19
       '@gsa/eslint-config':
         specifier: workspace:*
         version: link:../../tooling/eslint
