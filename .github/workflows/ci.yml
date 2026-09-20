@@ -59,6 +59,10 @@ jobs:
             -c "CREATE ROLE gsa_app LOGIN PASSWORD 'gsa_app_ci';"
           docker exec -i ${{ job.services.postgres.id }} psql -v ON_ERROR_STOP=1 -U gsa_owner -d gsa < packages/db/sql/bootstrap.sql
       - run: pnpm check
+      # SECURITY §8: a high-severity advisory in a shipped dependency fails the
+      # build. --prod only: a development-only advisory does not reach users,
+      # and stopping the line for one would teach everyone to ignore this step.
+      - run: pnpm audit --prod --audit-level high
       - run: pnpm test:integration
       - run: pnpm build
 
