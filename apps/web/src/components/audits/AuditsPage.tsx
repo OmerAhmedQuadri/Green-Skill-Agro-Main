@@ -29,11 +29,11 @@ export function AuditsPage({ overdue, canAudit }: { overdue: readonly OverdueVeh
   const queryClient = useQueryClient();
   const [vehicleId, setVehicleId] = useState('');
   const audits = useQuery({ queryKey: keys.audits(), queryFn: () => api<{ items: AuditSummary[] }>('/vehicle-audits') });
-  const vehicles = useQuery({ queryKey: keys.vehicles, queryFn: () => api<{ items: Vehicle[] }>('/vehicles'), enabled: canAudit });
+  const vehicles = useQuery({ queryKey: keys.vehicles, queryFn: () => api<Vehicle[]>('/vehicles'), enabled: canAudit });
   const start = useOnceCommand((body: unknown, key) => api<VehicleAudit>('/vehicle-audits', { method: 'POST', body, idempotencyKey: key }), {
     onSuccess: (a) => { void queryClient.invalidateQueries({ queryKey: keys.audits() }); router.push(`/console/audits/${a.id}`); },
   });
-  const active = (vehicles.data?.items ?? []).filter((v) => v.status === 'ACTIVE');
+  const active = (vehicles.data ?? []).filter((v) => v.status === 'ACTIVE');
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">

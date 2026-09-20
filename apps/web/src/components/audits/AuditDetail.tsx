@@ -86,7 +86,7 @@ export function AuditDetail({ id, canDecideSurplus }: { id: string; canDecideSur
                   <div className="text-xs text-stone-500"><bdi dir="ltr">{l.code}</bdi></div>
                 </Cell>
                 <Cell><span className="text-xs">{t('lotExpiry', { lot: l.lotNumber ?? '—', expiry: l.expiresOn ? format.date(l.expiresOn) : '—' })}</span></Cell>
-                <Cell>{format.number(l.expectedPacks)}</Cell>
+                <Cell><span data-testid={`system-${l.code}`}>{format.number(l.expectedPacks)}</span></Cell>
                 <Cell>
                   {open ? (
                     <Input aria-label={t('countedFor', { code: l.code, lot: l.lotNumber ?? '—' })} inputMode="numeric" dir="ltr" className="w-24"
