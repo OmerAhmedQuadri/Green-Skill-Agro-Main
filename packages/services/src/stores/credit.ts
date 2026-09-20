@@ -190,6 +190,13 @@ export type LedgerEntry = {
   readonly id: string; readonly occurredAt: Date; readonly entryType: 'SALE' | 'PAYMENT' | 'CREDIT_NOTE' | 'ADJUSTMENT';
   readonly amount: Money; readonly balance: Money; readonly dueOn: string | null; readonly open: Money | null;
   readonly note: string | null; readonly paymentNumber: string | null; readonly by: string;
+  /**
+   * What the entry came from, so the ledger can be read back to it. A credit
+   * note is always a return (the only place one is posted), and until this was
+   * carried through, the row said "Credit note" and led nowhere — which is why
+   * returns were invisible on a store's page.
+   */
+  readonly reference: { readonly type: string; readonly id: string };
 };
 
 /** RPT-008, CRD-003: the store's ledger, oldest first, with the running balance and what each debt still owes. */
@@ -214,6 +221,7 @@ export async function listStoreLedger(ctx: Ctx, storeId: string): Promise<Ledger
       id: r.e.id, occurredAt: r.e.occurredAt, entryType: r.e.entryType, amount: r.e.amount as Money, balance: toMoney(running),
       dueOn: r.e.dueOn, open: debit ? toMoney(dec(r.e.amount).minus(dec(r.settled))) : null, note: r.e.note,
       paymentNumber: r.paymentNumber, by: r.byName,
+      reference: { type: r.e.referenceType, id: r.e.referenceId },
     };
   });
 }
