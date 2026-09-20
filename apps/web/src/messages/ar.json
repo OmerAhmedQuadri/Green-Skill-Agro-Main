@@ -97,7 +97,8 @@
     "auditLog": "سجل التدقيق",
     "dispatch": "الإرسال",
     "cash": "النقد",
-    "audits": "الجرد"
+    "audits": "الجرد",
+    "targets": "الأهداف"
   },
   "dashboard": {
     "welcome": "مرحباً، {name}",
@@ -1086,7 +1087,11 @@
       "SETTLEMENT_SUBMITTED": "مبلغ {amount} نقدًا بانتظار موافقتك ({number}).",
       "SETTLEMENT_APPROVED": "تمت الموافقة على تسويتك {number} بمبلغ {amount}.",
       "SETTLEMENT_REJECTED": "لم تُقبل تسويتك {number} — أعد تقديمها.",
-      "CEILING_BREACHED": "{seller, select, undefined {تجاوزتَ} other {تجاوز {seller}}} حد {kind, select, CASH_IN_HAND {النقد} other {مخزون المركبة}}: {amount} مقابل {ceiling}."
+      "CEILING_BREACHED": "{seller, select, undefined {تجاوزتَ} other {تجاوز {seller}}} حد {kind, select, CASH_IN_HAND {النقد} other {مخزون المركبة}}: {amount} مقابل {ceiling}.",
+      "TARGET_SET": "تم تحديد هدف {name, select, undefined {لك} other {{name}}} لشهر {period}.",
+      "TARGET_BEHIND_PACE": "{name, select, undefined {أنت متأخر} other {{name} متأخر}} عن الوتيرة المطلوبة لشهر {period}.",
+      "TARGET_MISSED": "{name, select, undefined {لم تبلغ} other {لم يبلغ {name}}} هدف شهر {period}.",
+      "PERIOD_CLOSED": "شهر {period} نهائي، ولن يتغير رقم العمولة."
     }
   },
   "vehicles": {
@@ -1850,5 +1855,43 @@
     "statusHead": "الحالة",
     "differences": "الفروق",
     "differenceCount": "{shortfalls} ناقص، {surpluses} زائد"
+  },
+  "targets": {
+    "loading": "جارٍ التحميل…",
+    "listTitle": "الأهداف والعمولة",
+    "listSubtitle": "شهر كل بائع، وما حققه.",
+    "myTitle": "هدفي",
+    "period": "الشهر",
+    "seller": "البائع",
+    "progress": "التقدم",
+    "baseHead": "أساس العمولة",
+    "commissionHead": "العمولة",
+    "stateHead": "الحالة",
+    "noSellers": "لا يوجد بائعون بعد.",
+    "noTarget": "لم يُحدَّد هدف لهذا الشهر.",
+    "final": "نهائي",
+    "live": "جارٍ",
+    "behindPace": "أنت متأخر عن الوتيرة التي يتطلبها هذا الشهر. ما زال هناك وقت.",
+    "behindPaceShort": "متأخر عن الوتيرة",
+    "metAll": "تحققت جميع الأرقام.",
+    "notMetAll": "لم تتحقق جميع الأرقام بعد.",
+    "commissionTitle": "العمولة",
+    "base": "محتسبة على",
+    "rate": "النسبة",
+    "commission": "العمولة",
+    "noRate": "لم تُحدَّد نسبة",
+    "baseHint": "تُحتسب العمولة على النقد الذي وصل إلى الشركة — التحصيلات التي اعتمدها المدير، ناقص الائتمان المخصوم من ديون أخرى.",
+    "finalHint": "يصبح الشهر نهائياً بعد أيام قليلة من انتهائه، ولا تتغير أرقامه بعد ذلك.",
+    "setTarget": "تحديد هدف",
+    "changeTarget": "تعديل الهدف",
+    "saveTarget": "حفظ",
+    "cancel": "إلغاء",
+    "standingsTitle": "هذا الشهر",
+    "metrics": {
+      "REVENUE": "الإيرادات",
+      "PACKS_SOLD": "العبوات المباعة",
+      "NEW_STORES": "متاجر جديدة",
+      "COLLECTED": "المحصَّل"
+    }
   }
 }

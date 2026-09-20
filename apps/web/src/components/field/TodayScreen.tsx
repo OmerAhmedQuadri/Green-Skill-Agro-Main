@@ -2,8 +2,10 @@
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { sumMoney } from '@gsa/core';
-import { AlertTriangle, Banknote, ChevronRight, Coffee, LogIn, LogOut, PackageCheck, Store, Truck } from 'lucide-react';
+import { AlertTriangle, Banknote, ChevronRight, Coffee, LogIn, LogOut, PackageCheck, Store, Target, Truck } from 'lucide-react';
 import Link from 'next/link';
+import { TargetProgressBars } from '@/components/targets/TargetProgressBars';
+import type { TargetStanding as MyStanding } from '@/components/targets/types';
 import { useTranslations } from 'next-intl';
 import { useState } from 'react';
 import { Alert, Badge, Button, Card } from '@gsa/ui';
@@ -25,6 +27,7 @@ import type { Handover, Load, MyVehicle, Today } from './types';
 export function TodayScreen({ name }: { name: string }) {
   const t = useTranslations('field');
   const tCash = useTranslations('cash');
+  const tTargets = useTranslations('targets');
   const format = useFormat();
   const duration = useDuration();
   const errorText = useErrorText();
@@ -36,6 +39,8 @@ export function TodayScreen({ name }: { name: string }) {
   const handovers = useQuery({ queryKey: keys.handovers, queryFn: () => api<Handover[]>('/vehicle-handovers') });
   const cash = useQuery({ queryKey: keys.cashInHand, queryFn: () => api<{ cashInHand: string }>('/cash/me') });
   const portfolio = useQuery({ queryKey: keys.stores(), queryFn: () => api<StoreSummary[]>('/stores') });
+  // TGT-004: the seller's own month, in real time, beside the cash they are holding.
+  const standing = useQuery({ queryKey: keys.myStanding(), queryFn: () => api<MyStanding>('/targets/me') });
   const breakCmd = useCommand((action: 'start' | 'end', key) => api<Today>(`/attendance/breaks/${action}`, { method: 'POST', body: {}, idempotencyKey: key }),
     { onSuccess: (d) => queryClient.setQueryData(keys.today, d) });
 
@@ -146,6 +151,16 @@ export function TodayScreen({ name }: { name: string }) {
             {portfolio.data.some((p) => p.credit.blocked) ? <Badge tone="danger">{t('blockedStores', { count: portfolio.data.filter((p) => p.credit.blocked).length })}</Badge> : null}
           </Card>
         </Link>
+      ) : null}
+
+      {standing.data && standing.data.progress.metrics.length > 0 ? (
+        <Card className="space-y-2 p-4" data-testid="target-card">
+          <div className="flex items-center gap-2 text-sm font-medium text-stone-600"><Target className="size-4" aria-hidden />{tTargets('myTitle')}</div>
+          {/* TGT-006: said while there are still days left to do something about it. */}
+          {standing.data.behindPace ? <p className="text-sm text-amber-800" data-testid="today-behind-pace">{tTargets('behindPace')}</p> : null}
+          <TargetProgressBars metrics={standing.data.progress.metrics} testIdPrefix="today-metric" />
+          <Link href="/field/targets" className="text-sm font-medium text-brand-800 underline" data-testid="to-targets">{tTargets('commissionTitle')}</Link>
+        </Card>
       ) : null}
 
       {cash.data ? (

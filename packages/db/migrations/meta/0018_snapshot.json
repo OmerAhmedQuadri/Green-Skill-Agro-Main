@@ -1,5 +1,5 @@
 {
-  "id": "05a4b23b-6f54-476d-af8a-6671cef28239",
+  "id": "3d961fa1-7212-4d13-bea8-90a6a9f003a9",
   "prevId": "26a07aa7-18cb-4445-9072-29843489710d",
   "version": "7",
   "dialect": "postgresql",
@@ -14184,7 +14184,11 @@
         "SETTLEMENT_SUBMITTED",
         "SETTLEMENT_APPROVED",
         "SETTLEMENT_REJECTED",
-        "CEILING_BREACHED"
+        "CEILING_BREACHED",
+        "TARGET_SET",
+        "TARGET_BEHIND_PACE",
+        "TARGET_MISSED",
+        "PERIOD_CLOSED"
       ]
     },
     "public.attribute_mode": {

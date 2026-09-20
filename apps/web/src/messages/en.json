@@ -97,7 +97,8 @@
     "auditLog": "Audit log",
     "dispatch": "Dispatch",
     "cash": "Cash",
-    "audits": "Audits"
+    "audits": "Audits",
+    "targets": "Targets"
   },
   "dashboard": {
     "welcome": "Welcome, {name}",
@@ -1086,7 +1087,11 @@
       "SETTLEMENT_SUBMITTED": "{amount} of cash is waiting for your approval ({number}).",
       "SETTLEMENT_APPROVED": "Your settlement {number} was approved for {amount}.",
       "SETTLEMENT_REJECTED": "Your settlement {number} was not accepted — submit it again.",
-      "CEILING_BREACHED": "{seller, select, undefined {You are} other {{seller} is}} over the {kind, select, CASH_IN_HAND {cash} other {vehicle stock}} limit: {amount} against {ceiling}."
+      "CEILING_BREACHED": "{seller, select, undefined {You are} other {{seller} is}} over the {kind, select, CASH_IN_HAND {cash} other {vehicle stock}} limit: {amount} against {ceiling}.",
+      "TARGET_SET": "{name, select, undefined {Your} other {{name}’s}} target for {period} has been set.",
+      "TARGET_BEHIND_PACE": "{name, select, undefined {You are} other {{name} is}} behind the pace needed for {period}.",
+      "TARGET_MISSED": "{name, select, undefined {You} other {{name}}} did not reach the target for {period}.",
+      "PERIOD_CLOSED": "{period} is final. The commission figure will not change."
     }
   },
   "vehicles": {
@@ -1850,5 +1855,43 @@
     "statusHead": "Status",
     "differences": "Differences",
     "differenceCount": "{shortfalls} short, {surpluses} extra"
+  },
+  "targets": {
+    "loading": "Loading…",
+    "listTitle": "Targets and commission",
+    "listSubtitle": "Each seller's month, and what it earned.",
+    "myTitle": "My target",
+    "period": "Month",
+    "seller": "Seller",
+    "progress": "Progress",
+    "baseHead": "Commission base",
+    "commissionHead": "Commission",
+    "stateHead": "State",
+    "noSellers": "No sellers yet.",
+    "noTarget": "No target set for this month.",
+    "final": "Final",
+    "live": "Live",
+    "behindPace": "You are behind the pace this month needs. There is still time.",
+    "behindPaceShort": "Behind pace",
+    "metAll": "Every figure reached.",
+    "notMetAll": "Not every figure reached yet.",
+    "commissionTitle": "Commission",
+    "base": "Earned on",
+    "rate": "Rate",
+    "commission": "Commission",
+    "noRate": "No rate set",
+    "baseHint": "Commission is earned on cash that reached the business — collections a manager has approved, less credit given back against other debts.",
+    "finalHint": "A month becomes final a few days after it ends. Its figures never change afterwards.",
+    "setTarget": "Set a target",
+    "changeTarget": "Change the target",
+    "saveTarget": "Save",
+    "cancel": "Cancel",
+    "standingsTitle": "This month",
+    "metrics": {
+      "REVENUE": "Revenue",
+      "PACKS_SOLD": "Packs sold",
+      "NEW_STORES": "New stores",
+      "COLLECTED": "Collected"
+    }
   }
 }

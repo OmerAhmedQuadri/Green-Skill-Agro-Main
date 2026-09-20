@@ -1,3 +1,7 @@
+ALTER TYPE "public"."notification_kind" ADD VALUE 'TARGET_SET';--> statement-breakpoint
+ALTER TYPE "public"."notification_kind" ADD VALUE 'TARGET_BEHIND_PACE';--> statement-breakpoint
+ALTER TYPE "public"."notification_kind" ADD VALUE 'TARGET_MISSED';--> statement-breakpoint
+ALTER TYPE "public"."notification_kind" ADD VALUE 'PERIOD_CLOSED';--> statement-breakpoint
 CREATE TABLE "commission_periods" (
 	"id" uuid PRIMARY KEY NOT NULL,
 	"seller_id" uuid NOT NULL,

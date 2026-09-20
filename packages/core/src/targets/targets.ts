@@ -10,8 +10,12 @@ import { businessDate, businessDayStart } from '../time';
 export const TARGET_METRICS = ['REVENUE', 'PACKS_SOLD', 'NEW_STORES', 'COLLECTED'] as const;
 export type TargetMetric = (typeof TARGET_METRICS)[number];
 
-/** A goal left out is not part of that seller's month (TGT-003). */
-export type TargetGoals = Partial<Record<TargetMetric, string>>;
+/**
+ * A goal left out is not part of that seller's month (TGT-003). `| undefined`
+ * is explicit because the project runs `exactOptionalPropertyTypes`, and a
+ * parsed request carries an absent field as an explicit undefined.
+ */
+export type TargetGoals = { readonly [M in TargetMetric]?: string | undefined };
 export type TargetActuals = Record<TargetMetric, string>;
 
 export type MetricProgress = {
@@ -54,9 +58,12 @@ export function assertGoals(goals: TargetGoals): void {
  */
 export function targetProgress(goals: TargetGoals, actuals: TargetActuals): TargetProgress {
   const metrics = TARGET_METRICS.filter((m) => goals[m] !== undefined).map((metric) => {
-    const goal = dec(goals[metric] ?? '0');
-    const actual = dec(actuals[metric]);
-    return { metric, goal: goal.toString(), actual: actual.toString(), achievement: rate(actual, goal), met: actual.gte(goal) };
+    const goalText = goals[metric] ?? '0';
+    const actualText = actuals[metric];
+    const [goal, actual] = [dec(goalText), dec(actualText)];
+    // Both are passed through as given: money arrives with its fils, a count without.
+    // Restyling them here would make the figures disagree with everything else on the screen.
+    return { metric, goal: goalText, actual: actualText, achievement: rate(actual, goal), met: actual.gte(goal) };
   });
   return { metrics, met: metrics.length > 0 && metrics.every((m) => m.met) };
 }

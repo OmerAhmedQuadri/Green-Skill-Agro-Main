@@ -1,6 +1,6 @@
 import { loadConfig } from '@gsa/config';
 import { BUSINESS_TIME_ZONE } from '@gsa/core';
-import { attendance, cash, getMailer, media, notifications, sales } from '@gsa/services';
+import { attendance, cash, getMailer, media, notifications, sales, targets } from '@gsa/services';
 import { PgBoss } from 'pg-boss';
 import { chromiumRenderer } from './pdf';
 
@@ -57,6 +57,26 @@ await boss.work('ceilings.check', async () => {
   if (result.raised + result.reminded + result.cleared > 0) {
     console.log(`[worker] ceilings.check raised ${result.raised}, reminded ${result.reminded}, cleared ${result.cleared}`);
   }
+});
+
+// TGT-005, COM-008 (ADR-0042): a few days after a month ends its figures freeze
+// into a snapshot, once per seller, and sellers who missed a target are told.
+// Runs at 01:00 Riyadh, when nothing else is competing for the database.
+await boss.createQueue('targets.close');
+await boss.schedule('targets.close', '0 1 * * *', null, { tz: BUSINESS_TIME_ZONE });
+await boss.work('targets.close', async () => {
+  const result = await targets.sweepPeriods(new Date());
+  if (result.frozen > 0) console.log(`[worker] targets.close froze ${result.frozen}, ${result.missed} missed`);
+});
+
+// TGT-006: mid-month, sellers far enough behind the pace their target needs are
+// told, and so are their managers. Once a day is often enough to be useful
+// without becoming noise.
+await boss.createQueue('targets.pace');
+await boss.schedule('targets.pace', '0 6 * * *', null, { tz: BUSINESS_TIME_ZONE });
+await boss.work('targets.pace', async () => {
+  const result = await targets.sweepPace(new Date());
+  if (result.warned > 0) console.log(`[worker] targets.pace warned ${result.warned}`);
 });
 
 // ADR-0019, ADR-0037: print delivery documents from their outbox. Chromium starts with the first
