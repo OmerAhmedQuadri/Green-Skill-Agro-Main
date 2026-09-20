@@ -4,9 +4,13 @@ import { anAccount, ctxFor } from '../../test/factories';
 import { aPhoto } from '../../test/media';
 import { aSellingSeller } from '../../test/sales';
 import { decideSettlement, submitSettlement } from '../cash';
+import { listMyNotifications } from '../notifications';
+import { recordReturn } from '../returns';
+import { recordPayment } from '../stores';
+import { getDb } from '../runtime';
 import { recordSale } from '../sales';
 import { setCommissionRate, updateSettings } from '../system';
-import { closePeriods, listStandings, listTargets, myStanding, setTarget } from './index';
+import { checkPace, closePeriods, listStandings, listTargets, myStanding, setTarget, settledCashByPeriod } from './index';
 
 const code = async (p: Promise<unknown>) => p.then(() => 'NO_ERROR', (e: DomainError) => e.code ?? String(e));
 const admin = async (now?: Date) => ctxFor(await anAccount('ADMIN'), now ? { now } : {});
@@ -37,7 +41,7 @@ async function aSellerWhoSettled(ctx: Awaited<ReturnType<typeof admin>>, approve
 }
 
 describe('monthly targets and commission (workflow O, TGT-001..006, COM-001..009)', () => {
-  it('TGT-001..003: a target is one seller, one month, and any combination of the four figures', async () => {
+  it('TGT-001, TGT-002, TGT-003: a target is one seller, one calendar month, and any combination of the four figures', async () => {
     const ctx = await admin();
     const { seller } = await aSellingSeller(ctx);
     const set = await setTarget(ctx, { sellerId: seller.account.id, period, goals: { REVENUE: '50000.00', NEW_STORES: '4' } });
@@ -115,5 +119,64 @@ describe('monthly targets and commission (workflow O, TGT-001..006, COM-001..009
     // Written once: a second run adds nothing, and the frozen month cannot be retargeted.
     expect((await closePeriods(await admin(monthsOn(1)))).frozen).toBe(0);
     expect(await code(setTarget(later, { sellerId: setup.seller.account.id, period, goals: { REVENUE: '100.00' } }))).toBe('PERIOD_CLOSED');
+  });
+
+  it('TGT-006: a seller far enough behind the pace their month needs is told, and so are their managers', async () => {
+    const ctx = await admin();
+    const setup = await aSellerWhoSettled(ctx);
+    // A goal far beyond what they have sold, with the month well under way.
+    await setTarget(ctx, { sellerId: setup.seller.account.id, period, goals: { REVENUE: '500000.00' } });
+    await updateSettings(ctx, [{ key: 'targets.pace_threshold_percent', value: 80 }]);
+    const midMonth = new Date();
+    midMonth.setUTCDate(20);
+    const later = await ctxFor(await anAccount('ADMIN'), { now: midMonth });
+
+    const standing = await myStanding({ ...setup.seller.ctx, now: midMonth });
+    expect(standing.behindPace).toBe(true);
+    const warned = await checkPace(later);
+    expect(warned.warned).toBeGreaterThan(0);
+    const mine = await listMyNotifications(setup.seller.ctx, {});
+    expect(mine.items.map((notification) => notification.kind)).toContain('TARGET_BEHIND_PACE');
+
+    // A goal they have already passed is not behind anything.
+    await setTarget(ctx, { sellerId: setup.seller.account.id, period, goals: { REVENUE: '1.00' } });
+    expect((await myStanding({ ...setup.seller.ctx, now: midMonth })).behindPace).toBe(false);
+  });
+
+  it('COM-005: cash counts in the month it was received, once a manager approved it', async () => {
+    const ctx = await admin();
+    const setup = await aSellerWhoSettled(ctx);
+    const settled = (await settledCashByPeriod(getDb(), [setup.seller.account.id], 3)).get(setup.seller.account.id);
+    // Collected and approved today, so it belongs to this month and no other.
+    expect(settled?.get(period)).toBe('270.00');
+    expect([...(settled?.keys() ?? [])]).toEqual([period]);
+  });
+
+  it('COM-009: credit given against a store\'s other debts comes out of the base; credit against the sale itself does not', async () => {
+    const ctx = await admin();
+    const setup = await aSellingSeller(ctx, { packs: 12, creditMode: 'WEEKLY', creditLimit: '20000.00' });
+    // One sale paid for, one left unpaid: the store owes for the second.
+    const paid = await recordSale(setup.seller.ctx, { storeId: setup.store.id, lines: [{ skuId: setup.bag.id, packs: 3 }] });
+    await recordSale(setup.seller.ctx, { storeId: setup.store.id, lines: [{ skuId: setup.bag.id, packs: 2 }] });
+    await recordPayment(setup.seller.ctx, { storeId: setup.store.id, amount: paid.total, method: 'CASH' });
+    const declared = await submitSettlement(setup.seller.ctx, {
+      route: 'BANK_DEPOSIT', amount: paid.total, depositedOn: '2026-09-20', photoId: await aPhoto(setup.seller.ctx, 'DEPOSIT_SLIP'),
+    });
+    await decideSettlement(ctx, declared.id, { version: declared.version, approve: true });
+    const before = await myStanding(setup.seller.ctx);
+    expect(before.base).toBe('270.00');
+
+    // Goods back from the sale that was paid for: the money stays with the
+    // business, a receivable is cancelled instead, so the commission reverses.
+    const line = paid.lines[0];
+    if (!line) throw new Error('the sale has no lines');
+    // RET-002: "uncleared payment" is for a sale still unpaid, so a sale that has
+    // been paid for comes back as defective — the system refuses the other way round.
+    await recordReturn(setup.seller.ctx, {
+      saleId: paid.id, kind: 'CREDIT_NOTE', condition: 'DEFECTIVE',
+      lines: [{ saleLineId: line.id, batchId: setup.bagBatch.batchId, packs: 1, saleable: false }],
+    });
+    const after = await myStanding(setup.seller.ctx);
+    expect(Number(after.base)).toBeLessThan(Number(before.base));
   });
 });

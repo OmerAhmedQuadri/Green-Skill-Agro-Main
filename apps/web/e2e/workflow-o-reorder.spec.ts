@@ -17,7 +17,7 @@ const fill = (template: string, values: Record<string, string | number>) =>
  */
 for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
   const n = (v: string) => (locale === 'ar' ? v.replace(/\d/g, (d) => '٠١٢٣٤٥٦٧٨٩'[Number(d)] ?? d) : v);
-  test(`Workflow O (${locale}) — RPT-001..006, RPT-011, PO-008: demand, a projection at the lead time, and a draft order`, async ({ browser, baseURL }) => {
+  test(`Workflow O (${locale}) — RPT-001, RPT-002, RPT-004, RPT-005, RPT-006, RPT-011, PO-008: demand, a projection at the lead time, and a draft order`, async ({ browser, baseURL }) => {
     test.setTimeout(480_000);
     const origin = baseURL ?? '';
     const stamp = String(Date.now()).slice(-6);
@@ -52,8 +52,6 @@ for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
 
     await admin.goto('/console/reports');
     await expect(admin.locator('html')).toHaveAttribute('dir', locale === 'ar' ? 'rtl' : 'ltr');
-    // RPT-003, RPT-007..010: the five that already have a screen link to it rather than repeat it.
-    await expect(admin.getByTestId('report-stock')).toBeVisible();
     await admin.getByTestId('report-reorder').click();
     await admin.waitForURL(/\/console\/reports\/reorder$/);
 
@@ -114,5 +112,23 @@ for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
     // I18N-003: the product name renders in the reader's language, so match the
     // row by what it is rather than by an English word.
     await expect(admin.getByTestId(/^trend-/).first()).toBeVisible();
+  });
+}
+
+/**
+ * §11's other five outputs are readings of data an operational screen already
+ * shows properly, so the reports page sends the reader there rather than
+ * rendering a second copy of the same figures (the project lead's decision).
+ */
+for (const locale of ['en', 'ar'] as const) {
+  test(`Reports index (${locale}) — RPT-003, RPT-007, RPT-008, RPT-009, RPT-010: the outputs that already have a screen link to it`, async ({ browser, baseURL }) => {
+    const admin = await sessionPage(browser, 'admin@dev.local', locale, baseURL ?? '');
+    await admin.goto('/console/reports');
+    for (const [entry, href] of [
+      ['stock', '/console/stock'], ['expiry', '/console/expiry'], ['collections', '/console/stores'],
+      ['dispatch', '/console/dispatch'], ['performance', '/console/targets'],
+    ] as const) {
+      await expect(admin.getByTestId(`report-${entry}`)).toHaveAttribute('href', href);
+    }
   });
 }

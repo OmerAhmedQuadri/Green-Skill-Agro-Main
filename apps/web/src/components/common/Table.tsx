@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import type { ReactNode, TdHTMLAttributes } from 'react';
 
 export function Table({ head, children }: { head: ReactNode[]; children: ReactNode }) {
   return (
@@ -13,6 +13,12 @@ export function Table({ head, children }: { head: ReactNode[]; children: ReactNo
   );
 }
 
-export const Cell = ({ children, className = '' }: { children?: ReactNode; className?: string }) => (
-  <td className={`px-4 py-3 align-top ${className}`}>{children}</td>
+/**
+ * Forwards whatever else it is given to the `<td>`. It used to accept only
+ * `children` and `className`, which silently swallowed `data-testid` — a test
+ * then waited for an element that could never appear, until the whole run
+ * timed out. `Badge` and `Alert` already spread; this matches them.
+ */
+export const Cell = ({ children, className = '', ...props }: TdHTMLAttributes<HTMLTableCellElement>) => (
+  <td className={`px-4 py-3 align-top ${className}`} {...props}>{children}</td>
 );
