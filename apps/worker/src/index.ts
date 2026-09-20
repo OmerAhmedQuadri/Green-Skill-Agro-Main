@@ -1,6 +1,6 @@
 import { loadConfig } from '@gsa/config';
 import { BUSINESS_TIME_ZONE } from '@gsa/core';
-import { attendance, cash, getMailer, media, notifications, sales, targets } from '@gsa/services';
+import { attendance, cash, getMailer, media, notifications, reports, sales, targets } from '@gsa/services';
 import { PgBoss } from 'pg-boss';
 import { chromiumRenderer } from './pdf';
 
@@ -77,6 +77,26 @@ await boss.schedule('targets.pace', '0 6 * * *', null, { tz: BUSINESS_TIME_ZONE 
 await boss.work('targets.pace', async () => {
   const result = await targets.sweepPace(new Date());
   if (result.warned > 0) console.log(`[worker] targets.pace warned ${result.warned}`);
+});
+
+// RPT-001, RPT-002 (ADR-0043): rebuild the sales rollup that the trends and the
+// demand rate read. Derived data — a rebuild replaces the days it covers, so
+// running it twice changes nothing. Hourly, because a trend that is an hour old
+// is still a trend and the rebuild is cheap.
+await boss.createQueue('reports.rollup');
+await boss.schedule('reports.rollup', '20 * * * *', null, { tz: BUSINESS_TIME_ZONE });
+await boss.work('reports.rollup', async () => {
+  const result = await reports.sweepRollup(new Date());
+  if (result.rows > 0) console.log(`[worker] reports.rollup rebuilt ${result.rows} rows over ${result.days} days`);
+});
+
+// RPT-004..006: record what the projection advised and on what figures. The
+// screen recomputes on read against live stock (ADR-0043); this is the history.
+await boss.createQueue('reports.forecast');
+await boss.schedule('reports.forecast', '30 2 * * *', null, { tz: BUSINESS_TIME_ZONE });
+await boss.work('reports.forecast', async () => {
+  const result = await reports.sweepForecast(new Date());
+  if (result.built > 0) console.log(`[worker] reports.forecast ${result.built} forecast, ${result.toOrder} to order`);
 });
 
 // ADR-0019, ADR-0037: print delivery documents from their outbox. Chromium starts with the first

@@ -412,14 +412,19 @@ export async function createSku(
  * and variety cannot change (DATA-MODEL §5.1) — that is a new SKU.
  */
 export async function updateSku(
-  ctx: Ctx, id: string, input: { version: number; code?: string | undefined; isActive?: boolean | undefined },
+  ctx: Ctx, id: string,
+  input: { version: number; code?: string | undefined; isActive?: boolean | undefined; safetyCoverDays?: number | null | undefined },
 ): Promise<ProductDetail> {
   authorize(ctx, 'catalogue.manage_products');
   return inTx(ctx, async (tx) => {
     const [current] = await tx.select().from(skus).where(eq(skus.id, id));
     if (!current) throw new DomainError('NOT_FOUND', { entity: 'sku', id });
     const code = input.code === undefined ? current.code : normaliseSkuCode(input.code);
-    const next = { code, codeOverridden: current.codeOverridden || code !== current.code, isActive: input.isActive ?? current.isActive };
+    const next = {
+      code, codeOverridden: current.codeOverridden || code !== current.code, isActive: input.isActive ?? current.isActive,
+      // RPT-004: a null is a deliberate "do not forecast this", not an omission.
+      safetyCoverDays: input.safetyCoverDays === undefined ? current.safetyCoverDays : input.safetyCoverDays,
+    };
     const [row] = await mapUniqueViolations(tx.update(skus)
       .set({ ...next, updatedAt: ctx.now, updatedBy: ctx.user.id, version: current.version + 1 })
       .where(and(eq(skus.id, id), eq(skus.version, input.version)))

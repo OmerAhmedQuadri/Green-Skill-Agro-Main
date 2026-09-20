@@ -1,7 +1,7 @@
 import { businessDate, type UserId } from '@gsa/core';
 import { newId, schema } from '@gsa/db';
 import { and, eq, gte, inArray, lt, sql } from 'drizzle-orm';
-import type { Ctx } from '../context';
+import { authorize, type Ctx } from '../context';
 import { inTx, type Executor } from '../platform';
 import { defaultBranchId, getDb } from '../runtime';
 
@@ -104,6 +104,16 @@ export const dayAfter = (day: string): string => new Date(Date.parse(`${day}T00:
 /** `count` days back from and including `day`. */
 export const daysBack = (day: string, count: number): string =>
   new Date(Date.parse(`${day}T00:00:00Z`) - count * DAY_MS).toISOString().slice(0, 10);
+
+/**
+ * RPT-001: rebuild on demand. A manager who has just corrected something should
+ * not have to wait an hour to see the trend catch up, and the rebuild replaces
+ * the days it covers, so asking for it twice costs nothing.
+ */
+export async function rebuildNow(ctx: Ctx, days = 2): Promise<{ days: number; rows: number }> {
+  authorize(ctx, 'reports.view_trends');
+  return rebuildRecentDays(ctx, days);
+}
 
 /**
  * The nightly pass. Rebuilds yesterday and today — today because sales are

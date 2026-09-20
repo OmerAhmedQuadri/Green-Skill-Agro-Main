@@ -74,7 +74,7 @@ export function ReorderScreen() {
                     {format.number(i.projectedAtArrival)}
                   </span>
                 </Cell>
-                <Cell>{format.number(i.safetyLevel)}</Cell>
+                <Cell><span data-testid={`safety-${i.code}`}>{format.number(i.safetyLevel)}</span></Cell>
                 <Cell>
                   {i.suggested > 0
                     ? <Badge tone="warning" data-testid={`suggested-${i.code}`}>{format.number(i.suggested)}</Badge>

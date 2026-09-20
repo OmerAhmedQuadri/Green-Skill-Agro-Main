@@ -66,7 +66,13 @@ export const CreateSkuRequest = z.object({
   code: z.string().trim().max(40).optional().transform((v) => v || undefined), // CAT-008 override
   prices: z.array(z.object({ priceListId: z.uuid(), price: MoneyString })).max(20).optional(),
 });
-export const UpdateSkuRequest = z.object({ version: Version, code: z.string().trim().min(1).max(40).optional(), isActive: z.boolean().optional() });
+export const UpdateSkuRequest = z.object({
+  version: Version,
+  code: z.string().trim().min(1).max(40).optional(),
+  isActive: z.boolean().optional(),
+  /** RPT-004, OQ-023: days of cover the reorder projection keeps. Null stops forecasting this SKU. */
+  safetyCoverDays: z.coerce.number().int().min(1).max(365).nullable().optional(),
+});
 
 /** GET /products/:id/sku-code — the size arrives as query parameters. */
 export const SkuCodePreviewQuery = z.object({
