@@ -1,5 +1,5 @@
 export {
-  assess, assessCategories, assessProducts, assessSkus, assessStores, assessUsers, assessVehicles, assessVendors,
+  assess, survey, type Survey, type SheetState, assessCategories, assessProducts, assessSkus, assessStores, assessUsers, assessVehicles, assessVendors,
   type Assessed, type Assessment, type CategoryRow, type ExampleRows, type Hybrid, type Issue,
   type ProductRow, type Sheet, type SkuRow, type StoreRow, type UserRow, type VehicleRow, type VendorRow,
 } from './assess';

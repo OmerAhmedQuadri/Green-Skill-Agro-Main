@@ -6,7 +6,7 @@ import { schema } from '@gsa/db';
 import { eq } from 'drizzle-orm';
 import readXlsxFile from 'read-excel-file/node';
 import { loadOverrides } from '../identity';
-import { assess, cleansingReport, exampleRows, loadWorkbook, verificationReport, type Sheet } from '../migration';
+import { assess, cleansingReport, exampleRows, loadWorkbook, survey, verificationReport, type Sheet } from '../migration';
 import { closeDb, getDb } from '../runtime';
 
 /**
@@ -39,11 +39,14 @@ const beside = (suffix: string) => join(args.get('out') ?? dirname(workbook), su
 // ------------------------------------------------------------------ assess
 
 const sheets = (await readXlsxFile(workbook)) as unknown as Sheet[];
-const assessed = assess(sheets, exampleRows(readFileSync(workbook)));
+const examples = exampleRows(readFileSync(workbook));
+const assessed = assess(sheets, examples);
 const at = new Date();
 
 const reportPath = beside('cleansing-report.md');
-writeFileSync(reportPath, cleansingReport({ assessed, workbook: basename(workbook), at }));
+writeFileSync(reportPath, cleansingReport({
+  assessed, survey: survey(sheets, examples, assessed), workbook: basename(workbook), at,
+}));
 
 const counts = Object.entries(assessed).map(([name, part]) => `${name} ${part.loadable.length}/${part.loadable.length + part.issues.length}`);
 console.log(`read ${basename(workbook)}: ${counts.join(', ')}`);

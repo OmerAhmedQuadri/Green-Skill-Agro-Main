@@ -1,4 +1,4 @@
-import type { Assessed } from './assess';
+import type { Assessed, Survey } from './assess';
 import type { Issue } from './workbook';
 
 /**
@@ -36,6 +36,8 @@ const WHAT_TO_DO: Record<Issue['kind'], string> = {
 
 export type ReportInput = {
   readonly assessed: Assessed;
+  /** The sheets nobody has answered for, which a list of problems would not show. */
+  readonly survey: Survey;
   readonly workbook: string;
   readonly at: Date;
 };
@@ -46,7 +48,7 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
  * MIG-001, MIG-004: what loaded, what did not, and what Green Agro has to
  * answer before the system can be used in earnest.
  */
-export function cleansingReport({ assessed, workbook, at }: ReportInput): string {
+export function cleansingReport({ assessed, survey, workbook, at }: ReportInput): string {
   const parts = Object.entries(assessed);
   const issues = parts.flatMap(([, part]) => part.issues);
   const lines: string[] = [];
@@ -77,8 +79,37 @@ export function cleansingReport({ assessed, workbook, at }: ReportInput): string
   }
   lines.push('');
 
+  if (survey.untouched.length > 0) {
+    lines.push(`## Sheets that came back exactly as we sent them (${survey.untouched.length})`);
+    lines.push('');
+    lines.push('Every row on these is still one of our worked examples — we can tell,');
+    lines.push('because the template tints its own. Nothing on them has been loaded.');
+    lines.push('');
+    lines.push('This matters more than an empty sheet would: where a sheet sets how the');
+    lines.push('system behaves, leaving it means running on our suggestions rather than');
+    lines.push('your decisions. Say so if the suggestions are right and we will adopt them');
+    lines.push('as they stand.');
+    lines.push('');
+    for (const { sheet, rows } of survey.untouched) lines.push(`- **${sheet}** — all ${plural(rows, 'row', 'rows')}`);
+    lines.push('');
+  }
+
+  if (survey.unread.length > 0) {
+    lines.push('## Sheets this report does not cover');
+    lines.push('');
+    lines.push('Read as part of the setup, not the import, so nothing on them appears above.');
+    lines.push('Where rows of ours are still on them, the count says how many.');
+    lines.push('');
+    for (const { sheet, rows, shaded } of survey.unread) {
+      lines.push(shaded > 0
+        ? `- **${sheet}** — ${shaded} of its ${plural(rows, 'row', 'rows')} still ours`
+        : `- **${sheet}** — ${plural(rows, 'row', 'rows')}`);
+    }
+    lines.push('');
+  }
+
   if (issues.length === 0) {
-    lines.push('Nothing needs confirming. Every row in the workbook loaded.');
+    lines.push('Nothing else needs confirming. Every row in the sheets above loaded.');
     return `${lines.join('\n')}\n`;
   }
 

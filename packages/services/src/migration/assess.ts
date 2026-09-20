@@ -302,6 +302,37 @@ export function assess(sheets: readonly Sheet[], examples: ExampleRows): Assesse
   };
 }
 
+/**
+ * The sheets nobody has answered for: ones where every row is still the
+ * template's, and ones no assessor reads.
+ *
+ * Silence is the failure mode worth guarding against. A sheet returned exactly
+ * as it was sent looks, in a report that only lists problems, identical to a
+ * sheet that was filled in perfectly — and Phase 1 has sheets whose defaults
+ * decide real behaviour. The shading tells the two apart (`styles.ts`).
+ */
+export type SheetState = { readonly sheet: string; readonly rows: number; readonly shaded: number };
+export type Survey = { readonly untouched: readonly SheetState[]; readonly unread: readonly SheetState[] };
+
+export function survey(sheets: readonly Sheet[], examples: ExampleRows, assessed: Assessed): Survey {
+  const read = new Set(Object.values(assessed).map((part: Assessment<unknown>) => part.sheet));
+  const untouched: SheetState[] = [];
+  const unread: SheetState[] = [];
+  for (const sheet of sheets) {
+    const rows = sheetRows(sheet);
+    // The title sheet carries guidance, not data, so it is neither.
+    if (rows.rows.length === 0 || rows.headers.every((h) => h === '')) continue;
+    const shaded = examplesOf(examples, rows.sheet);
+    const state = { sheet: rows.sheet, rows: rows.rows.length, shaded: rows.rows.filter(({ row }) => shaded.has(row)).length };
+    // Counted rather than judged: a sheet whose every row is ours is certain,
+    // and for the rest the count says how much of it is still ours — which is
+    // a fact Green Agro can act on without anyone guessing on their behalf.
+    if (state.shaded > 0 && state.shaded === state.rows) untouched.push(state);
+    else if (!read.has(rows.sheet)) unread.push(state);
+  }
+  return { untouched, unread };
+}
+
 export type { ExampleRows } from './styles';
 export type { Issue, Sheet, SheetRows };
 
