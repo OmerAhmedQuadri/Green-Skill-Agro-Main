@@ -154,6 +154,32 @@ export function toProblem(error: unknown, requestId: string): Response {
     return problem(status, error.code, requestId, { ...error.details }, retryAfter);
   }
   // Unexpected: log with the request id; reveal nothing (SECURITY §5 — no personal data in logs).
-  console.error(`[${requestId}] unhandled error`, error);
+  console.error(`[${requestId}] unhandled error`, redact(error));
   return problem(500, 'INTERNAL_ERROR', requestId);
+}
+
+/**
+ * SECURITY §5: a log line must not carry personal data.
+ *
+ * A Postgres error is the one that catches people out. `detail` quotes the
+ * offending row — `Key (email)=(someone@example.com) already exists` — and
+ * `where` and the bound parameters can quote more. Known unique violations are
+ * turned into domain errors long before here (`mapUniqueViolations`), so what
+ * reaches this point is unforeseen; it still must not take a phone number into
+ * the log with it.
+ *
+ * What is kept is what identifies the fault: the type, the SQL state, the
+ * constraint or table, and the stack.
+ */
+function redact(error: unknown): unknown {
+  if (!(error instanceof Error)) return { type: typeof error };
+  const pg = error as Error & { code?: string; constraint?: string; table?: string; schema?: string };
+  return {
+    name: error.name,
+    // A driver error's message quotes values; its code and constraint do not.
+    message: pg.code ? `[${pg.code}] database error` : error.message,
+    ...(pg.code ? { code: pg.code, constraint: pg.constraint, table: pg.table, schema: pg.schema } : {}),
+    stack: error.stack,
+    ...(error.cause ? { cause: redact(error.cause) } : {}),
+  };
 }
