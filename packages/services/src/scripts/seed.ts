@@ -51,7 +51,14 @@ for (const account of ACCOUNTS) {
 console.log('password: DEV_SEED_PASSWORD from .env');
 
 // MIG-006: the synthetic sample catalogue, loaded as the Super Admin so it is validated and audited like any change.
+// SEED_SAMPLE_CATALOGUE=0 leaves it out: a machine being prepared for the
+// migration import needs the accounts but an empty catalogue (pnpm db:import).
 if (!grantorId) throw new Error('no Super Admin seeded');
+if (process.env.SEED_SAMPLE_CATALOGUE === '0') {
+  console.log('skipped   sample catalogue (SEED_SAMPLE_CATALOGUE=0)');
+  await closeDb();
+  process.exit(0);
+}
 const sample = await loadSampleCatalogue({
   user: { id: grantorId as UserId, role: 'SUPER_ADMIN' }, permissions: effectivePermissions('SUPER_ADMIN', new Map()),
   now: new Date(), requestId: 'dev-seed', locale: 'en', branchId, ip: null,

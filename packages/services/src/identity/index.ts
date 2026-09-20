@@ -6,5 +6,8 @@ export {
   changeAccountPermissions, applyPresetToAccount, listPresets, type AccountSummary, type AccountDetail,
 } from './accounts';
 export { hashPassword } from './password';
+// ADR-0017: scripts that act as a named account build its context from here
+// rather than reaching into the module — see src/scripts/import.ts.
+export { loadOverrides } from './permission-store';
 export { requestPasswordReset, resetPasswordWithToken } from './password-reset';
 export type { SessionMeta } from './sessions';

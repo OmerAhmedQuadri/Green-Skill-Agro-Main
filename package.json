@@ -16,6 +16,7 @@
     "db:migrate": "pnpm --filter @gsa/db migrate",
     "db:reset": "pnpm --filter @gsa/db reset",
     "db:seed": "pnpm --filter @gsa/services seed",
+    "db:import": "pnpm --filter @gsa/services run import-workbook",
     "test:integration": "turbo run test:integration",
     "db:sync": "pnpm --filter @gsa/services sync",
     "test:e2e": "turbo run test:e2e",
