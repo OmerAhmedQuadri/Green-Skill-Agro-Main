@@ -37,6 +37,7 @@ export const SETTINGS = {
   'expiry.rate_basis': { kind: 'choice', options: ['TRAILING', 'SEASONAL', 'CONSERVATIVE'], default: 'TRAILING', permission: 'system.configure', group: 'expiry' },
   // DSP-014 / SYS-007, VEH-015
   'dispatch.unconfirmed_after_days': { kind: 'integer', min: 1, max: 60, default: 5, permission: 'system.configure', group: 'operations' },
+  // VEH-015, OQ-022: how long a vehicle may go without a physical audit before the dashboard says so.
   'vehicles.audit_interval_days': { kind: 'integer', min: 1, max: 365, default: 30, permission: 'system.configure', group: 'operations' },
   // ATT-012 (ADR-0032): odometer readings outside these are flagged for review, never refused
   'attendance.odometer_tolerance_km': { kind: 'integer', min: 0, max: 100, default: 5, permission: 'system.configure', group: 'attendance' },
@@ -58,9 +59,7 @@ export const SETTINGS = {
     permission: 'system.configure', group: 'credit',
   },
   // LIM-003
-  // VEH-015, OQ-022: how long a vehicle may go without a physical audit before the dashboard says so.
-  'audits.interval_days': { kind: 'integer', min: 1, max: 365, default: 30, permission: 'system.set_limits', group: 'limits' },
-    'ceilings.reminder_interval_hours': { kind: 'integer', min: 1, max: 168, default: 24, permission: 'system.set_limits', group: 'limits' },
+  'ceilings.reminder_interval_hours': { kind: 'integer', min: 1, max: 168, default: 24, permission: 'system.set_limits', group: 'limits' },
 } as const satisfies Record<string, Entry>;
 
 export type SettingKey = keyof typeof SETTINGS;
