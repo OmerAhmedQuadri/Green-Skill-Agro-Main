@@ -127,6 +127,10 @@ const STATUS: Record<ErrorCode, number> = {
   SETTLEMENT_ABOVE_CASH_IN_HAND: 409,
   RECEIVER_REQUIRED: 422,
   AUDIT_NOT_COUNTED: 409,
+  INVALID_PERIOD: 400,
+  TARGET_EMPTY: 400,
+  TARGET_NOT_POSITIVE: 400,
+  PERIOD_CLOSED: 409,
 };
 
 export function problem(status: number, code: string, requestId: string, details?: Record<string, unknown>, headers?: HeadersInit): Response {

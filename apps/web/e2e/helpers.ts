@@ -160,7 +160,10 @@ export async function checkIn(phone: Page, m: Messages, opts: { odometer?: strin
 }
 
 /** A file uploaded through the API as the page's user, to storage and confirmed — as the app does (ARCHITECTURE §6.4). */
-export async function anUpload(page: Page, origin: string, kind: 'STOREFRONT' | 'TRANSPORT_SLIP') {
+/** The media kinds that are uploaded rather than taken live (SELFIE and ODOMETER are camera-only). */
+type UploadableKind = 'STOREFRONT' | 'TRANSPORT_SLIP' | 'DEPOSIT_SLIP' | 'WRITE_OFF_EVIDENCE';
+
+export async function anUpload(page: Page, origin: string, kind: UploadableKind) {
   if (page.url() === 'about:blank') await page.goto('/');
   const jpeg = await aJpeg(page);
   const ticket = (await post(page, origin, '/media/uploads', { kind, contentType: 'image/jpeg', byteSize: jpeg.byteLength })) as unknown as

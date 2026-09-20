@@ -16,7 +16,7 @@ type Spec =
 
 type Entry = Spec & { readonly permission: PermissionCode; readonly group: SettingGroup };
 
-export const SETTING_GROUPS = ['discounts', 'documents', 'returns', 'expiry', 'operations', 'attendance', 'stores', 'credit', 'limits'] as const;
+export const SETTING_GROUPS = ['discounts', 'documents', 'returns', 'expiry', 'operations', 'attendance', 'stores', 'credit', 'limits', 'targets'] as const;
 export type SettingGroup = (typeof SETTING_GROUPS)[number];
 
 export const SETTINGS = {
@@ -39,6 +39,8 @@ export const SETTINGS = {
   'dispatch.unconfirmed_after_days': { kind: 'integer', min: 1, max: 60, default: 5, permission: 'system.configure', group: 'operations' },
   // VEH-015, OQ-022: how long a vehicle may go without a physical audit before the dashboard says so.
   'vehicles.audit_interval_days': { kind: 'integer', min: 1, max: 365, default: 30, permission: 'system.configure', group: 'operations' },
+  // RPT-004, RPT-006, OQ-023: how far ahead the reorder projection looks — imports come by the same route, so one figure serves
+  'imports.lead_time_days': { kind: 'integer', min: 1, max: 365, default: 45, permission: 'system.configure', group: 'operations' },
   // ATT-012 (ADR-0032): odometer readings outside these are flagged for review, never refused
   'attendance.odometer_tolerance_km': { kind: 'integer', min: 0, max: 100, default: 5, permission: 'system.configure', group: 'attendance' },
   'attendance.max_session_km': { kind: 'integer', min: 50, max: 2000, default: 500, permission: 'system.configure', group: 'attendance' },
@@ -58,6 +60,9 @@ export const SETTINGS = {
     kind: 'choice', options: ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'], default: 'SATURDAY',
     permission: 'system.configure', group: 'credit',
   },
+  // TGT-006, COM-008 (ADR-0042, OQ-023): how far behind pace is worth saying so, and how long a month stays live after it ends
+  'targets.pace_threshold_percent': { kind: 'integer', min: 10, max: 100, default: 80, permission: 'targets.manage', group: 'targets' },
+  'period.close_after_days': { kind: 'integer', min: 0, max: 15, default: 3, permission: 'targets.manage', group: 'targets' },
   // LIM-003
   'ceilings.reminder_interval_hours': { kind: 'integer', min: 1, max: 168, default: 24, permission: 'system.set_limits', group: 'limits' },
 } as const satisfies Record<string, Entry>;

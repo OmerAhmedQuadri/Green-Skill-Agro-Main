@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit -p .",
     "generate": "drizzle-kit generate",
     "migrate": "tsx --env-file-if-exists=../../.env src/migrate.ts",
+    "reset": "tsx --env-file-if-exists=../../.env src/reset.ts",
     "lint": "eslint ."
   },
   "dependencies": {

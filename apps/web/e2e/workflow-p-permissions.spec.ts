@@ -28,8 +28,14 @@ for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
     await page.goto(`/console/users/${account.id}`);
     await expect(page.locator('html')).toHaveAttribute('dir', locale === 'ar' ? 'rtl' : 'ltr');
     await page.getByLabel(m.users.preset).selectOption({ label: m.presets.WAREHOUSE });
-    await page.getByRole('button', { name: m.users.applyPreset, exact: true }).click();
-    await expect(page.getByRole('checkbox', { name: m.permissions.inventory.receive_goods })).toBeChecked();
+    // Applying a preset ticks the boxes in the browser, so a click that lands
+    // before React has hydrated does nothing at all and leaves no trace. Under
+    // a loaded suite that happens often enough to matter, so press until it takes.
+    const receiveGoods = page.getByRole('checkbox', { name: m.permissions.inventory.receive_goods });
+    await expect(async () => {
+      await page.getByRole('button', { name: m.users.applyPreset, exact: true }).click();
+      await expect(receiveGoods).toBeChecked({ timeout: 2_000 });
+    }).toPass({ timeout: 30_000 });
     // USR-005/007: an action inside a module, not the module wholesale.
     await page.getByRole('checkbox', { name: m.permissions.users.manage_staff }).check();
     await page.getByRole('button', { name: m.users.savePermissions }).click();

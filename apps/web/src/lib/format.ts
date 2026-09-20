@@ -23,6 +23,8 @@ export function useFormat() {
     const tag = INTL_LOCALE[locale];
     const moneyFormat = new Intl.NumberFormat(tag, { style: 'currency', currency: 'SAR', minimumFractionDigits: 2 });
     const numberFormat = new Intl.NumberFormat(tag, { maximumFractionDigits: 3 });
+    // `unit` rather than `style: 'percent'`: these values are already 0–100, so nothing is divided.
+    const percentFormat = new Intl.NumberFormat(tag, { style: 'unit', unit: 'percent', maximumFractionDigits: 3 });
     const regions = new Intl.DisplayNames([tag], { type: 'region' });
     // Calendar dates (expiry, arrival) are dates, not instants: format them as UTC so no zone shifts the day.
     const dateFormat = new Intl.DateTimeFormat(tag, { dateStyle: 'medium', timeZone: 'UTC' });
@@ -35,6 +37,8 @@ export function useFormat() {
       otherName: (n: Named) => (locale === 'ar' ? n.nameEn : n.nameAr),
       money: (value: string) => moneyFormat.format(value as NumericString),
       number: (value: string | number) => numberFormat.format(typeof value === 'number' ? value : (value as NumericString)),
+      /** A percentage already expressed 0–100 — a rate, or achievement that may exceed 100. */
+      percent: (value: string) => percentFormat.format(value as NumericString),
       country: (code: string) => regions.of(code) ?? code,
       /** A calendar date, `YYYY-MM-DD`. */
       date: (iso: string) => dateFormat.format(new Date(`${iso}T00:00:00Z`)),

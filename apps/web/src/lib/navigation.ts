@@ -7,7 +7,7 @@ import type { PermissionCode } from '@gsa/core';
  */
 export type NavIcon =
   | 'dashboard' | 'users' | 'catalogue' | 'vendors' | 'pricing' | 'settings' | 'purchaseOrders' | 'incoming' | 'stock' | 'writeOffs' | 'expiry'
-  | 'vehicles' | 'attendance' | 'closingStock' | 'stores' | 'sales' | 'dispatch' | 'cash' | 'audits' | 'auditLog';
+  | 'vehicles' | 'attendance' | 'closingStock' | 'stores' | 'sales' | 'dispatch' | 'cash' | 'audits' | 'targets' | 'reports' | 'auditLog';
 type Can = (p: ReadonlySet<PermissionCode>) => boolean;
 type NavItem = { href: string; key: NavIcon; icon: NavIcon; visible: Can };
 
@@ -30,6 +30,8 @@ export const canSeeSales = any('sales.view_all', 'sales.approve_discount');
 export const canSeeDispatch = any('sales.fulfil_dispatch', 'sales.create_order_for_seller', 'sales.approve_lost_order');
 export const canSeeCash = any('cash.view_cash_in_hand', 'cash.approve_settlement');
 export const canSeeAudits = any('inventory.audit_vehicle', 'inventory.approve_write_off', 'inventory.view_all_stock');
+export const canSeeTargets = any('targets.manage', 'targets.view_commission');
+export const canSeeReports = any('reports.view_trends', 'reports.view_forecast');
 export const canSeeAuditLog = any('system.view_audit_log');
 export const canSeeSettings = any('system.configure', 'system.manage_templates', 'system.set_limits', 'returns.set_rules', 'targets.manage');
 
@@ -48,6 +50,8 @@ export const CONSOLE_NAV: readonly NavItem[] = [
   { href: '/console/dispatch', key: 'dispatch', icon: 'dispatch', visible: canSeeDispatch },
   { href: '/console/audits', key: 'audits', icon: 'audits', visible: canSeeAudits },
   { href: '/console/cash', key: 'cash', icon: 'cash', visible: canSeeCash },
+  { href: '/console/targets', key: 'targets', icon: 'targets', visible: canSeeTargets },
+  { href: '/console/reports', key: 'reports', icon: 'reports', visible: canSeeReports },
   { href: '/console/vehicles', key: 'vehicles', icon: 'vehicles', visible: canSeeVehicles },
   { href: '/console/closing-stock', key: 'closingStock', icon: 'closingStock', visible: canSeeClosingStock },
   { href: '/console/attendance', key: 'attendance', icon: 'attendance', visible: canSeeAttendance },

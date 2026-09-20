@@ -19,3 +19,5 @@ export * from './dispatch';
 export * from './returns';
 export * from './cash';
 export * from './audits';
+export * from './targets';
+export * from './reports';

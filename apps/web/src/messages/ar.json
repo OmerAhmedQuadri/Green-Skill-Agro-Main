@@ -97,7 +97,9 @@
     "auditLog": "سجل التدقيق",
     "dispatch": "الإرسال",
     "cash": "النقد",
-    "audits": "الجرد"
+    "audits": "الجرد",
+    "targets": "الأهداف",
+    "reports": "التقارير"
   },
   "dashboard": {
     "welcome": "مرحباً، {name}",
@@ -483,7 +485,11 @@
     "REFUND_EXCEEDS_CASH_IN_HAND": "لا يكفي النقد الذي بحوزتك لهذا الاسترداد. اعرض الاستبدال بدلًا منه.",
     "SETTLEMENT_ABOVE_CASH_IN_HAND": "هذا أكثر من النقد الذي يقول التطبيق إنه بحوزتك.",
     "RECEIVER_REQUIRED": "اختر المدير الذي يستلم النقد.",
-    "AUDIT_NOT_COUNTED": "عُدّ كل دفعة قبل إغلاق الجرد."
+    "AUDIT_NOT_COUNTED": "عُدّ كل دفعة قبل إغلاق الجرد.",
+    "INVALID_PERIOD": "هذا ليس شهراً صالحاً.",
+    "TARGET_EMPTY": "حدّد رقماً واحداً على الأقل للهدف.",
+    "TARGET_NOT_POSITIVE": "يجب أن يكون كل رقم محدَّد أكبر من صفر.",
+    "PERIOD_CLOSED": "هذا الشهر نهائي ولا يمكن تغييره."
   },
   "format": {
     "grams": "{value} جم",
@@ -641,7 +647,8 @@
       "attendance": "الحضور",
       "stores": "المتاجر",
       "credit": "الائتمان",
-      "documents": "سندات التسليم"
+      "documents": "سندات التسليم",
+      "targets": "الأهداف والعمولة"
     },
     "fields": {
       "discount": {
@@ -691,6 +698,15 @@
       },
       "media": {
         "photo_retention_days": "عدد أيام الاحتفاظ بصور السيلفي والعدّاد"
+      },
+      "targets": {
+        "pace_threshold_percent": "تنبيه عند انخفاض البائع عن هذه النسبة من الوتيرة (٪)"
+      },
+      "imports": {
+        "lead_time_days": "مدة وصول الاستيراد (أيام)"
+      },
+      "period": {
+        "close_after_days": "الأيام بعد انتهاء الشهر قبل اعتماده نهائياً"
       }
     },
     "choices": {
@@ -1072,7 +1088,11 @@
       "SETTLEMENT_SUBMITTED": "مبلغ {amount} نقدًا بانتظار موافقتك ({number}).",
       "SETTLEMENT_APPROVED": "تمت الموافقة على تسويتك {number} بمبلغ {amount}.",
       "SETTLEMENT_REJECTED": "لم تُقبل تسويتك {number} — أعد تقديمها.",
-      "CEILING_BREACHED": "{seller, select, undefined {تجاوزتَ} other {تجاوز {seller}}} حد {kind, select, CASH_IN_HAND {النقد} other {مخزون المركبة}}: {amount} مقابل {ceiling}."
+      "CEILING_BREACHED": "{seller, select, undefined {تجاوزتَ} other {تجاوز {seller}}} حد {kind, select, CASH_IN_HAND {النقد} other {مخزون المركبة}}: {amount} مقابل {ceiling}.",
+      "TARGET_SET": "تم تحديد هدف {name, select, undefined {لك} other {{name}}} لشهر {period}.",
+      "TARGET_BEHIND_PACE": "{name, select, undefined {أنت متأخر} other {{name} متأخر}} عن الوتيرة المطلوبة لشهر {period}.",
+      "TARGET_MISSED": "{name, select, undefined {لم تبلغ} other {لم يبلغ {name}}} هدف شهر {period}.",
+      "PERIOD_CLOSED": "شهر {period} نهائي، ولن يتغير رقم العمولة."
     }
   },
   "vehicles": {
@@ -1836,5 +1856,127 @@
     "statusHead": "الحالة",
     "differences": "الفروق",
     "differenceCount": "{shortfalls} ناقص، {surpluses} زائد"
+  },
+  "targets": {
+    "loading": "جارٍ التحميل…",
+    "listTitle": "الأهداف والعمولة",
+    "listSubtitle": "شهر كل بائع، وما حققه.",
+    "myTitle": "هدفي",
+    "period": "الشهر",
+    "seller": "البائع",
+    "progress": "التقدم",
+    "baseHead": "أساس العمولة",
+    "commissionHead": "العمولة",
+    "stateHead": "الحالة",
+    "noSellers": "لا يوجد بائعون بعد.",
+    "noTarget": "لم يُحدَّد هدف لهذا الشهر.",
+    "final": "نهائي",
+    "live": "جارٍ",
+    "behindPace": "أنت متأخر عن الوتيرة التي يتطلبها هذا الشهر. ما زال هناك وقت.",
+    "behindPaceShort": "متأخر عن الوتيرة",
+    "metAll": "تحققت جميع الأرقام.",
+    "notMetAll": "لم تتحقق جميع الأرقام بعد.",
+    "commissionTitle": "العمولة",
+    "base": "محتسبة على",
+    "rate": "النسبة",
+    "commission": "العمولة",
+    "noRate": "لم تُحدَّد نسبة",
+    "baseHint": "تُحتسب العمولة على النقد الذي وصل إلى الشركة — التحصيلات التي اعتمدها المدير، ناقص الائتمان المخصوم من ديون أخرى.",
+    "finalHint": "يصبح الشهر نهائياً بعد أيام قليلة من انتهائه، ولا تتغير أرقامه بعد ذلك.",
+    "setTarget": "تحديد هدف",
+    "changeTarget": "تعديل الهدف",
+    "saveTarget": "حفظ",
+    "cancel": "إلغاء",
+    "standingsTitle": "هذا الشهر",
+    "metrics": {
+      "REVENUE": "الإيرادات",
+      "PACKS_SOLD": "العبوات المباعة",
+      "NEW_STORES": "متاجر جديدة",
+      "COLLECTED": "المحصَّل"
+    }
+  },
+  "reports": {
+    "title": "التقارير",
+    "subtitle": "ما بيع، وما تبقّى، وما يجب طلبه تالياً.",
+    "loading": "جارٍ التحميل…",
+    "linksHint": "خمسة من هذه التقارير تقرأ الأرقام نفسها التي تعرضها الشاشات التي تعمل عليها، لذا تفتح هناك بدل عرض نسخة ثانية.",
+    "guideNotice": "لا يوجد خلف هذه الأرقام سنة كاملة من التداول. تعامل معها كدليل استرشادي لا كتوقّع.",
+    "trendsTitle": "اتجاهات المبيعات",
+    "trendsSubtitle": "شهراً بشهر، ومقارنةً بالشهر نفسه من الموسم الماضي.",
+    "trendsHead": "الحركة",
+    "noTrends": "لم تُسجَّل مبيعات في هذه الفترة بعد.",
+    "by": "حسب",
+    "compare": "قارن مع",
+    "comparePrevious": "الشهر السابق",
+    "compareYearAgo": "الشهر نفسه من العام الماضي",
+    "name": "الاسم",
+    "month": "الشهر",
+    "packs": "العبوات",
+    "revenue": "الإيرادات",
+    "change": "التغيّر",
+    "noComparison": "لا مقارنة",
+    "dimensions": {
+      "PRODUCT": "المنتج",
+      "SKU": "رمز الصنف",
+      "SELLER": "البائع",
+      "STORE": "المتجر",
+      "CATEGORY": "الفئة"
+    },
+    "reorderTitle": "توصية إعادة الطلب",
+    "reorderSubtitle": "حيث ينخفض المخزون عن التغطية المطلوبة قبل وصول الاستيراد التالي.",
+    "reorderHead": "الإسقاط",
+    "nothingForecast": "لم تُحدَّد تغطية أمان لأي صنف، فلا يوجد تنبؤ بعد.",
+    "item": "الصنف",
+    "held": "المتوفر",
+    "inTransit": "في الطريق",
+    "perDay": "عبوات يومياً",
+    "projected": "عند الوصول",
+    "safety": "تتطلبه التغطية",
+    "suggested": "للطلب",
+    "basis": {
+      "TRAILING": "آخر ٩٠ يوماً",
+      "SEASONAL": "الفترة نفسها من الموسم الماضي"
+    },
+    "convertTitle": "حوّلها إلى أمر شراء مبدئي",
+    "convertHint": "لا يتم طلب شيء هنا. تحصل على أمر شراء مبدئي لمراجعته وتعديله، ويمرّ بعدها بالاعتماد المعتاد.",
+    "vendor": "المورّد",
+    "chooseVendor": "اختر مورّداً",
+    "orderPacks": "العبوات المطلوبة",
+    "orderPacksFor": "العبوات المطلوبة لـ {code}",
+    "convert": "إنشاء الأمر المبدئي",
+    "entries": {
+      "trends": {
+        "title": "اتجاهات المبيعات",
+        "hint": "الحركة شهراً بشهر حسب المنتج أو الصنف أو البائع أو المتجر أو الفئة."
+      },
+      "seasonal": {
+        "title": "المقارنة الموسمية",
+        "hint": "الشهر نفسه قبل عام، متى توفّرت سنة من التداول."
+      },
+      "reorder": {
+        "title": "توصية إعادة الطلب",
+        "hint": "ما يجب طلبه قبل الاستيراد التالي، ولماذا."
+      },
+      "stock": {
+        "title": "وضع المخزون",
+        "hint": "المستودع والمركبات وما هو في الطريق — في شاشة المخزون."
+      },
+      "expiry": {
+        "title": "التعرّض لانتهاء الصلاحية",
+        "hint": "القيمة والكمية المعرّضة للخطر — في شاشة الصلاحية."
+      },
+      "collections": {
+        "title": "التحصيلات",
+        "hint": "الأرصدة المستحقة حسب المتجر مع الأعمار — في شاشة المتاجر."
+      },
+      "dispatch": {
+        "title": "أوامر التوريد",
+        "hint": "الأوامر المفتوحة والمفرج عنها وغير المؤكدة — في شاشة التوريد."
+      },
+      "performance": {
+        "title": "أداء البائعين",
+        "hint": "المبيعات والتحصيلات والأهداف والعمولة — في شاشة الأهداف."
+      }
+    }
   }
 }

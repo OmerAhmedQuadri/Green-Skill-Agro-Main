@@ -97,7 +97,9 @@
     "auditLog": "Audit log",
     "dispatch": "Dispatch",
     "cash": "Cash",
-    "audits": "Audits"
+    "audits": "Audits",
+    "targets": "Targets",
+    "reports": "Reports"
   },
   "dashboard": {
     "welcome": "Welcome, {name}",
@@ -483,7 +485,11 @@
     "REFUND_EXCEEDS_CASH_IN_HAND": "You don't hold enough cash for this refund. Offer a replacement instead.",
     "SETTLEMENT_ABOVE_CASH_IN_HAND": "That is more cash than the app says you are holding.",
     "RECEIVER_REQUIRED": "Choose the manager who is taking the cash.",
-    "AUDIT_NOT_COUNTED": "Count every batch before closing the audit."
+    "AUDIT_NOT_COUNTED": "Count every batch before closing the audit.",
+    "INVALID_PERIOD": "That is not a valid month.",
+    "TARGET_EMPTY": "Set at least one figure for the target.",
+    "TARGET_NOT_POSITIVE": "Every figure set must be more than zero.",
+    "PERIOD_CLOSED": "That month is final and cannot be changed."
   },
   "format": {
     "grams": "{value} g",
@@ -641,7 +647,8 @@
       "attendance": "Attendance",
       "stores": "Stores",
       "credit": "Credit",
-      "documents": "Delivery documents"
+      "documents": "Delivery documents",
+      "targets": "Targets and commission"
     },
     "fields": {
       "discount": {
@@ -691,6 +698,15 @@
       },
       "media": {
         "photo_retention_days": "Days to keep selfies and odometer photos"
+      },
+      "targets": {
+        "pace_threshold_percent": "Flag a seller below this share of the pace (%)"
+      },
+      "imports": {
+        "lead_time_days": "Import lead time (days)"
+      },
+      "period": {
+        "close_after_days": "Days after a month ends before it is final"
       }
     },
     "choices": {
@@ -1072,7 +1088,11 @@
       "SETTLEMENT_SUBMITTED": "{amount} of cash is waiting for your approval ({number}).",
       "SETTLEMENT_APPROVED": "Your settlement {number} was approved for {amount}.",
       "SETTLEMENT_REJECTED": "Your settlement {number} was not accepted — submit it again.",
-      "CEILING_BREACHED": "{seller, select, undefined {You are} other {{seller} is}} over the {kind, select, CASH_IN_HAND {cash} other {vehicle stock}} limit: {amount} against {ceiling}."
+      "CEILING_BREACHED": "{seller, select, undefined {You are} other {{seller} is}} over the {kind, select, CASH_IN_HAND {cash} other {vehicle stock}} limit: {amount} against {ceiling}.",
+      "TARGET_SET": "{name, select, undefined {Your} other {{name}’s}} target for {period} has been set.",
+      "TARGET_BEHIND_PACE": "{name, select, undefined {You are} other {{name} is}} behind the pace needed for {period}.",
+      "TARGET_MISSED": "{name, select, undefined {You} other {{name}}} did not reach the target for {period}.",
+      "PERIOD_CLOSED": "{period} is final. The commission figure will not change."
     }
   },
   "vehicles": {
@@ -1836,5 +1856,127 @@
     "statusHead": "Status",
     "differences": "Differences",
     "differenceCount": "{shortfalls} short, {surpluses} extra"
+  },
+  "targets": {
+    "loading": "Loading…",
+    "listTitle": "Targets and commission",
+    "listSubtitle": "Each seller's month, and what it earned.",
+    "myTitle": "My target",
+    "period": "Month",
+    "seller": "Seller",
+    "progress": "Progress",
+    "baseHead": "Commission base",
+    "commissionHead": "Commission",
+    "stateHead": "State",
+    "noSellers": "No sellers yet.",
+    "noTarget": "No target set for this month.",
+    "final": "Final",
+    "live": "Live",
+    "behindPace": "You are behind the pace this month needs. There is still time.",
+    "behindPaceShort": "Behind pace",
+    "metAll": "Every figure reached.",
+    "notMetAll": "Not every figure reached yet.",
+    "commissionTitle": "Commission",
+    "base": "Earned on",
+    "rate": "Rate",
+    "commission": "Commission",
+    "noRate": "No rate set",
+    "baseHint": "Commission is earned on cash that reached the business — collections a manager has approved, less credit given back against other debts.",
+    "finalHint": "A month becomes final a few days after it ends. Its figures never change afterwards.",
+    "setTarget": "Set a target",
+    "changeTarget": "Change the target",
+    "saveTarget": "Save",
+    "cancel": "Cancel",
+    "standingsTitle": "This month",
+    "metrics": {
+      "REVENUE": "Revenue",
+      "PACKS_SOLD": "Packs sold",
+      "NEW_STORES": "New stores",
+      "COLLECTED": "Collected"
+    }
+  },
+  "reports": {
+    "title": "Reports",
+    "subtitle": "What sold, what is left, and what to order next.",
+    "loading": "Loading…",
+    "linksHint": "Five of these read the same figures as the screens you work on, so they open there rather than showing a second copy.",
+    "guideNotice": "There is less than a year of trading behind these figures. Treat them as a guide rather than a projection.",
+    "trendsTitle": "Sales trends",
+    "trendsSubtitle": "Month on month, and against the same month last season.",
+    "trendsHead": "Movement",
+    "noTrends": "Nothing sold in this period yet.",
+    "by": "By",
+    "compare": "Compare with",
+    "comparePrevious": "The month before",
+    "compareYearAgo": "The same month last year",
+    "name": "Name",
+    "month": "Month",
+    "packs": "Packs",
+    "revenue": "Revenue",
+    "change": "Change",
+    "noComparison": "No comparison",
+    "dimensions": {
+      "PRODUCT": "Product",
+      "SKU": "SKU",
+      "SELLER": "Seller",
+      "STORE": "Store",
+      "CATEGORY": "Category"
+    },
+    "reorderTitle": "Reorder recommendation",
+    "reorderSubtitle": "Where stock would fall below its cover by the time the next import lands.",
+    "reorderHead": "Projection",
+    "nothingForecast": "No SKU has a safety cover set, so nothing is forecast yet.",
+    "item": "Item",
+    "held": "Held",
+    "inTransit": "On the water",
+    "perDay": "Packs a day",
+    "projected": "At arrival",
+    "safety": "Cover needs",
+    "suggested": "To order",
+    "basis": {
+      "TRAILING": "Trailing 90 days",
+      "SEASONAL": "Same period last season"
+    },
+    "convertTitle": "Turn this into a draft order",
+    "convertHint": "Nothing is ordered here. You get a draft purchase order to check and adjust, which still goes through the usual approval.",
+    "vendor": "Vendor",
+    "chooseVendor": "Choose a vendor",
+    "orderPacks": "Packs to order",
+    "orderPacksFor": "Packs to order for {code}",
+    "convert": "Create the draft order",
+    "entries": {
+      "trends": {
+        "title": "Sales trends",
+        "hint": "Month-on-month movement by product, SKU, seller, store or category."
+      },
+      "seasonal": {
+        "title": "Seasonal comparison",
+        "hint": "The same month a year ago, once a year of trading exists."
+      },
+      "reorder": {
+        "title": "Reorder recommendation",
+        "hint": "What to order before the next import, and why."
+      },
+      "stock": {
+        "title": "Stock position",
+        "hint": "Warehouse, vehicles and what is on the water — on the stock screen."
+      },
+      "expiry": {
+        "title": "Expiry exposure",
+        "hint": "Value and quantity at risk — on the expiry screen."
+      },
+      "collections": {
+        "title": "Collections",
+        "hint": "Outstanding balances by store, with ageing — on the stores screen."
+      },
+      "dispatch": {
+        "title": "Dispatch orders",
+        "hint": "Open, released and unconfirmed orders — on the dispatch screen."
+      },
+      "performance": {
+        "title": "Seller performance",
+        "hint": "Sales, collections, targets and commission — on the targets screen."
+      }
+    }
   }
 }
