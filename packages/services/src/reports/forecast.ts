@@ -1,14 +1,15 @@
 import { businessDate, DEMAND_WINDOW_DAYS, reorderFor, type Reorder } from '@gsa/core';
 import { newId, schema } from '@gsa/db';
-import { and, desc, eq, isNotNull } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNotNull, sql } from 'drizzle-orm';
 import { authorize, type Ctx } from '../context';
 import { listStock } from '../inventory';
-import { inTx } from '../platform';
+import { createPurchaseOrder } from '../procurement';
+import { inTx, type Executor } from '../platform';
 import { getDb } from '../runtime';
 import { readSettings } from '../system';
 import { dayAfter, daysBack, packsSold, workerCtx } from './rollup';
 
-const { reorderRecommendations, skus } = schema;
+const { purchaseOrderLines, purchaseOrders, reorderRecommendations, skus } = schema;
 
 export type Recommendation = Reorder & {
   readonly skuId: string;
@@ -108,3 +109,45 @@ export async function listRecommendations(ctx: Ctx): Promise<{ builtAt: Date | n
 
 export const sweepForecast = async (now: Date) => recordRecommendations(await workerCtx(now));
 
+
+/**
+ * RPT-005, PO-008: turn a recommendation into a **draft** purchase order. The
+ * manager chooses the vendor and may change every quantity first, and the draft
+ * then goes through the ordinary approval — the system has still not ordered
+ * anything. `origin: 'FORECAST'` records where the figures came from.
+ *
+ * The expected cost is the last one paid for that SKU, or zero where it has
+ * never been bought; the manager fills it in on the draft either way.
+ */
+export async function convertToDraftOrder(
+  ctx: Ctx,
+  input: { vendorId: string; lines: readonly { skuId: string; packs: number }[] },
+): Promise<{ id: string; number: string }> {
+  authorize(ctx, 'reports.view_forecast');
+  const db = ctx.tx ?? getDb();
+  const costs = await lastCosts(db, input.lines.map((l) => l.skuId));
+  const po = await createPurchaseOrder(ctx, {
+    vendorId: input.vendorId,
+    origin: 'FORECAST',
+    lines: input.lines.map((l) => ({
+      skuId: l.skuId,
+      orderedPacks: l.packs,
+      expectedUnitCost: costs.get(l.skuId) ?? '0',
+    })),
+  });
+  return { id: po.id, number: po.number };
+}
+
+/** The most recent expected cost per SKU, so a draft starts from what was last paid. */
+async function lastCosts(db: Executor, skuIds: readonly string[]): Promise<Map<string, string>> {
+  if (skuIds.length === 0) return new Map();
+  // A line carries no timestamp of its own, so "last paid" means the most recent order it sat on.
+  const rows = await db.select({
+    skuId: purchaseOrderLines.skuId,
+    cost: sql<string>`(array_agg(${purchaseOrderLines.expectedUnitCost} order by ${purchaseOrders.createdAt} desc))[1]::text`,
+  }).from(purchaseOrderLines)
+    .innerJoin(purchaseOrders, eq(purchaseOrders.id, purchaseOrderLines.purchaseOrderId))
+    .where(inArray(purchaseOrderLines.skuId, [...skuIds]))
+    .groupBy(purchaseOrderLines.skuId);
+  return new Map(rows.map((r) => [r.skuId, r.cost]));
+}

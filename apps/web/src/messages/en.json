@@ -98,7 +98,8 @@
     "dispatch": "Dispatch",
     "cash": "Cash",
     "audits": "Audits",
-    "targets": "Targets"
+    "targets": "Targets",
+    "reports": "Reports"
   },
   "dashboard": {
     "welcome": "Welcome, {name}",
@@ -1892,6 +1893,90 @@
       "PACKS_SOLD": "Packs sold",
       "NEW_STORES": "New stores",
       "COLLECTED": "Collected"
+    }
+  },
+  "reports": {
+    "title": "Reports",
+    "subtitle": "What sold, what is left, and what to order next.",
+    "loading": "Loading…",
+    "linksHint": "Five of these read the same figures as the screens you work on, so they open there rather than showing a second copy.",
+    "guideNotice": "There is less than a year of trading behind these figures. Treat them as a guide rather than a projection.",
+    "trendsTitle": "Sales trends",
+    "trendsSubtitle": "Month on month, and against the same month last season.",
+    "trendsHead": "Movement",
+    "noTrends": "Nothing sold in this period yet.",
+    "by": "By",
+    "compare": "Compare with",
+    "comparePrevious": "The month before",
+    "compareYearAgo": "The same month last year",
+    "name": "Name",
+    "month": "Month",
+    "packs": "Packs",
+    "revenue": "Revenue",
+    "change": "Change",
+    "noComparison": "No comparison",
+    "dimensions": {
+      "PRODUCT": "Product",
+      "SKU": "SKU",
+      "SELLER": "Seller",
+      "STORE": "Store",
+      "CATEGORY": "Category"
+    },
+    "reorderTitle": "Reorder recommendation",
+    "reorderSubtitle": "Where stock would fall below its cover by the time the next import lands.",
+    "reorderHead": "Projection",
+    "nothingForecast": "No SKU has a safety cover set, so nothing is forecast yet.",
+    "item": "Item",
+    "held": "Held",
+    "inTransit": "On the water",
+    "perDay": "Packs a day",
+    "projected": "At arrival",
+    "safety": "Cover needs",
+    "suggested": "To order",
+    "basis": {
+      "TRAILING": "Trailing 90 days",
+      "SEASONAL": "Same period last season"
+    },
+    "convertTitle": "Turn this into a draft order",
+    "convertHint": "Nothing is ordered here. You get a draft purchase order to check and adjust, which still goes through the usual approval.",
+    "vendor": "Vendor",
+    "chooseVendor": "Choose a vendor",
+    "orderPacks": "Packs to order",
+    "orderPacksFor": "Packs to order for {code}",
+    "convert": "Create the draft order",
+    "entries": {
+      "trends": {
+        "title": "Sales trends",
+        "hint": "Month-on-month movement by product, SKU, seller, store or category."
+      },
+      "seasonal": {
+        "title": "Seasonal comparison",
+        "hint": "The same month a year ago, once a year of trading exists."
+      },
+      "reorder": {
+        "title": "Reorder recommendation",
+        "hint": "What to order before the next import, and why."
+      },
+      "stock": {
+        "title": "Stock position",
+        "hint": "Warehouse, vehicles and what is on the water — on the stock screen."
+      },
+      "expiry": {
+        "title": "Expiry exposure",
+        "hint": "Value and quantity at risk — on the expiry screen."
+      },
+      "collections": {
+        "title": "Collections",
+        "hint": "Outstanding balances by store, with ageing — on the stores screen."
+      },
+      "dispatch": {
+        "title": "Dispatch orders",
+        "hint": "Open, released and unconfirmed orders — on the dispatch screen."
+      },
+      "performance": {
+        "title": "Seller performance",
+        "hint": "Sales, collections, targets and commission — on the targets screen."
+      }
     }
   }
 }
