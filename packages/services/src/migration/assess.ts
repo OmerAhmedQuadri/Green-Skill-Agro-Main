@@ -219,14 +219,36 @@ export function assessStores(sheet: Sheet, examples: ExampleRows): Assessment<St
 }
 
 /**
- * Green Agro writes country names; the system stores ISO codes, and
- * `core/catalogue/countries.ts` keeps country names out of code on purpose.
- * `Intl` supplies the names, so the mapping is a property of the platform
- * rather than a list someone has to maintain.
+ * The names people actually write, which `Intl` does not answer to.
  *
- * An informal name `Intl` does not know — "Holland" for the Netherlands — is a
- * question rather than a near-enough guess, and asking now beats a refusal
- * half way through the import.
+ * Every one is a common name for exactly one country — a colloquial name for
+ * the whole ("Holland"), an abbreviation, or a name `Intl` has since renamed
+ * away from. Nothing ambiguous belongs here: if a word could mean two
+ * countries it stays a question, because a vendor filed under the wrong
+ * country is worse than a vendor that did not load.
+ *
+ * This is the only place country names are written down. `Intl` supplies the
+ * rest, which is why `core/catalogue/countries.ts` holds none.
+ */
+const ALSO_KNOWN_AS: Readonly<Record<string, string>> = {
+  holland: 'NL', 'the netherlands': 'NL',
+  uae: 'AE', 'u.a.e.': 'AE', emirates: 'AE', 'united arab emirates': 'AE',
+  ksa: 'SA', 'saudi arabia': 'SA', saudi: 'SA',
+  usa: 'US', 'u.s.a.': 'US', america: 'US', 'united states of america': 'US',
+  uk: 'GB', britain: 'GB', 'great britain': 'GB', england: 'GB',
+  'czech republic': 'CZ', turkey: 'TR', 'ivory coast': 'CI', burma: 'MM',
+  'south korea': 'KR', 'north korea': 'KP', russia: 'RU', vietnam: 'VN',
+};
+
+/**
+ * Green Skill Agro writes country names; the system stores ISO codes, because
+ * a code renders as "Netherlands" or "هولندا" from one row while a typed name
+ * renders as whatever was typed, in whichever language it was typed in.
+ *
+ * So the workbook may say the name and the column still holds the code. What
+ * `Intl` knows is taken from `Intl`; what people write instead is above. A
+ * name neither knows is still a question — guessing a country on the client's
+ * behalf is how a wrong pack size gets into a catalogue.
  */
 let countries: Map<string, string> | undefined;
 
@@ -234,7 +256,7 @@ function countryFor(value: string): string | null {
   if (!value) return null;
   if (!countries) {
     const names = new Intl.DisplayNames(['en'], { type: 'region' });
-    countries = new Map();
+    countries = new Map(Object.entries(ALSO_KNOWN_AS));
     for (const code of COUNTRY_CODES) {
       countries.set(code.toLowerCase(), code);
       const name = names.of(code);

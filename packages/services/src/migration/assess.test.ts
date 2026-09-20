@@ -52,13 +52,26 @@ describe('assessing the workbook (MIG-001, MIG-003, MIG-005)', () => {
     expect(assessVendors(sheet, none).loadable.map((v) => v.country)).toEqual(['IN', 'NL']);
   });
 
-  it('MIG-003: a country the system does not know is a question — "Holland" is not guessed at', () => {
+  it('CAT-005: the names people write resolve to the code the column holds', () => {
     const headers = ['Vendor code', 'Vendor name', 'Contact person', 'Phone', 'Email', 'Country', 'Address'];
-    const sheet = aSheet('2. Vendors', headers, [['VEN-1', 'Supplier', 'P', null, null, 'Holland', 'A']]);
+    const sheet = aSheet('2. Vendors', headers, [
+      ['VEN-1', 'A', 'P', null, null, 'Holland', 'A'],
+      ['VEN-2', 'B', 'P', null, null, 'UAE', 'A'],
+      ['VEN-3', 'C', 'P', null, null, 'united states of america', 'A'],
+      ['VEN-4', 'D', 'P', null, null, 'Czech Republic', 'A'],
+    ]);
+    const { loadable, issues } = assessVendors(sheet, none);
+    expect(loadable.map((v) => v.country)).toEqual(['NL', 'AE', 'US', 'CZ']);
+    expect(issues.filter((i) => i.kind === 'UNKNOWN_REFERENCE')).toEqual([]);
+  });
+
+  it('MIG-003: a country name that could be anywhere is still a question, not a guess', () => {
+    const headers = ['Vendor code', 'Vendor name', 'Contact person', 'Phone', 'Email', 'Country', 'Address'];
+    const sheet = aSheet('2. Vendors', headers, [['VEN-1', 'Supplier', 'P', null, null, 'Northern Province', 'A']]);
     const { loadable, issues } = assessVendors(sheet, none);
     expect(loadable).toEqual([]);
     expect(issues).toMatchObject([{ kind: 'UNKNOWN_REFERENCE', row: 5 }]);
-    expect(issues[0]?.detail).toContain('Holland');
+    expect(issues[0]?.detail).toContain('Northern Province');
   });
 
   it('a duplicate vendor code is a conflict, not the last row quietly winning', () => {
@@ -202,7 +215,7 @@ describe('products, users and vehicles (MIG-001, MIG-003)', () => {
 
   it('a country of origin the system does not know is asked about before the import, not during it', () => {
     const sheet = aSheet('3. Products', PRODUCT_HEADERS, [
-      ['Seed', 'Seeds', 'Hybrid', 'Okra', 'بامية', 'PK', 'PK AR', 'Hybrid F1', 'Holland', 'VEN-1', '24', 'Months'],
+      ['Seed', 'Seeds', 'Hybrid', 'Okra', 'بامية', 'PK', 'PK AR', 'Hybrid F1', 'Nowhereland', 'VEN-1', '24', 'Months'],
     ]);
     const { loadable, issues } = assessProducts(sheet, known, none);
     expect(loadable).toEqual([]);
