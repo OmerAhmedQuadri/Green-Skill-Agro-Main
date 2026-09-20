@@ -95,13 +95,15 @@
     "stores": "Stores",
     "sales": "Sales",
     "auditLog": "Audit log",
-    "dispatch": "Dispatch"
+    "dispatch": "Dispatch",
+    "cash": "Cash"
   },
   "dashboard": {
     "welcome": "Welcome, {name}",
     "signedInAs": "Signed in as {role}",
     "permissionCount": "{count, plural, one {# permission} other {# permissions}}",
-    "unconfirmedDispatch": "{count, plural, one {# dispatch order has} other {# dispatch orders have}} been on the road too long without confirmation."
+    "unconfirmedDispatch": "{count, plural, one {# dispatch order has} other {# dispatch orders have}} been on the road too long without confirmation.",
+    "ceilingBreached": "{name} is over the {kind} — {amount} against {ceiling}."
   },
   "field": {
     "welcome": "Good day, {name}",
@@ -476,7 +478,9 @@
     "REPLACEMENT_ONLY_DEFECTIVE": "Only a defective item can be replaced.",
     "REPLACEMENT_NEEDS_VEHICLE": "A replacement is handed over from a seller's vehicle, so the seller records it at the store.",
     "REFUND_NEEDS_SELLER": "This return needs cash handed back, so the seller records it at the store.",
-    "REFUND_EXCEEDS_CASH_IN_HAND": "You don't hold enough cash for this refund. Offer a replacement instead."
+    "REFUND_EXCEEDS_CASH_IN_HAND": "You don't hold enough cash for this refund. Offer a replacement instead.",
+    "SETTLEMENT_ABOVE_CASH_IN_HAND": "That is more cash than the app says you are holding.",
+    "RECEIVER_REQUIRED": "Choose the manager who is taking the cash."
   },
   "format": {
     "grams": "{value} g",
@@ -1061,7 +1065,11 @@
       "DISPATCH_RELEASED": "Order {number} for {store} is on its way.",
       "DISPATCH_CANCELLED": "Order {number} for {store} was cancelled: {reason}",
       "LOST_CLAIM_RAISED": "Order {number} for {store} was reported lost — decide the claim.",
-      "LOST_CLAIM_DECIDED": "Your lost-order claim on {number} was {outcome, select, APPROVED {approved} other {rejected}}."
+      "LOST_CLAIM_DECIDED": "Your lost-order claim on {number} was {outcome, select, APPROVED {approved} other {rejected}}.",
+      "SETTLEMENT_SUBMITTED": "{amount} of cash is waiting for your approval ({number}).",
+      "SETTLEMENT_APPROVED": "Your settlement {number} was approved for {amount}.",
+      "SETTLEMENT_REJECTED": "Your settlement {number} was not accepted — submit it again.",
+      "CEILING_BREACHED": "{seller, select, undefined {You are} other {{seller} is}} over the {kind, select, CASH_IN_HAND {cash} other {vehicle stock}} limit: {amount} against {ceiling}."
     }
   },
   "vehicles": {
@@ -1639,7 +1647,8 @@
     "why": "Why is it coming back?",
     "conditions": {
       "UNCLEARED_PAYMENT": "Not paid for yet",
-      "DEFECTIVE": "Defective"
+      "DEFECTIVE": "Defective",
+      "NOT_RECEIVED": "Never arrived (disputed after confirmation)"
     },
     "blocked": {
       "RETURN_CONDITION_DISABLED": "Not allowed by the Admin",
@@ -1698,6 +1707,71 @@
       "WRITE_OFF": "Written off"
     },
     "replacementLine": "{packs} from batch {lot}, expires {expiry}",
-    "replacementNote": "A replacement moves no money and leaves the sale as it was."
+    "replacementNote": "A replacement moves no money and leaves the sale as it was.",
+    "refundsTitle": "Money to hand back",
+    "refundsHint": "A manager credited these stores. Hand the cash over on your next visit and record it here.",
+    "refundLine": "{store} · {number}",
+    "payRefund": "I handed it over",
+    "noRefunds": "Nothing to hand back."
+  },
+  "cash": {
+    "title": "Cash",
+    "loading": "Loading…",
+    "saving": "Saving…",
+    "inHand": "Cash in hand",
+    "settleTitle": "Bank it or hand it over",
+    "route": "How",
+    "routes": {
+      "BANK_DEPOSIT": "Bank deposit",
+      "MANAGER_HANDOVER": "Handed to a manager"
+    },
+    "amount": "Amount",
+    "depositedOn": "Paid in on",
+    "receivedBy": "Given to",
+    "chooseManager": "Choose a manager",
+    "slip": "Photo of the deposit slip",
+    "handoverPhoto": "Photo of the handover",
+    "note": "Note (optional)",
+    "untilApproved": "The cash stays yours until a manager approves it.",
+    "submit": "Send for approval",
+    "mySettlements": "My settlements",
+    "none": "Nothing sent yet.",
+    "statuses": {
+      "SUBMITTED": "Waiting",
+      "APPROVED": "Approved",
+      "REJECTED": "Not accepted"
+    },
+    "seller": "Seller",
+    "declared": "Declared",
+    "approved": "Approved",
+    "shortfall": "Still with the seller",
+    "discrepancy": "More than the app knew about",
+    "noteLine": "Note: {note}",
+    "decidedBy": "Decided by {name}, {time}",
+    "commentLine": "Comment: {comment}",
+    "waiting": "Waiting for a manager to approve it. The cash is still counted as yours.",
+    "rejectedHint": "It was not accepted. Send it again with the right details.",
+    "decideTitle": "Approve this settlement",
+    "counted": "Amount counted",
+    "countedHint": "Leave empty to approve the declared amount. A different amount needs a comment.",
+    "comment": "Comment",
+    "approve": "Approve",
+    "reject": "Reject",
+    "consoleSubtitle": "What each seller is carrying, and the settlements waiting for a decision.",
+    "waitingTitle": "Waiting for approval",
+    "noneWaiting": "Nothing is waiting.",
+    "number": "Number",
+    "submitted": "Sent",
+    "sellersTitle": "Sellers",
+    "cashCeiling": "Cash limit",
+    "stockValue": "Stock on the vehicle",
+    "stockCeiling": "Stock limit",
+    "state": "State",
+    "within": "Within limits",
+    "over": {
+      "CASH_IN_HAND": "Over the cash limit",
+      "VEHICLE_STOCK_VALUE": "Over the stock limit"
+    },
+    "warningOnly": "A limit is a warning: nobody is stopped from working."
   }
 }

@@ -1,6 +1,6 @@
 import { loadConfig } from '@gsa/config';
 import { BUSINESS_TIME_ZONE } from '@gsa/core';
-import { attendance, getMailer, media, notifications, sales } from '@gsa/services';
+import { attendance, cash, getMailer, media, notifications, sales } from '@gsa/services';
 import { PgBoss } from 'pg-boss';
 import { chromiumRenderer } from './pdf';
 
@@ -46,6 +46,17 @@ await boss.schedule('discount-approval.expire', '* * * * *', null, { tz: BUSINES
 await boss.work('discount-approval.expire', async () => {
   const result = await sales.expireDiscountRequests(new Date());
   if (result.expired > 0) console.log(`[worker] discount-approval.expire expired ${result.expired}`);
+});
+
+// LIM-002..004 (ADR-0040): sellers over a cash or stock ceiling — flagged for the
+// dashboard, warned in the app and by email, and reminded on the Admin's interval.
+await boss.createQueue('ceilings.check');
+await boss.schedule('ceilings.check', '*/5 * * * *', null, { tz: BUSINESS_TIME_ZONE });
+await boss.work('ceilings.check', async () => {
+  const result = await cash.sweepCeilings(new Date());
+  if (result.raised + result.reminded + result.cleared > 0) {
+    console.log(`[worker] ceilings.check raised ${result.raised}, reminded ${result.reminded}, cleared ${result.cleared}`);
+  }
 });
 
 // ADR-0019, ADR-0037: print delivery documents from their outbox. Chromium starts with the first

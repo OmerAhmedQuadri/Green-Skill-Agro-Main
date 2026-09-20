@@ -24,6 +24,7 @@ import type { Handover, Load, MyVehicle, Today } from './types';
  */
 export function TodayScreen({ name }: { name: string }) {
   const t = useTranslations('field');
+  const tCash = useTranslations('cash');
   const format = useFormat();
   const duration = useDuration();
   const errorText = useErrorText();
@@ -151,6 +152,8 @@ export function TodayScreen({ name }: { name: string }) {
         <Card className="space-y-1 p-4" data-testid="cash-card">
           <div className="flex items-center gap-2 text-sm font-medium text-stone-600"><Banknote className="size-4" aria-hidden />{t('cashInHand')}</div>
           <p className="text-lg font-semibold" data-testid="cash-in-hand">{format.money(cash.data.cashInHand)}</p>
+          {/* CSH-002, CSH-003: banking it or handing it over starts here. */}
+          <Link href="/field/cash" className="text-sm font-medium text-brand-800 underline" data-testid="to-cash">{tCash('settleTitle')}</Link>
         </Card>
       ) : null}
     </div>

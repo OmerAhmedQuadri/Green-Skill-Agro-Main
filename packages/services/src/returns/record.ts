@@ -29,7 +29,7 @@ const lockVehicle = (tx: Tx, vehicleId: string) => tx.execute(sql`select pg_advi
 
 type PlannedLine = {
   id: string; saleLineId: string; batchId: string; packs: number; quantity: Quantity; outcome: ReturnOutcome; amount: Money;
-  writeOffReason: 'DEFECTIVE' | 'EXPIRED' | 'DAMAGED' | null;
+  writeOffReason: 'DEFECTIVE' | 'EXPIRED' | 'DAMAGED' | 'MISSING' | null;
   replacements: { batchId: string; quantity: Quantity; packs: number }[];
 };
 
@@ -51,10 +51,10 @@ export async function recordReturn(ctx: Ctx, input: RecordReturnInput): Promise<
     if (!vehicle && input.kind === 'REPLACEMENT') throw new DomainError('REPLACEMENT_NEEDS_VEHICLE');
     if (vehicle) await lockVehicle(tx, vehicle.vehicleId);
 
-    const { sale, ledgerEntryId, completedAt } = await returnableSale(tx, ctx, input.saleId);
+    const { sale, ledgerEntryId, completedAt, disputable } = await returnableSale(tx, ctx, input.saleId);
     await tx.select({ id: sales.id }).from(sales).where(eq(sales.id, sale.id)).for('update'); // one return at a time per sale
     const debts = await debtsAround(tx, sale.store.id, ledgerEntryId);                         // under the ledger's lock
-    assertReturnAllowed(await returnRules(tx), input.condition, { completedAt, unpaid: debts.unpaid }, ctx.now);
+    assertReturnAllowed(await returnRules(tx), input.condition, { completedAt, unpaid: debts.unpaid, disputable }, ctx.now);
 
     const units = saleLineUnits(sale);
     const { held, credited } = await heldFromSaleOf(tx, sale.id, units);
@@ -101,7 +101,9 @@ export async function recordReturn(ctx: Ctx, input: RecordReturnInput): Promise<
     const split = input.kind === 'CREDIT_NOTE'
       ? splitCredit(amount, input.condition, debts.unpaid, debts.otherDebts)
       : { toSale: amount, toOtherDebts: amount, refund: amount, collectedPortion: amount };
-    if (dec(split.refund).gt(0) && !onVehicle) throw new DomainError('REFUND_NEEDS_SELLER', { refund: split.refund });
+    const owedLater = input.condition === 'NOT_RECEIVED' ? split.refund : ('0.00' as Money);
+    const cashBack = input.condition === 'NOT_RECEIVED' ? ('0.00' as Money) : split.refund;
+    if (dec(cashBack).gt(0) && !onVehicle) throw new DomainError('REFUND_NEEDS_SELLER', { refund: split.refund });
 
     // RET-007: saleable goods back where the return is taken; the rest written off.
     let place: StockAccount | null = vehicle;
@@ -133,15 +135,15 @@ export async function recordReturn(ctx: Ctx, input: RecordReturnInput): Promise<
     const ledger = dec(toLedger).gt(0)
       ? await postStoreCredit(tx, ctx, { storeId: sale.store.id, entryType: 'CREDIT_NOTE', amount: toLedger, referenceType: 'RETURN', referenceId: id, firstDebitId: ledgerEntryId })
       : null;
-    const cashEntryId = dec(split.refund).gt(0)
-      ? await postCashRefund(tx, ctx, { sellerId: ctx.user.id, amount: split.refund, referenceType: 'RETURN', referenceId: id })
+    const cashEntryId = dec(cashBack).gt(0)
+      ? await postCashRefund(tx, ctx, { sellerId: ctx.user.id, amount: cashBack, referenceType: 'RETURN', referenceId: id })
       : null;
 
     const number = await nextDocumentNumber(tx, input.kind === 'CREDIT_NOTE' ? 'CN' : 'RP', ctx.now, 6);
     await tx.insert(returns).values({
       id, number, kind: input.kind, condition: input.condition, saleId: sale.id, storeId: sale.store.id, sellerId: sale.seller.id,
       processedBy: ctx.user.id, vehicleId: vehicle?.vehicleId ?? null, warehouseId: place?.kind === 'WAREHOUSE' ? place.warehouseId : null,
-      amount, toSale: split.toSale, toOtherDebts: split.toOtherDebts, refund: split.refund, collectedPortion: split.collectedPortion,
+      amount, toSale: split.toSale, toOtherDebts: split.toOtherDebts, refund: cashBack, refundDue: owedLater, collectedPortion: split.collectedPortion,
       storeLedgerEntryId: ledger?.entryId ?? null, cashLedgerEntryId: cashEntryId, movementGroupId: groupId, note,
       occurredAt: ctx.now, branchId: ctx.branchId,
     });

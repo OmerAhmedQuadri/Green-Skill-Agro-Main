@@ -2,17 +2,19 @@ import type { DomainError } from '@gsa/core';
 import { describe, expect, it } from 'vitest';
 import { ownerQuery } from '../../test/db';
 import { anAccount, ctxFor } from '../../test/factories';
+import { aPhoto } from '../../test/media';
 import { aSellingSeller } from '../../test/sales';
 import { basePriceListId } from '../../test/stores';
 import { aLoadedVehicle } from '../../test/vehicles';
 import { cashInHand } from '../cash';
+import { confirmReceipt, raiseDispatchOrder, releaseOrder } from '../dispatch';
 import { setPriceListItems } from '../pricing';
 import { getDb } from '../runtime';
 import { recordSale } from '../sales';
 import { getCreditStatus, listStoreLedger, recordPayment } from '../stores';
 import { updateSettings } from '../system';
 import { getMyVehicle } from '../vehicles';
-import { getReturn, getReturnable, listReturns, mySalesMonth, recordReturn } from './index';
+import { getReturn, getReturnable, listReturns, myRefundsDue, mySalesMonth, payRefundDue, recordReturn } from './index';
 
 const code = async (p: Promise<unknown>) => p.then(() => 'NO_ERROR', (e: DomainError) => e.code ?? String(e));
 const admin = async (now?: Date) => ctxFor(await anAccount('ADMIN'), now ? { now } : {});
@@ -205,5 +207,39 @@ describe('recorded sales and the console (RET-009, workflow L)', () => {
       .toBe('REFUND_NEEDS_SELLER');
     // The seller sees the return on their sale.
     expect((await listReturns(seller.ctx, { saleId: sale.id })).items).toMatchObject([{ id: credit.id, number: credit.number, packs: 1 }]);
+  });
+});
+
+describe('a dispatch disputed after a remote confirmation (OQ-012)', () => {
+  it('OQ-012: a manager credits the store, the goods are written off, and the seller hands the money over later', async () => {
+    const ctx = await admin();
+    const { seller, store, bag } = await aSellingSeller(ctx, { creditMode: 'BILL_TO_BILL', creditLimit: '0.00' });
+    // The store paid on receipt, confirmed on its owner's word — then says nothing arrived.
+    const { orderId } = await raiseDispatchOrder(seller.ctx, { storeId: store.id, lines: [{ skuId: bag.id, packs: 2 }] });
+    const released = await releaseOrder(ctx, orderId ?? '', { version: 1, transportSlipPhotoId: await aPhoto(ctx, 'TRANSPORT_SLIP') });
+    const confirmed = await confirmReceipt(seller.ctx, released.id, {
+      version: released.version, mode: 'OWNER_WORD', payment: { method: 'CASH' },
+      lines: released.lines.map((l) => ({ lineId: l.id, received: l.packs, short: 0, damaged: 0 })),
+    });
+    const saleId = confirmed.sale.id;
+    const line = (await getReturnable(ctx, saleId)).lines[0];
+    const batchId = line?.batches[0]?.batchId ?? '';
+
+    // Only a manager, and only because it was confirmed remotely.
+    expect((await getReturnable(seller.ctx, saleId)).conditions.map((c) => c.condition)).not.toContain('NOT_RECEIVED');
+    expect((await getReturnable(ctx, saleId)).conditions.map((c) => c.condition)).toContain('NOT_RECEIVED');
+    const credit = await recordReturn(ctx, {
+      saleId, kind: 'CREDIT_NOTE', condition: 'NOT_RECEIVED', note: 'Store says nothing came; transporter says delivered',
+      lines: [{ saleLineId: line?.saleLineId ?? '', batchId, packs: 2 }],
+    });
+    expect(credit).toMatchObject({ condition: 'NOT_RECEIVED', amount: '180.00', refund: '0.00', lines: [{ outcome: 'WRITE_OFF' }] });
+    expect(await ownerQuery('select reason from write_offs where return_id = $1', [credit.id])).toEqual([{ reason: 'MISSING' }]);
+    expect(await cashInHand(getDb(), seller.account.id)).toBe('180.00'); // the manager holds no cash to refund with
+
+    // The seller hands it over on a later visit, out of their cash in hand.
+    expect(await myRefundsDue(seller.ctx)).toMatchObject([{ number: credit.number, outstanding: '180.00', store: { id: store.id } }]);
+    expect(await payRefundDue(seller.ctx, credit.id)).toEqual([]);
+    expect(await cashInHand(getDb(), seller.account.id)).toBe('0.00');
+    expect(await code(payRefundDue(seller.ctx, credit.id))).toBe('ALREADY_DECIDED');
   });
 });

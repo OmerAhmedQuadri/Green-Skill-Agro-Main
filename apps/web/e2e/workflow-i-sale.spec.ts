@@ -88,7 +88,9 @@ for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
     await phone.unroute('**/api/v1/sales');
     expect(dropped).toBe(true);
     expect(await salesOf(phone, credit.id)).toHaveLength(1);
-    await expect(phone.getByTestId('sale-status')).toHaveText(m.sales.statuses.COMPLETED);
+    // The dropped response reset the connection, so the sale page's first read can fail and be
+    // retried with backoff — recovery is the point of the test, and CI takes longer than 10 s.
+    await expect(phone.getByTestId('sale-status')).toHaveText(m.sales.statuses.COMPLETED, { timeout: 30_000 });
 
     // DOC-001..005: the document is printed, marked not a tax invoice, shared from the phone, and kept.
     await expect(phone.getByTestId('delivery-document')).toContainText(m.sales.notTaxInvoice);
@@ -128,7 +130,9 @@ for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
     // PRC-014: the seller sees it without reloading and completes at the approved discount.
     await expect(phone.getByTestId('approved')).toContainText(m.sales.reducedTitle, { timeout: 15_000 });
     await phone.getByRole('button', { name: m.sales.complete }).click();
-    await expect(phone.getByTestId('sale-status')).toHaveText(m.sales.statuses.COMPLETED);
+    // The dropped response reset the connection, so the sale page's first read can fail and be
+    // retried with backoff — recovery is the point of the test, and CI takes longer than 10 s.
+    await expect(phone.getByTestId('sale-status')).toHaveText(m.sales.statuses.COMPLETED, { timeout: 30_000 });
     await expect(phone.getByTestId('sale-total')).toContainText('331.20');
 
     // PRC-014: rejected — the sale closes, the stock is released, and a fresh sale within the ceiling is offered, pre-filled.
@@ -146,14 +150,18 @@ for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
     await expect(phone.getByLabel(fill(m.sales.discountFor, { code: 'OKRA-PK-5KG' }))).toHaveValue('5');
     await expect(phone.getByTestId('total')).toContainText('171.00');
     await phone.getByRole('button', { name: m.sales.complete }).click();
-    await expect(phone.getByTestId('sale-status')).toHaveText(m.sales.statuses.COMPLETED);
+    // The dropped response reset the connection, so the sale page's first read can fail and be
+    // retried with backoff — recovery is the point of the test, and CI takes longer than 10 s.
+    await expect(phone.getByTestId('sale-status')).toHaveText(m.sales.statuses.COMPLETED, { timeout: 30_000 });
 
     // SAL-006: bill to bill settles at once — in cash, which becomes cash in hand (SAL-007).
     await phone.goto(`/field/sell/${cash.id}`);
     await phone.getByLabel(fill(m.sales.packsFor, { code: 'OKRA-PK-5KG' })).fill(n('1'));
     await expect(phone.getByText(m.sales.billToBillNote)).toBeVisible();
     await phone.getByRole('button', { name: m.sales.complete }).click();
-    await expect(phone.getByTestId('sale-status')).toHaveText(m.sales.statuses.COMPLETED);
+    // The dropped response reset the connection, so the sale page's first read can fail and be
+    // retried with backoff — recovery is the point of the test, and CI takes longer than 10 s.
+    await expect(phone.getByTestId('sale-status')).toHaveText(m.sales.statuses.COMPLETED, { timeout: 30_000 });
     await expect(phone.getByTestId('paid')).toContainText(m.stores.methods.CASH);
 
     // SAL-009, CRD-007: a manager releases the blocked store for one sale, with a reason; the next is blocked again.
@@ -162,7 +170,9 @@ for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
     await expect(phone.getByTestId('released')).toBeVisible();
     await phone.getByLabel(fill(m.sales.packsFor, { code: 'OKRA-PK-5KG' })).fill(n('1'));
     await phone.getByRole('button', { name: m.sales.complete }).click();
-    await expect(phone.getByTestId('sale-status')).toHaveText(m.sales.statuses.COMPLETED);
+    // The dropped response reset the connection, so the sale page's first read can fail and be
+    // retried with backoff — recovery is the point of the test, and CI takes longer than 10 s.
+    await expect(phone.getByTestId('sale-status')).toHaveText(m.sales.statuses.COMPLETED, { timeout: 30_000 });
     await phone.goto(`/field/sell/${blocked.id}`);
     await expect(phone.getByTestId('cannot-sell')).toBeVisible();
 

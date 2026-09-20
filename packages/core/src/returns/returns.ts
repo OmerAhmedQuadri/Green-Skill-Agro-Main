@@ -2,8 +2,8 @@ import { DomainError } from '../errors';
 import { Dec, dec, toMoney, type Money } from '../numeric';
 import { businessDate, businessDayStart } from '../time';
 
-/** RET-002, RET-003: why goods come back — payment not yet cleared, or defective. */
-export const RETURN_CONDITIONS = ['UNCLEARED_PAYMENT', 'DEFECTIVE'] as const;
+/** RET-002, RET-003, OQ-012: why goods come back — not paid for, defective, or never received after a remote confirmation. */
+export const RETURN_CONDITIONS = ['UNCLEARED_PAYMENT', 'DEFECTIVE', 'NOT_RECEIVED'] as const;
 export type ReturnCondition = (typeof RETURN_CONDITIONS)[number];
 
 /** ADR-0039: a credit note, or — for defective goods only — a like-for-like replacement (RET-010). */
@@ -40,7 +40,7 @@ export type ConditionState = {
  * cleared needs something still owed on the sale (OQ-020); a defect does not
  * depend on payment (RET-003).
  */
-export function returnConditions(rules: ReturnRules, sale: { readonly completedAt: Date; readonly unpaid: Money }, now: Date): ConditionState[] {
+export function returnConditions(rules: ReturnRules, sale: { readonly completedAt: Date; readonly unpaid: Money; readonly disputable?: boolean }, now: Date): ConditionState[] {
   const age = daysSince(sale.completedAt, now);
   const state = (condition: ReturnCondition, allowed: boolean, windowDays: number, paid: boolean): ConditionState => ({
     condition, windowDays, daysLeft: windowDays - age,
@@ -49,13 +49,18 @@ export function returnConditions(rules: ReturnRules, sale: { readonly completedA
   return [
     state('UNCLEARED_PAYMENT', rules.unclearedAllowed, rules.unclearedWindowDays, !dec(sale.unpaid).gt(0)),
     state('DEFECTIVE', rules.defectiveAllowed, rules.defectiveWindowDays, false),
+    // OQ-012: only a dispatch the store confirmed on its owner's word can be disputed afterwards.
+    ...(sale.disputable ? [state('NOT_RECEIVED', rules.defectiveAllowed, rules.defectiveWindowDays, false)] : []),
   ];
 }
 
 /** RET-002..006: refuses a condition that is switched off, out of its window, or — not yet cleared — already paid. */
-export function assertReturnAllowed(rules: ReturnRules, condition: ReturnCondition, sale: { readonly completedAt: Date; readonly unpaid: Money }, now: Date): void {
+export function assertReturnAllowed(
+  rules: ReturnRules, condition: ReturnCondition, sale: { readonly completedAt: Date; readonly unpaid: Money; readonly disputable?: boolean }, now: Date,
+): void {
   const state = returnConditions(rules, sale, now).find((c) => c.condition === condition);
-  if (state?.blockedBy) throw new DomainError(state.blockedBy, { condition, windowDays: state.windowDays, daysLeft: state.daysLeft });
+  if (!state) throw new DomainError('RETURN_CONDITION_DISABLED', { condition });
+  if (state.blockedBy) throw new DomainError(state.blockedBy, { condition, windowDays: state.windowDays, daysLeft: state.daysLeft });
 }
 
 /** RET-010: only a defective item is replaced; anything else comes back on a credit note. */
@@ -114,8 +119,10 @@ export function creditFor(line: { readonly total: Money; readonly packs: number 
   return toMoney(upTo(credited + packs).minus(upTo(credited)));
 }
 
-/** RET-007: saleable goods go back on their batch; defective, expired or unsaleable ones are written off. */
-export function returnOutcome(condition: ReturnCondition, saleable: boolean, batchExpired: boolean): { outcome: ReturnOutcome; writeOffReason: 'DEFECTIVE' | 'EXPIRED' | 'DAMAGED' | null } {
+/** RET-007: saleable goods go back on their batch; defective, missing, expired or unsaleable ones are written off. */
+export function returnOutcome(condition: ReturnCondition, saleable: boolean, batchExpired: boolean): { outcome: ReturnOutcome; writeOffReason: 'DEFECTIVE' | 'EXPIRED' | 'DAMAGED' | 'MISSING' | null } {
+  // OQ-012: goods the store says never arrived cannot come back — they are written off where they stand.
+  if (condition === 'NOT_RECEIVED') return { outcome: 'WRITE_OFF', writeOffReason: 'MISSING' };
   if (condition === 'DEFECTIVE') return { outcome: 'WRITE_OFF', writeOffReason: 'DEFECTIVE' };
   if (batchExpired) return { outcome: 'WRITE_OFF', writeOffReason: 'EXPIRED' };
   return saleable ? { outcome: 'RESTOCK', writeOffReason: null } : { outcome: 'WRITE_OFF', writeOffReason: 'DAMAGED' };

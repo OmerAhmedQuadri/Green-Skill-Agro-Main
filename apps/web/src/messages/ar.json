@@ -95,13 +95,15 @@
     "stores": "المتاجر",
     "sales": "المبيعات",
     "auditLog": "سجل التدقيق",
-    "dispatch": "الإرسال"
+    "dispatch": "الإرسال",
+    "cash": "النقد"
   },
   "dashboard": {
     "welcome": "مرحباً، {name}",
     "signedInAs": "تم تسجيل الدخول بصفة {role}",
     "permissionCount": "{count, plural, zero {لا توجد صلاحيات} one {صلاحية واحدة} two {صلاحيتان} few {# صلاحيات} many {# صلاحية} other {# صلاحية}}",
-    "unconfirmedDispatch": "{count, plural, zero {لا توجد أوامر إرسال متأخرة} one {أمر إرسال واحد في الطريق منذ مدة طويلة دون تأكيد.} two {أمرا إرسال في الطريق منذ مدة طويلة دون تأكيد.} few {# أوامر إرسال في الطريق منذ مدة طويلة دون تأكيد.} many {# أمر إرسال في الطريق منذ مدة طويلة دون تأكيد.} other {# أمر إرسال في الطريق منذ مدة طويلة دون تأكيد.}}"
+    "unconfirmedDispatch": "{count, plural, zero {لا توجد أوامر إرسال متأخرة} one {أمر إرسال واحد في الطريق منذ مدة طويلة دون تأكيد.} two {أمرا إرسال في الطريق منذ مدة طويلة دون تأكيد.} few {# أوامر إرسال في الطريق منذ مدة طويلة دون تأكيد.} many {# أمر إرسال في الطريق منذ مدة طويلة دون تأكيد.} other {# أمر إرسال في الطريق منذ مدة طويلة دون تأكيد.}}",
+    "ceilingBreached": "{name} تجاوز {kind} — {amount} مقابل {ceiling}."
   },
   "field": {
     "welcome": "يومك سعيد، {name}",
@@ -476,7 +478,9 @@
     "REPLACEMENT_ONLY_DEFECTIVE": "لا يُستبدل إلا الصنف المعيب.",
     "REPLACEMENT_NEEDS_VEHICLE": "يُسلَّم الاستبدال من مركبة البائع، لذا يسجّله البائع في المتجر.",
     "REFUND_NEEDS_SELLER": "يتطلب هذا الإرجاع إعادة نقد، لذا يسجّله البائع في المتجر.",
-    "REFUND_EXCEEDS_CASH_IN_HAND": "لا يكفي النقد الذي بحوزتك لهذا الاسترداد. اعرض الاستبدال بدلًا منه."
+    "REFUND_EXCEEDS_CASH_IN_HAND": "لا يكفي النقد الذي بحوزتك لهذا الاسترداد. اعرض الاستبدال بدلًا منه.",
+    "SETTLEMENT_ABOVE_CASH_IN_HAND": "هذا أكثر من النقد الذي يقول التطبيق إنه بحوزتك.",
+    "RECEIVER_REQUIRED": "اختر المدير الذي يستلم النقد."
   },
   "format": {
     "grams": "{value} جم",
@@ -1061,7 +1065,11 @@
       "DISPATCH_RELEASED": "الطلب {number} لـ {store} في الطريق.",
       "DISPATCH_CANCELLED": "أُلغي الطلب {number} لـ {store}: {reason}",
       "LOST_CLAIM_RAISED": "أُبلغ عن فقدان الطلب {number} لـ {store} — قرّر بشأن المطالبة.",
-      "LOST_CLAIM_DECIDED": "مطالبتك بفقدان الطلب {number} {outcome, select, APPROVED {قُبلت} other {رُفضت}}."
+      "LOST_CLAIM_DECIDED": "مطالبتك بفقدان الطلب {number} {outcome, select, APPROVED {قُبلت} other {رُفضت}}.",
+      "SETTLEMENT_SUBMITTED": "مبلغ {amount} نقدًا بانتظار موافقتك ({number}).",
+      "SETTLEMENT_APPROVED": "تمت الموافقة على تسويتك {number} بمبلغ {amount}.",
+      "SETTLEMENT_REJECTED": "لم تُقبل تسويتك {number} — أعد تقديمها.",
+      "CEILING_BREACHED": "{seller, select, undefined {تجاوزتَ} other {تجاوز {seller}}} حد {kind, select, CASH_IN_HAND {النقد} other {مخزون المركبة}}: {amount} مقابل {ceiling}."
     }
   },
   "vehicles": {
@@ -1639,7 +1647,8 @@
     "why": "لماذا تُرجَع البضاعة؟",
     "conditions": {
       "UNCLEARED_PAYMENT": "لم تُدفع بعد",
-      "DEFECTIVE": "معيبة"
+      "DEFECTIVE": "معيبة",
+      "NOT_RECEIVED": "لم تصل (نزاع بعد التأكيد)"
     },
     "blocked": {
       "RETURN_CONDITION_DISABLED": "غير مسموح به من المسؤول",
@@ -1698,6 +1707,71 @@
       "WRITE_OFF": "شُطب"
     },
     "replacementLine": "{packs} من الدفعة {lot}، تنتهي {expiry}",
-    "replacementNote": "الاستبدال لا ينقل أي أموال ويترك البيع كما هو."
+    "replacementNote": "الاستبدال لا ينقل أي أموال ويترك البيع كما هو.",
+    "refundsTitle": "مبالغ يجب إعادتها",
+    "refundsHint": "اعتمد مدير هذه المبالغ للمتاجر. سلّمها نقدًا في زيارتك القادمة وسجّلها هنا.",
+    "refundLine": "{store} · {number}",
+    "payRefund": "سلّمتُها",
+    "noRefunds": "لا شيء لإعادته."
+  },
+  "cash": {
+    "title": "النقد",
+    "loading": "جارٍ التحميل…",
+    "saving": "جارٍ الحفظ…",
+    "inHand": "النقد بحوزتك",
+    "settleTitle": "أودعه أو سلّمه",
+    "route": "الطريقة",
+    "routes": {
+      "BANK_DEPOSIT": "إيداع بنكي",
+      "MANAGER_HANDOVER": "تسليم إلى مدير"
+    },
+    "amount": "المبلغ",
+    "depositedOn": "تاريخ الإيداع",
+    "receivedBy": "سُلِّم إلى",
+    "chooseManager": "اختر مديرًا",
+    "slip": "صورة إيصال الإيداع",
+    "handoverPhoto": "صورة التسليم",
+    "note": "ملاحظة (اختيارية)",
+    "untilApproved": "يبقى النقد في عهدتك حتى يوافق مدير.",
+    "submit": "إرسال للموافقة",
+    "mySettlements": "تسوياتي",
+    "none": "لم تُرسل أي تسوية بعد.",
+    "statuses": {
+      "SUBMITTED": "بانتظار الموافقة",
+      "APPROVED": "معتمدة",
+      "REJECTED": "غير مقبولة"
+    },
+    "seller": "البائع",
+    "declared": "المبلغ المعلن",
+    "approved": "المبلغ المعتمد",
+    "shortfall": "ما زال في عهدة البائع",
+    "discrepancy": "أكثر مما يعرفه التطبيق",
+    "noteLine": "ملاحظة: {note}",
+    "decidedBy": "قرار {name}، {time}",
+    "commentLine": "تعليق: {comment}",
+    "waiting": "بانتظار موافقة مدير. لا يزال النقد محسوبًا عليك.",
+    "rejectedHint": "لم تُقبل. أعد إرسالها بالبيانات الصحيحة.",
+    "decideTitle": "اعتماد هذه التسوية",
+    "counted": "المبلغ المعدود",
+    "countedHint": "اتركه فارغًا لاعتماد المبلغ المعلن. أي مبلغ مختلف يتطلب تعليقًا.",
+    "comment": "تعليق",
+    "approve": "اعتماد",
+    "reject": "رفض",
+    "consoleSubtitle": "ما بحوزة كل بائع، والتسويات التي تنتظر القرار.",
+    "waitingTitle": "بانتظار الاعتماد",
+    "noneWaiting": "لا شيء بالانتظار.",
+    "number": "الرقم",
+    "submitted": "أُرسلت",
+    "sellersTitle": "البائعون",
+    "cashCeiling": "حد النقد",
+    "stockValue": "مخزون المركبة",
+    "stockCeiling": "حد المخزون",
+    "state": "الحالة",
+    "within": "ضمن الحدود",
+    "over": {
+      "CASH_IN_HAND": "تجاوز حد النقد",
+      "VEHICLE_STOCK_VALUE": "تجاوز حد المخزون"
+    },
+    "warningOnly": "الحد تنبيه فقط: لا يُمنع أحد من العمل."
   }
 }

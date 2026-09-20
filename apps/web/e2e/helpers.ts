@@ -122,11 +122,12 @@ export async function positionsOf(page: Page, skuId: string) {
 export async function takePhoto(page: Page, container: string, m: { camera: { open: string; take: string; ready: string } }) {
   const box = page.locator(`[id="${container}"]`);
   const video = box.locator('video');
-  // The fake camera can still be held by the previous photo for a moment: open again until it shows.
+  // The fake camera can still be held by the previous photo: opening can be slow, or do
+  // nothing at all, so keep asking until the video shows (M4, and again in M9's full runs).
   await expect(async () => {
-    if (!(await video.isVisible())) await box.getByRole('button', { name: m.camera.open }).click({ timeout: 2_000 });
-    await expect(video).toBeVisible({ timeout: 4_000 });
-  }).toPass({ timeout: 20_000 });
+    if (!(await video.isVisible())) await box.getByRole('button', { name: m.camera.open }).click({ timeout: 5_000 });
+    await expect(video).toBeVisible({ timeout: 5_000 });
+  }).toPass({ timeout: 45_000 });
   // The first camera of a run can take a while to deliver frames.
   await expect.poll(() => box.locator('video').evaluate((v: HTMLVideoElement) => v.videoWidth), { timeout: 20_000 }).toBeGreaterThan(0);
   await box.getByRole('button', { name: m.camera.take }).click();
