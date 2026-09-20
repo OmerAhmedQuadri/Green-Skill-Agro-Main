@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start",
+    "postbuild": "node scripts/standalone.mjs",
+    "start": "node --env-file-if-exists=../../.env .next/standalone/apps/web/server.js",
     "typecheck": "next typegen && tsc --noEmit -p .",
     "lint": "eslint .",
     "test:e2e": "playwright test"

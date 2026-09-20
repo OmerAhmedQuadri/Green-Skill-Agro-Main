@@ -26,9 +26,19 @@ export default defineConfig({
   }],
   webServer: [
     {
+      // `pnpm start` runs the standalone server the VPS runs (DEVELOPMENT §9),
+      // so the suite exercises what ships rather than `next start`.
       command: 'pnpm start',
       url: 'http://localhost:3000/api/v1/health',
-      reuseExistingServer: !process.env.CI,
+      /**
+       * Reuse is opt-in, not the default. Anything already on port 3000 — a
+       * forgotten `pnpm dev`, a server left by a crashed run — would otherwise
+       * be reused silently, and the suite would pass or fail against a build
+       * that is not the one under test. Set E2E_REUSE_SERVER=1 for the fast
+       * loop when you know what is running; the few seconds a fresh start
+       * costs are cheaper than one afternoon spent trusting a stale result.
+       */
+      reuseExistingServer: !process.env.CI && process.env.E2E_REUSE_SERVER === '1',
       timeout: 120_000,
     },
     {
