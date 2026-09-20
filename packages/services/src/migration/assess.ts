@@ -1,6 +1,7 @@
-import { normalisePhone } from '@gsa/core';
+import { COUNTRY_CODES, normalisePhone } from '@gsa/core';
+import type { ExampleRows } from './styles';
 import {
-  columnOf, shapeOutliers, sheetRows, templateExamples, tidySkuCode, valueAt,
+  columnOf, sheetRows, tidySkuCode, valueAt,
   type Issue, type Sheet, type SheetRows,
 } from './workbook';
 
@@ -13,12 +14,15 @@ import {
  * is a question, not a store with a guessed cycle.
  */
 
-export type Assessment<T> = { readonly loadable: readonly T[]; readonly issues: readonly Issue[] };
+/** The sheet travels with its result: a refusal has to point somewhere a person can open. */
+export type Assessment<T> = { readonly sheet: string; readonly loadable: readonly T[]; readonly issues: readonly Issue[] };
 
 export type CategoryRow = { readonly nameEn: string; readonly nameAr: string; readonly subEn: string; readonly subAr: string };
 export type VendorRow = {
   readonly code: string; readonly name: string; readonly contact: string;
-  readonly phone: string | null; readonly email: string | null; readonly country: string;
+  readonly phone: string | null; readonly email: string | null;
+  /** ISO 3166-1 alpha-2, resolved from whatever the sheet called it. */
+  readonly country: string;
 };
 export type SkuRow = {
   readonly row: number; readonly code: string; readonly product: string; readonly variety: string;
@@ -28,9 +32,21 @@ export type StoreRow = { readonly row: number; readonly name: string; readonly o
 
 const issue = (sheet: string, row: number, kind: Issue['kind'], detail: string): Issue => ({ sheet, row, kind, detail });
 
+/**
+ * The rows the template shaded as its own examples (`styles.ts`). Every sheet
+ * is given the set rather than defaulting to none: a missing argument would
+ * quietly mean "load the examples too", which is the mistake this replaced.
+ */
+const examplesOf = (examples: ExampleRows, sheet: string): ReadonlySet<number> => examples.get(sheet) ?? new Set();
+
+/** Shaded rows are not loaded, and say so — the tint outlives being typed over. */
+const exampleIssue = (sheet: string, row: number): Issue =>
+  issue(sheet, row, 'LOOKS_LIKE_TEMPLATE_EXAMPLE', 'the template shaded this row as one of its own examples; not loaded');
+
 /** Sheet 1. Three categories, each with a sub-category; the simplest sheet in the book. */
-export function assessCategories(sheet: Sheet): Assessment<CategoryRow> {
+export function assessCategories(sheet: Sheet, examples: ExampleRows): Assessment<CategoryRow> {
   const rows = sheetRows(sheet);
+  const shaded = examplesOf(examples, rows.sheet);
   const at = {
     nameEn: columnOf(rows.headers, 'Category (English)'), nameAr: columnOf(rows.headers, 'Category (Arabic)'),
     subEn: columnOf(rows.headers, 'Sub-category (English)'), subAr: columnOf(rows.headers, 'Sub-category (Arabic)'),
@@ -38,6 +54,10 @@ export function assessCategories(sheet: Sheet): Assessment<CategoryRow> {
   const loadable: CategoryRow[] = [];
   const issues: Issue[] = [];
   for (const { row, cells } of rows.rows) {
+    if (shaded.has(row)) {
+      issues.push(exampleIssue(rows.sheet, row));
+      continue;
+    }
     const record = {
       nameEn: valueAt(cells, at.nameEn), nameAr: valueAt(cells, at.nameAr),
       subEn: valueAt(cells, at.subEn), subAr: valueAt(cells, at.subAr),
@@ -46,7 +66,7 @@ export function assessCategories(sheet: Sheet): Assessment<CategoryRow> {
     if (missing.length > 0) issues.push(issue(rows.sheet, row, 'MISSING_REQUIRED_FIELD', `needs ${missing.join(', ')}`));
     else loadable.push(record);
   }
-  return { loadable, issues };
+  return { sheet: rows.sheet, loadable, issues };
 }
 
 /**
@@ -54,8 +74,9 @@ export function assessCategories(sheet: Sheet): Assessment<CategoryRow> {
  * to Excel and no vendor gave an address (CLIENT-DATA). A vendor loads without
  * either — neither is required to order from them — and the gaps are reported.
  */
-export function assessVendors(sheet: Sheet): Assessment<VendorRow> {
+export function assessVendors(sheet: Sheet, examples: ExampleRows): Assessment<VendorRow> {
   const rows = sheetRows(sheet);
+  const shaded = examplesOf(examples, rows.sheet);
   const at = {
     code: columnOf(rows.headers, 'Vendor code'), name: columnOf(rows.headers, 'Vendor name'),
     contact: columnOf(rows.headers, 'Contact person'), phone: columnOf(rows.headers, 'Phone'),
@@ -66,6 +87,10 @@ export function assessVendors(sheet: Sheet): Assessment<VendorRow> {
   const issues: Issue[] = [];
   const seen = new Set<string>();
   for (const { row, cells } of rows.rows) {
+    if (shaded.has(row)) {
+      issues.push(exampleIssue(rows.sheet, row));
+      continue;
+    }
     const code = valueAt(cells, at.code);
     const name = valueAt(cells, at.name);
     if (!code || !name) {
@@ -82,12 +107,20 @@ export function assessVendors(sheet: Sheet): Assessment<VendorRow> {
     const tidied = phone ? safePhone(phone) : null;
     if (phone && !tidied) issues.push(issue(rows.sheet, row, 'NEEDS_CONFIRMATION', `the phone for ${code} is not a usable number`));
     if (!valueAt(cells, at.address)) issues.push(issue(rows.sheet, row, 'MISSING_REQUIRED_FIELD', `${code} has no address`));
+    const raw = valueAt(cells, at.country);
+    const country = countryFor(raw);
+    if (!country) {
+      issues.push(issue(rows.sheet, row, raw ? 'UNKNOWN_REFERENCE' : 'MISSING_REQUIRED_FIELD', raw
+        ? `${code} gives its country as "${raw}", which is not a country name the system knows — the name as it appears on a map, or the two-letter code`
+        : `${code} has no country`));
+      continue;
+    }
     loadable.push({
       code, name, contact: valueAt(cells, at.contact), phone: tidied,
-      email: valueAt(cells, at.email) || null, country: valueAt(cells, at.country),
+      email: valueAt(cells, at.email) || null, country,
     });
   }
-  return { loadable, issues };
+  return { sheet: rows.sheet, loadable, issues };
 }
 
 /**
@@ -95,19 +128,23 @@ export function assessVendors(sheet: Sheet): Assessment<VendorRow> {
  * unusual shape are reported rather than dropped: a real row with a note reads
  * the same as the template's example with a note (CLIENT-DATA, `OKRA-PK-1KG`).
  */
-export function assessSkus(sheet: Sheet): Assessment<SkuRow> {
+export function assessSkus(sheet: Sheet, examples: ExampleRows): Assessment<SkuRow> {
   const rows = sheetRows(sheet);
+  const shaded = examplesOf(examples, rows.sheet);
   const at = {
     code: columnOf(rows.headers, 'SKU code'), product: columnOf(rows.headers, 'Product name (English)'),
     variety: columnOf(rows.headers, 'Variety name (English)'), packaging: columnOf(rows.headers, 'Packaging type'),
     packSize: columnOf(rows.headers, 'Pack size'), unit: columnOf(rows.headers, 'Unit'),
     price: columnOf(rows.headers, 'Base price'),
   };
-  const odd = new Map(shapeOutliers(rows).map((o) => [o.row, o]));
   const loadable: SkuRow[] = [];
   const issues: Issue[] = [];
   const seen = new Set<string>();
   for (const { row, cells } of rows.rows) {
+    if (shaded.has(row)) {
+      issues.push(exampleIssue(rows.sheet, row));
+      continue;
+    }
     const raw = valueAt(cells, at.code);
     const code = tidySkuCode(raw);
     if (!code) {
@@ -132,16 +169,12 @@ export function assessSkus(sheet: Sheet): Assessment<SkuRow> {
       issues.push(issue(rows.sheet, row, 'CONFLICTING_VALUE', `${code} says one pack size and the Pack size column says another`));
       continue;
     }
-    if (odd.has(row)) {
-      issues.push(issue(rows.sheet, row, 'LOOKS_LIKE_TEMPLATE_EXAMPLE', `${code} fills a different set of columns from the other rows — confirm it is a real SKU`));
-      continue;
-    }
     loadable.push({
       row, code, product: valueAt(cells, at.product), variety: valueAt(cells, at.variety),
       packaging: valueAt(cells, at.packaging), packSize, unit: valueAt(cells, at.unit), price,
     });
   }
-  return { loadable, issues };
+  return { sheet: rows.sheet, loadable, issues };
 }
 
 /**
@@ -150,25 +183,20 @@ export function assessSkus(sheet: Sheet): Assessment<SkuRow> {
  * as they stand: every one is a question, and the count is the answer Green
  * Agro has to give before the shop floor can use them (MIG-003, MIG-005).
  */
-export function assessStores(sheet: Sheet): Assessment<StoreRow> {
+export function assessStores(sheet: Sheet, examples: ExampleRows): Assessment<StoreRow> {
   const rows = sheetRows(sheet);
+  const shaded = examplesOf(examples, rows.sheet);
   const at = {
     name: columnOf(rows.headers, 'Store name'), owner: columnOf(rows.headers, 'Owner name'),
     phone: columnOf(rows.headers, 'Phone'), cycle: columnOf(rows.headers, 'Credit cycle'),
     seller: columnOf(rows.headers, 'Assigned seller'),
   };
-  const examples = templateExamples(rows, ['Credit cycle', 'Credit limit', 'Price list']);
   const issues: Issue[] = [];
   const ready: StoreRow[] = [];
   let namesOnly = 0;
   for (const { row, cells } of rows.rows) {
-    if (examples.has(row)) {
-      // Indistinguishable from a store Green Agro genuinely finished, so this
-      // asks rather than asserts. In the workbook as received all three such
-      // rows are the template's; if real stores are completed later they become
-      // the majority and stop being read this way.
-      issues.push(issue(rows.sheet, row, 'LOOKS_LIKE_TEMPLATE_EXAMPLE',
-        'carries credit terms almost no other row has — confirm whether this is the template\'s example or a real store; not loaded either way'));
+    if (shaded.has(row)) {
+      issues.push(exampleIssue(rows.sheet, row));
       continue;
     }
     const name = valueAt(cells, at.name);
@@ -187,7 +215,33 @@ export function assessStores(sheet: Sheet): Assessment<StoreRow> {
     issues.push(issue(rows.sheet, 0, 'MISSING_REQUIRED_FIELD',
       `${namesOnly} stores have a name but no credit cycle or assigned seller, so none of them can trade yet — Green Agro supplies both, or they are entered fresh (MIG-005)`));
   }
-  return { loadable: ready, issues };
+  return { sheet: rows.sheet, loadable: ready, issues };
+}
+
+/**
+ * Green Agro writes country names; the system stores ISO codes, and
+ * `core/catalogue/countries.ts` keeps country names out of code on purpose.
+ * `Intl` supplies the names, so the mapping is a property of the platform
+ * rather than a list someone has to maintain.
+ *
+ * An informal name `Intl` does not know — "Holland" for the Netherlands — is a
+ * question rather than a near-enough guess, and asking now beats a refusal
+ * half way through the import.
+ */
+let countries: Map<string, string> | undefined;
+
+function countryFor(value: string): string | null {
+  if (!value) return null;
+  if (!countries) {
+    const names = new Intl.DisplayNames(['en'], { type: 'region' });
+    countries = new Map();
+    for (const code of COUNTRY_CODES) {
+      countries.set(code.toLowerCase(), code);
+      const name = names.of(code);
+      if (name && name !== code) countries.set(name.toLowerCase(), code);
+    }
+  }
+  return countries.get(value.trim().toLowerCase()) ?? null;
 }
 
 /** A phone Excel mangled is worth nothing; better absent than wrong. */
@@ -233,29 +287,37 @@ const find = (sheets: readonly Sheet[], name: string): Sheet => {
  * name a category and a vendor, and vehicles name a user, so those are read
  * first and a reference to something absent is reported rather than invented.
  */
-export function assess(sheets: readonly Sheet[]): Assessed {
-  const categories = assessCategories(find(sheets, 'Categories'));
-  const vendors = assessVendors(find(sheets, 'Vendors'));
-  const users = assessUsers(find(sheets, 'Users'));
+export function assess(sheets: readonly Sheet[], examples: ExampleRows): Assessed {
+  const categories = assessCategories(find(sheets, 'Categories'), examples);
+  const vendors = assessVendors(find(sheets, 'Vendors'), examples);
+  const users = assessUsers(find(sheets, 'Users'), examples);
   return {
     categories,
     vendors,
-    products: assessProducts(find(sheets, 'Products'), { categories: categories.loadable, vendors: vendors.loadable }),
-    skus: assessSkus(find(sheets, 'SKUs')),
-    stores: assessStores(find(sheets, 'Stores')),
+    products: assessProducts(find(sheets, 'Products'), { categories: categories.loadable, vendors: vendors.loadable }, examples),
+    skus: assessSkus(find(sheets, 'SKUs'), examples),
+    stores: assessStores(find(sheets, 'Stores'), examples),
     users,
-    vehicles: assessVehicles(find(sheets, 'Vehicles'), users.loadable),
+    vehicles: assessVehicles(find(sheets, 'Vehicles'), users.loadable, examples),
   };
 }
 
+export type { ExampleRows } from './styles';
 export type { Issue, Sheet, SheetRows };
 
 export type ProductRow = {
   readonly row: number; readonly nameEn: string; readonly nameAr: string;
   readonly category: string; readonly subCategory: string; readonly productType: string;
-  readonly vendorCode: string; readonly origin: string; readonly shelfLifeMonths: number | null;
-  readonly varieties: readonly { readonly nameEn: string; readonly nameAr: string; readonly hybrid: boolean }[];
+  readonly vendorCode: string;
+  /** ISO 3166-1 alpha-2, resolved from whatever the sheet called it. */
+  readonly origin: string | null;
+  readonly shelfLifeMonths: number | null;
+  readonly hybrid: Hybrid | null;
+  readonly varieties: readonly { readonly nameEn: string; readonly nameAr: string }[];
 };
+
+/** CAT-013: a Seeds product must say which it is, so the column is read, not inferred from the sub-category. */
+export type Hybrid = 'HYBRID' | 'NON_HYBRID';
 
 /**
  * Sheet 3. One row per SKU, so a product with four varieties appears four
@@ -268,8 +330,10 @@ export type ProductRow = {
 export function assessProducts(
   sheet: Sheet,
   known: { readonly categories: readonly CategoryRow[]; readonly vendors: readonly VendorRow[] },
+  examples: ExampleRows,
 ): Assessment<ProductRow> {
   const rows = sheetRows(sheet);
+  const shaded = examplesOf(examples, rows.sheet);
   const at = {
     type: columnOf(rows.headers, 'Product type'), category: columnOf(rows.headers, 'Category'),
     sub: columnOf(rows.headers, 'Sub-category'), nameEn: columnOf(rows.headers, 'Product name (English)'),
@@ -282,10 +346,14 @@ export function assessProducts(
   const subCategories = new Set(known.categories.map((c) => c.subEn.toLowerCase()));
   const vendors = new Set(known.vendors.map((v) => v.code.toLowerCase()));
 
-  const byProduct = new Map<string, { row: number; product: ProductRow; varieties: Map<string, { nameEn: string; nameAr: string; hybrid: boolean }> }>();
+  const byProduct = new Map<string, { row: number; product: ProductRow; varieties: Map<string, { nameEn: string; nameAr: string }> }>();
   const issues: Issue[] = [];
 
   for (const { row, cells } of rows.rows) {
+    if (shaded.has(row)) {
+      issues.push(exampleIssue(rows.sheet, row));
+      continue;
+    }
     const nameEn = valueAt(cells, at.nameEn);
     const nameAr = valueAt(cells, at.nameAr);
     if (!nameEn || !nameAr) {
@@ -308,20 +376,28 @@ export function assessProducts(
       continue;
     }
 
+    const rawOrigin = valueAt(cells, at.origin);
+    const origin = countryFor(rawOrigin);
+    if (rawOrigin && !origin) {
+      issues.push(issue(rows.sheet, row, 'UNKNOWN_REFERENCE', `${nameEn} gives its country of origin as "${rawOrigin}", which is not a country name the system knows`));
+      continue;
+    }
     const months = shelfLifeMonths(valueAt(cells, at.shelfLife), valueAt(cells, at.shelfUnit));
+    const hybrid = hybridOf(valueAt(cells, at.hybrid));
     const key = nameEn.toLowerCase();
     const existing = byProduct.get(key);
     const varietyEn = valueAt(cells, at.varietyEn);
-    const variety = varietyEn
-      ? { nameEn: varietyEn, nameAr: valueAt(cells, at.varietyAr) || varietyEn, hybrid: /hybrid/i.test(valueAt(cells, at.hybrid)) && !/non/i.test(valueAt(cells, at.hybrid)) }
-      : null;
+    const variety = varietyEn ? { nameEn: varietyEn, nameAr: valueAt(cells, at.varietyAr) || varietyEn } : null;
 
     if (!existing) {
-      const varieties = new Map<string, { nameEn: string; nameAr: string; hybrid: boolean }>();
+      const varieties = new Map<string, { nameEn: string; nameAr: string }>();
       if (variety) varieties.set(variety.nameEn.toLowerCase(), variety);
       byProduct.set(key, {
         row,
-        product: { row, nameEn, nameAr, category, subCategory, productType: valueAt(cells, at.type), vendorCode, origin: valueAt(cells, at.origin), shelfLifeMonths: months, varieties: [] },
+        product: {
+          row, nameEn, nameAr, category, subCategory, productType: valueAt(cells, at.type),
+          vendorCode, origin, shelfLifeMonths: months, hybrid, varieties: [],
+        },
         varieties,
       });
       continue;
@@ -330,12 +406,22 @@ export function assessProducts(
     if (existing.product.nameAr !== nameAr) {
       issues.push(issue(rows.sheet, row, 'CONFLICTING_VALUE', `${nameEn} has one Arabic name on row ${existing.row} and another here`));
     }
+    if (existing.product.hybrid !== hybrid) {
+      issues.push(issue(rows.sheet, row, 'CONFLICTING_VALUE', `${nameEn} is hybrid on row ${existing.row} and not here, or the other way round`));
+    }
     if (variety) existing.varieties.set(variety.nameEn.toLowerCase(), variety);
   }
 
   const loadable = [...byProduct.values()].map(({ product, varieties }) => ({ ...product, varieties: [...varieties.values()] }));
-  return { loadable, issues };
+  return { sheet: rows.sheet, loadable, issues };
 }
+
+/** "Non-hybrid" contains "hybrid", so the negative is tested first. */
+const hybridOf = (value: string): Hybrid | null => {
+  if (!value) return null;
+  if (/non[-\s]?hybrid/i.test(value)) return 'NON_HYBRID';
+  return /hybrid/i.test(value) ? 'HYBRID' : null;
+};
 
 const shelfLifeMonths = (value: string, unit: string): number | null => {
   const n = Number(value);
@@ -356,8 +442,9 @@ export type UserRow = {
  * (ADR-0018), which is allowed, so an account needs a name, a role, and at
  * least one of the two ways to sign in.
  */
-export function assessUsers(sheet: Sheet): Assessment<UserRow> {
+export function assessUsers(sheet: Sheet, examples: ExampleRows): Assessment<UserRow> {
   const rows = sheetRows(sheet);
+  const shaded = examplesOf(examples, rows.sheet);
   const at = {
     name: columnOf(rows.headers, 'Full name'), email: columnOf(rows.headers, 'Email'),
     phone: columnOf(rows.headers, 'Phone'), role: columnOf(rows.headers, 'Role'),
@@ -372,6 +459,10 @@ export function assessUsers(sheet: Sheet): Assessment<UserRow> {
   const issues: Issue[] = [];
   const seen = new Set<string>();
   for (const { row, cells } of rows.rows) {
+    if (shaded.has(row)) {
+      issues.push(exampleIssue(rows.sheet, row));
+      continue;
+    }
     const name = valueAt(cells, at.name);
     const rawRole = valueAt(cells, at.role);
     const role = roles.get(rawRole.toLowerCase());
@@ -397,7 +488,7 @@ export function assessUsers(sheet: Sheet): Assessment<UserRow> {
     seen.add(key);
     loadable.push({ row, name, email, phone, role });
   }
-  return { loadable, issues };
+  return { sheet: rows.sheet, loadable, issues };
 }
 
 export type VehicleRow = {
@@ -411,8 +502,9 @@ export type VehicleRow = {
  * only and one matches nobody (CLIENT-DATA), and neither should quietly become
  * an assignment to the wrong seller.
  */
-export function assessVehicles(sheet: Sheet, users: readonly UserRow[]): Assessment<VehicleRow> {
+export function assessVehicles(sheet: Sheet, users: readonly UserRow[], examples: ExampleRows): Assessment<VehicleRow> {
   const rows = sheetRows(sheet);
+  const shaded = examplesOf(examples, rows.sheet);
   const at = {
     registration: columnOf(rows.headers, 'Registration number'), description: columnOf(rows.headers, 'Description'),
     odometer: columnOf(rows.headers, 'Current odometer'), status: columnOf(rows.headers, 'Status'),
@@ -421,6 +513,10 @@ export function assessVehicles(sheet: Sheet, users: readonly UserRow[]): Assessm
   const loadable: VehicleRow[] = [];
   const issues: Issue[] = [];
   for (const { row, cells } of rows.rows) {
+    if (shaded.has(row)) {
+      issues.push(exampleIssue(rows.sheet, row));
+      continue;
+    }
     const registration = valueAt(cells, at.registration);
     if (!registration) {
       issues.push(issue(rows.sheet, row, 'MISSING_REQUIRED_FIELD', 'needs a registration number'));
@@ -432,19 +528,24 @@ export function assessVehicles(sheet: Sheet, users: readonly UserRow[]): Assessm
       continue;
     }
     const typed = valueAt(cells, at.assignee);
-    const assignee = typed ? matchUser(typed, users) : null;
-    if (typed && !assignee) {
+    const match = typed ? matchUser(typed, users) : null;
+    if (typed && !match) {
       issues.push(issue(rows.sheet, row, 'UNKNOWN_REFERENCE', `${registration} is assigned to a name that matches no account on the Users sheet`));
     }
-    if (typed && assignee && assignee.partial) {
-      issues.push(issue(rows.sheet, row, 'NEEDS_CONFIRMATION', `${registration} is assigned by first name only — confirm which account is meant`));
+    if (match?.partial) {
+      issues.push(issue(rows.sheet, row, 'NEEDS_CONFIRMATION', `${registration} is assigned by first name only — confirm which account is meant; the vehicle loads unassigned`));
     }
-    loadable.push({ row, registration, description: valueAt(cells, at.description), odometer, assignee: assignee?.name ?? null });
+    // A first-name match is not an assignment: the vehicle carries a seller's
+    // whole stock, and a manager assigns one in seconds (MIG-005, VEH-002).
+    loadable.push({
+      row, registration, description: valueAt(cells, at.description), odometer,
+      assignee: match && !match.partial ? match.name : null,
+    });
   }
-  return { loadable, issues };
+  return { sheet: rows.sheet, loadable, issues };
 }
 
-/** A hand-typed name against the accounts: exact wins, a lone first-name match is flagged. */
+/** A hand-typed name against the accounts: only an exact match is an assignment. */
 function matchUser(typed: string, users: readonly UserRow[]): { name: string; partial: boolean } | null {
   const wanted = typed.trim().toLowerCase();
   const exact = users.find((u) => u.name.toLowerCase() === wanted);

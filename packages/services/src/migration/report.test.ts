@@ -2,9 +2,10 @@ import { describe, expect, it } from 'vitest';
 import type { Assessed } from './assess';
 import { cleansingReport } from './report';
 
-const empty = { loadable: [], issues: [] };
+const empty = (sheet: string) => ({ sheet, loadable: [], issues: [] });
 const assessed = (over: Partial<Assessed> = {}): Assessed => ({
-  categories: empty, vendors: empty, skus: empty, stores: empty, ...over,
+  categories: empty('1. Categories'), vendors: empty('2. Vendors'),
+  skus: empty('4. SKUs & Prices'), stores: empty('6. Stores'), ...over,
 } as Assessed);
 
 const at = new Date('2026-09-20T10:00:00Z');
@@ -20,19 +21,20 @@ describe('the cleansing report (MIG-003, MIG-004)', () => {
   it('counts what loaded against what was left, sheet by sheet', () => {
     const report = cleansingReport({
       assessed: assessed({
-        skus: { loadable: [{}, {}, {}], issues: [] },
-        stores: { loadable: [], issues: [{ sheet: '6. Stores', row: 0, kind: 'MISSING_REQUIRED_FIELD', detail: '76 stores have no terms' }] },
+        skus: { sheet: '4. SKUs & Prices', loadable: [{}, {}, {}], issues: [] },
+        stores: { sheet: '6. Stores', loadable: [], issues: [{ sheet: '6. Stores', row: 0, kind: 'MISSING_REQUIRED_FIELD', detail: '76 stores have no terms' }] },
       } as unknown as Partial<Assessed>),
       workbook, at,
     });
-    expect(report).toContain('| skus | 3 | 0 |');
-    expect(report).toContain('| stores | 0 | 1 |');
+    expect(report).toContain('| 4. SKUs & Prices | 3 | 0 |');
+    expect(report).toContain('| 6. Stores | 0 | 1 |');
   });
 
   it('puts what blocks the system before what is merely tidy', () => {
     const report = cleansingReport({
       assessed: assessed({
         skus: {
+          sheet: '4. SKUs & Prices',
           loadable: [],
           issues: [
             { sheet: '4. SKUs', row: 9, kind: 'NEEDS_CONFIRMATION', detail: 'a stray space was removed' },
@@ -49,7 +51,7 @@ describe('the cleansing report (MIG-003, MIG-004)', () => {
   it('MIG-003: every entry says where to look and what to do about it', () => {
     const report = cleansingReport({
       assessed: assessed({
-        skus: { loadable: [], issues: [{ sheet: '4. SKUs & Prices', row: 12, kind: 'CONFLICTING_VALUE', detail: 'the code and the pack size disagree' }] },
+        skus: { sheet: '4. SKUs & Prices', loadable: [], issues: [{ sheet: '4. SKUs & Prices', row: 12, kind: 'CONFLICTING_VALUE', detail: 'the code and the pack size disagree' }] },
       } as unknown as Partial<Assessed>),
       workbook, at,
     });
@@ -60,7 +62,7 @@ describe('the cleansing report (MIG-003, MIG-004)', () => {
   it('an issue about a whole sheet is not written as though it were one row', () => {
     const report = cleansingReport({
       assessed: assessed({
-        stores: { loadable: [], issues: [{ sheet: '6. Stores', row: 0, kind: 'MISSING_REQUIRED_FIELD', detail: '76 stores have a name but no credit cycle' }] },
+        stores: { sheet: '6. Stores', loadable: [], issues: [{ sheet: '6. Stores', row: 0, kind: 'MISSING_REQUIRED_FIELD', detail: '76 stores have a name but no credit cycle' }] },
       } as unknown as Partial<Assessed>),
       workbook, at,
     });

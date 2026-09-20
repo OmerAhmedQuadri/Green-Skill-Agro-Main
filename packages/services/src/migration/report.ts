@@ -67,10 +67,13 @@ export function cleansingReport({ assessed, workbook, at }: ReportInput): string
 
   lines.push('## What loaded');
   lines.push('');
-  lines.push('| Sheet | Loaded | Left for review |');
+  // Rows, not records: sheet 1 writes a category once per sub-category, so
+  // three rows there are two categories. The verification report counts records.
+  lines.push('| Sheet | Rows loaded | Rows left for review |');
   lines.push('| :--- | ---: | ---: |');
-  for (const [name, part] of parts) {
-    lines.push(`| ${name} | ${part.loadable.length} | ${part.issues.length} |`);
+  // Named as the workbook names them, so a row can be checked against the file.
+  for (const [, part] of parts) {
+    lines.push(`| ${part.sheet} | ${part.loadable.length} | ${part.issues.length} |`);
   }
   lines.push('');
 

@@ -1,8 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { assessCategories, assessProducts, assessSkus, assessStores, assessUsers, assessVehicles, assessVendors } from './assess';
+import type { ExampleRows } from './styles';
 import { HEADER_ROW, type Cell, type Sheet } from './workbook';
 
 /** Synthetic, shaped like the workbook: client data never enters the repo. */
+const none: ExampleRows = new Map();
+/** The rows the template shaded as its own, as `styles.ts` reports them. */
+const shaded = (sheet: string, ...rows: number[]): ExampleRows => new Map([[sheet, new Set(rows)]]);
+
 const aSheet = (name: string, headers: string[], rows: Cell[][]): Sheet => ({
   sheet: name,
   data: [[null], ['title'], ['guidance'], headers, ...rows],
@@ -20,7 +25,7 @@ describe('assessing the workbook (MIG-001, MIG-003, MIG-005)', () => {
       ['Seeds', 'بذور', 'Hybrid', 'هجين'],
       ['Essentials', 'أساسيات', 'Nets', null],
     ]);
-    const { loadable, issues } = assessCategories(sheet);
+    const { loadable, issues } = assessCategories(sheet, none);
     expect(loadable).toEqual([{ nameEn: 'Seeds', nameAr: 'بذور', subEn: 'Hybrid', subAr: 'هجين' }]);
     expect(issues).toMatchObject([{ row: 6, kind: 'MISSING_REQUIRED_FIELD', detail: 'needs subAr' }]);
   });
@@ -31,11 +36,29 @@ describe('assessing the workbook (MIG-001, MIG-003, MIG-005)', () => {
       ['VEN-1', 'Supplier', 'Person', '0512345678', 'a@b.com', 'IN', 'Somewhere'],
       ['VEN-2', 'Other', 'Person', '1', null, 'CN', null],
     ]);
-    const { loadable, issues } = assessVendors(sheet);
+    const { loadable, issues } = assessVendors(sheet, none);
     expect(loadable).toHaveLength(2);
     // The placeholder phone is dropped rather than stored as a wrong number.
     expect(loadable[1]).toMatchObject({ code: 'VEN-2', phone: null, email: null });
     expect(issues.map((i) => i.kind)).toEqual(['NEEDS_CONFIRMATION', 'MISSING_REQUIRED_FIELD']);
+  });
+
+  it('CAT-005: a country is stored as its code, whatever the sheet called it', () => {
+    const headers = ['Vendor code', 'Vendor name', 'Contact person', 'Phone', 'Email', 'Country', 'Address'];
+    const sheet = aSheet('2. Vendors', headers, [
+      ['VEN-1', 'Supplier', 'P', null, null, 'India', 'A'],
+      ['VEN-2', 'Other', 'P', null, null, 'nl', 'A'],
+    ]);
+    expect(assessVendors(sheet, none).loadable.map((v) => v.country)).toEqual(['IN', 'NL']);
+  });
+
+  it('MIG-003: a country the system does not know is a question — "Holland" is not guessed at', () => {
+    const headers = ['Vendor code', 'Vendor name', 'Contact person', 'Phone', 'Email', 'Country', 'Address'];
+    const sheet = aSheet('2. Vendors', headers, [['VEN-1', 'Supplier', 'P', null, null, 'Holland', 'A']]);
+    const { loadable, issues } = assessVendors(sheet, none);
+    expect(loadable).toEqual([]);
+    expect(issues).toMatchObject([{ kind: 'UNKNOWN_REFERENCE', row: 5 }]);
+    expect(issues[0]?.detail).toContain('Holland');
   });
 
   it('a duplicate vendor code is a conflict, not the last row quietly winning', () => {
@@ -44,7 +67,7 @@ describe('assessing the workbook (MIG-001, MIG-003, MIG-005)', () => {
       ['VEN-1', 'First', 'P', null, null, 'IN', 'A'],
       ['VEN-1', 'Second', 'P', null, null, 'IN', 'A'],
     ]);
-    const { loadable, issues } = assessVendors(sheet);
+    const { loadable, issues } = assessVendors(sheet, none);
     expect(loadable).toHaveLength(1);
     expect(issues).toMatchObject([{ kind: 'CONFLICTING_VALUE', row: 6 }]);
   });
@@ -53,7 +76,7 @@ describe('assessing the workbook (MIG-001, MIG-003, MIG-005)', () => {
     const sheet = aSheet('4. SKUs & Prices', SKU_HEADERS, [
       ['RED -CB-50G', 'Radish', 'Cherry Belle', 'Can', '50', 'g', '12.00', null],
     ]);
-    const { loadable, issues } = assessSkus(sheet);
+    const { loadable, issues } = assessSkus(sheet, none);
     expect(loadable[0]?.code).toBe('RED-CB-50G');
     expect(issues).toMatchObject([{ kind: 'NEEDS_CONFIRMATION' }]);
   });
@@ -64,55 +87,63 @@ describe('assessing the workbook (MIG-001, MIG-003, MIG-005)', () => {
       ['BEAN-SN-1KG', 'Bean', 'Snake', 'Can', '50', 'g', '60.00', null],
       ['OKRA-PK-5KG', 'Okra', 'PK', 'Bag', '5', 'kg', '48.00', null],
     ]);
-    const { loadable, issues } = assessSkus(sheet);
+    const { loadable, issues } = assessSkus(sheet, none);
     expect(loadable.map((s) => s.code)).toEqual(['OKRA-PK-5KG']);
     expect(issues).toMatchObject([{ kind: 'CONFLICTING_VALUE', row: 5 }]);
   });
 
   it('a SKU with no price is not sellable, so it is a question rather than a half-loaded row', () => {
     const sheet = aSheet('4. SKUs & Prices', SKU_HEADERS, [['OKRA-PK-5KG', 'Okra', 'PK', 'Bag', '5', 'kg', null, null]]);
-    const { loadable, issues } = assessSkus(sheet);
+    const { loadable, issues } = assessSkus(sheet, none);
     expect(loadable).toEqual([]);
     expect(issues).toMatchObject([{ kind: 'MISSING_REQUIRED_FIELD' }]);
   });
 
   it('MIG-005: stores with names only do not load, and the count is the question', () => {
     const namesOnly = Array.from({ length: 6 }, (_, i) => [`Store ${i}`, null, null, null, null, null, null, null, null, null, null] as Cell[]);
-    const { loadable, issues } = assessStores(aSheet('6. Stores', STORE_HEADERS, namesOnly));
+    const { loadable, issues } = assessStores(aSheet('6. Stores', STORE_HEADERS, namesOnly), none);
     expect(loadable).toEqual([]);
     expect(issues).toHaveLength(1);
     expect(issues[0]?.kind).toBe('MISSING_REQUIRED_FIELD');
     expect(issues[0]?.detail).toContain('6 stores');
   });
 
-  it('MIG-003: a lone completed store is asked about, because it reads exactly like the template\'s row', () => {
-    // The rule cannot tell the template's demonstration from the one store
-    // Green Agro finished, so it does neither silently: it asks.
+  it('MIG-003: the one store Green Agro finished loads — being unlike its neighbours is not evidence', () => {
+    // The shape of a row used to condemn it, which was a guess and cost a real
+    // SKU. Only the template's own shading marks an example now.
     const namesOnly = Array.from({ length: 6 }, (_, i) => [`Store ${i}`, null, null, null, null, null, null, null, null, null, null] as Cell[]);
     const ready: Cell[] = ['Ready Store', 'Owner', '0512345678', 'Shop', 'Street', 'Riyadh', 'WEEKLY', null, '5000', 'Base', 'Seller One'];
-    const { loadable, issues } = assessStores(aSheet('6. Stores', STORE_HEADERS, [...namesOnly, ready]));
-    expect(loadable).toEqual([]);
-    expect(issues.some((i) => i.kind === 'LOOKS_LIKE_TEMPLATE_EXAMPLE' && /confirm whether/.test(i.detail))).toBe(true);
+    const { loadable, issues } = assessStores(aSheet('6. Stores', STORE_HEADERS, [...namesOnly, ready]), none);
+    expect(loadable.map((st) => st.name)).toEqual(['Ready Store']);
+    expect(issues.some((i) => i.kind === 'LOOKS_LIKE_TEMPLATE_EXAMPLE')).toBe(false);
   });
 
   it('once most stores are properly filled in, they load rather than reading as examples', () => {
     const complete = Array.from({ length: 8 }, (_, i) => (
       [`Store ${i}`, 'Owner', '0512345678', 'Shop', 'Street', 'Riyadh', 'WEEKLY', null, '5000', 'Base', 'Seller One'] as Cell[]
     ));
-    const { loadable } = assessStores(aSheet('6. Stores', STORE_HEADERS, complete));
+    const { loadable } = assessStores(aSheet('6. Stores', STORE_HEADERS, complete), none);
     expect(loadable).toHaveLength(8);
   });
 
-  it('MIG-005: the template\'s own store row is recognised and left out', () => {
+  it('MIG-005: a row the template shaded is left out and said out loud', () => {
     const namesOnly = Array.from({ length: 12 }, (_, i) => [`Store ${i}`, null, null, null, null, null, null, null, null, null, null] as Cell[]);
     const example: Cell[] = ['Demo', 'Demo Owner', '0512345678', 'Shop', 'Street', 'Riyadh', 'WEEKLY', null, '5000', 'Base', 'Seller One'];
-    const { issues } = assessStores(aSheet('6. Stores', STORE_HEADERS, [example, ...namesOnly]));
-    expect(issues.some((i) => i.kind === 'LOOKS_LIKE_TEMPLATE_EXAMPLE' && i.row === 5)).toBe(true);
+    const { loadable, issues } = assessStores(aSheet('6. Stores', STORE_HEADERS, [example, ...namesOnly]), shaded('6. Stores', 5));
+    expect(loadable).toEqual([]);
+    expect(issues).toMatchObject([{ sheet: '6. Stores', row: 5, kind: 'LOOKS_LIKE_TEMPLATE_EXAMPLE' }, { row: 0 }]);
+    expect(issues[0]?.detail).toContain('shaded');
+  });
+
+  it('MIG-003: shading is per sheet — a row 5 shaded on one sheet does not drop row 5 of another', () => {
+    const sheet = aSheet('4. SKUs & Prices', SKU_HEADERS, [['OKRA-PK-5KG', 'Okra', 'PK', 'Bag', '5', 'kg', '48.00', 'Repacked from the 5 kg bag']]);
+    expect(assessSkus(sheet, shaded('6. Stores', 5)).loadable).toHaveLength(1);
+    expect(assessSkus(sheet, shaded('4. SKUs & Prices', 5)).loadable).toEqual([]);
   });
 
   it('a renamed column stops the import rather than shifting every value one across', () => {
     const wrong = ['Shop name', 'Owner name', 'Phone', 'Store category', 'Address', 'City', 'Credit cycle', 'Custom cycle (days)', 'Credit limit (SAR)', 'Price list', 'Assigned seller'];
-    expect(() => assessStores(aSheet('6. Stores', wrong, [['A', null, null, null, null, null, null, null, null, null, null]])))
+    expect(() => assessStores(aSheet('6. Stores', wrong, [['A', null, null, null, null, null, null, null, null, null, null]]), none))
       .toThrow(/no "Store name" column/);
   });
 });
@@ -134,10 +165,28 @@ describe('products, users and vehicles (MIG-001, MIG-003)', () => {
       product('Okra', 'بامية', 'Pusa Sawani'),
       product('Radish', 'فجل', 'Cherry Belle'),
     ]);
-    const { loadable, issues } = assessProducts(sheet, known);
+    const { loadable, issues } = assessProducts(sheet, known, none);
     expect(loadable.map((p) => p.nameEn)).toEqual(['Okra', 'Radish']);
     expect(loadable[0]?.varieties.map((v) => v.nameEn)).toEqual(['Parbhani Kranti', 'Pusa Sawani']);
     expect(issues).toEqual([]);
+  });
+
+  it('CAT-013: hybrid belongs to the product, and "Non-hybrid" is not read as hybrid', () => {
+    const sheet = aSheet('3. Products', PRODUCT_HEADERS, [
+      product('Okra', 'بامية', 'PK', 'Non-hybrid'),
+      product('Cucumber', 'خيار', 'Beith Alpha', 'Hybrid F1'),
+      product('Shade Net', 'شبك', '', ''),
+    ]);
+    const { loadable } = assessProducts(sheet, known, none);
+    expect(loadable.map((p) => p.hybrid)).toEqual(['NON_HYBRID', 'HYBRID', null]);
+  });
+
+  it('MIG-003: one product called hybrid on one row and not on another is a conflict', () => {
+    const sheet = aSheet('3. Products', PRODUCT_HEADERS, [
+      product('Okra', 'بامية', 'PK', 'Hybrid F1'),
+      product('Okra', 'بامية', 'Pusa Sawani', 'Non-hybrid'),
+    ]);
+    expect(assessProducts(sheet, known, none).issues).toMatchObject([{ kind: 'CONFLICTING_VALUE', row: 6 }]);
   });
 
   it('MIG-003: the same product with two different Arabic names is a conflict, not the later row winning', () => {
@@ -145,17 +194,26 @@ describe('products, users and vehicles (MIG-001, MIG-003)', () => {
       product('Bottle Gourd', 'قرع', 'F1'),
       product('Bottle Gourd', 'يقطين', 'F2'),
     ]);
-    const { loadable, issues } = assessProducts(sheet, known);
+    const { loadable, issues } = assessProducts(sheet, known, none);
     expect(loadable).toHaveLength(1);
     expect(loadable[0]?.nameAr).toBe('قرع');
     expect(issues).toMatchObject([{ kind: 'CONFLICTING_VALUE', row: 6 }]);
+  });
+
+  it('a country of origin the system does not know is asked about before the import, not during it', () => {
+    const sheet = aSheet('3. Products', PRODUCT_HEADERS, [
+      ['Seed', 'Seeds', 'Hybrid', 'Okra', 'بامية', 'PK', 'PK AR', 'Hybrid F1', 'Holland', 'VEN-1', '24', 'Months'],
+    ]);
+    const { loadable, issues } = assessProducts(sheet, known, none);
+    expect(loadable).toEqual([]);
+    expect(issues).toMatchObject([{ kind: 'UNKNOWN_REFERENCE' }]);
   });
 
   it('a product naming a vendor the workbook does not list is a broken reference, not a new vendor', () => {
     const sheet = aSheet('3. Products', PRODUCT_HEADERS, [
       ['Essential', 'Seeds', 'Hybrid', 'Shade Net', 'شبك', '', '', '', 'India', 'VEN-999', '24', 'Months'],
     ]);
-    const { loadable, issues } = assessProducts(sheet, known);
+    const { loadable, issues } = assessProducts(sheet, known, none);
     expect(loadable).toEqual([]);
     expect(issues).toMatchObject([{ kind: 'UNKNOWN_REFERENCE' }]);
   });
@@ -164,7 +222,7 @@ describe('products, users and vehicles (MIG-001, MIG-003)', () => {
     const years = aSheet('3. Products', PRODUCT_HEADERS, [
       ['Seed', 'Seeds', 'Hybrid', 'Okra', 'بامية', 'PK', 'PK AR', 'Hybrid F1', 'India', 'VEN-1', '2', 'Years'],
     ]);
-    expect(assessProducts(years, known).loadable[0]?.shelfLifeMonths).toBe(24);
+    expect(assessProducts(years, known, none).loadable[0]?.shelfLifeMonths).toBe(24);
   });
 
   it('ADR-0018: a seller with a phone and no email can still sign in', () => {
@@ -174,7 +232,7 @@ describe('products, users and vehicles (MIG-001, MIG-003)', () => {
       ['B Person', null, '0512345678', 'Seller', null, null],
       ['C Person', null, null, 'Seller', null, null],
     ]);
-    const { loadable, issues } = assessUsers(sheet);
+    const { loadable, issues } = assessUsers(sheet, none);
     // SUPER_ADMIN is its own role: importing it as ADMIN would take powers away.
     expect(loadable.map((u) => u.role)).toEqual(['SUPER_ADMIN', 'SELLER']);
     // The third has no way to sign in at all.
@@ -184,13 +242,13 @@ describe('products, users and vehicles (MIG-001, MIG-003)', () => {
   it('a role the system does not have is reported rather than guessed at', () => {
     const headers = ['Full name', 'Email', 'Phone', 'Role', 'Modules this person may access', 'Notes'];
     const sheet = aSheet('7. Users', headers, [['A Person', 'a@dev.local', null, 'Supervisor', null, null]]);
-    expect(assessUsers(sheet).issues).toMatchObject([{ kind: 'UNKNOWN_REFERENCE' }]);
+    expect(assessUsers(sheet, none).issues).toMatchObject([{ kind: 'UNKNOWN_REFERENCE' }]);
   });
 
   it('ATT-012: a vehicle without an odometer reading has no baseline, so it is a question', () => {
     const headers = ['Registration number', 'Description', 'Current odometer (km)', 'Status', 'Currently assigned to'];
     const sheet = aSheet('8. Vehicles', headers, [['ABC 123', 'Pickup', null, 'Active', null]]);
-    expect(assessVehicles(sheet, []).issues).toMatchObject([{ kind: 'MISSING_REQUIRED_FIELD' }]);
+    expect(assessVehicles(sheet, [], none).issues).toMatchObject([{ kind: 'MISSING_REQUIRED_FIELD' }]);
   });
 
   it('an assignee is matched against the accounts, and a first-name-only match is confirmed not assumed', () => {
@@ -200,11 +258,13 @@ describe('products, users and vehicles (MIG-001, MIG-003)', () => {
       ['ABC 123', 'Pickup', '10000', 'Active', 'Ahmed'],
       ['DEF 456', 'Pickup', '20000', 'Active', 'Someone Else'],
     ]);
-    const { loadable, issues } = assessVehicles(sheet, users);
+    const { loadable, issues } = assessVehicles(sheet, users, none);
     expect(loadable).toHaveLength(2);
     expect(issues.map((i) => i.kind)).toEqual(['NEEDS_CONFIRMATION', 'UNKNOWN_REFERENCE']);
-    // Matched, but only tentatively — the loader must not assign on this alone.
-    expect(loadable[0]?.assignee).toBe('Ahmed Hassan');
+    // MIG-005: a first-name match is not an assignment. The vehicle loads, and
+    // a manager assigns it — putting a seller's whole stock on a guess is worse
+    // than leaving it for the five seconds that takes.
+    expect(loadable[0]?.assignee).toBeNull();
     expect(loadable[1]?.assignee).toBeNull();
   });
 });

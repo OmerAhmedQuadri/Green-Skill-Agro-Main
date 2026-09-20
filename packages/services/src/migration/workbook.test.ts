@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { columnOf, HEADER_ROW, shapeOutliers, sheetRows, templateExamples, tidySkuCode, valueAt, type Sheet } from './workbook';
+import { columnOf, HEADER_ROW, sheetRows, tidySkuCode, valueAt, type Sheet } from './workbook';
 
 /**
  * Synthetic throughout: shaped like Green Agro's workbook, with none of its
@@ -34,34 +34,6 @@ describe('reading the setup workbook (MIG-001, MIG-002)', () => {
     const rows = sheetRows(aSheet(headers, [['Alpha', null, null, null, null, null]]));
     expect(() => columnOf(rows.headers, 'Credit cycle')).not.toThrow();
     expect(() => columnOf(rows.headers, 'VAT number')).toThrow(/no "VAT number" column/);
-  });
-
-  it('MIG-005: the template\'s demonstration row is the one carrying terms no real row has', () => {
-    // Green Agro sent names and little else; the template's own row is complete.
-    const real = Array.from({ length: 12 }, (_, i) => [`Store ${i}`, null, null, null, null, null]);
-    const example = ['Demo Store', 'Demo Owner', '0500000000', 'WEEKLY', '5000', 'Base'];
-    const rows = sheetRows(aSheet(headers, [example, ...real]));
-    const examples = templateExamples(rows, ['Credit cycle', 'Credit limit', 'Price list']);
-    expect([...examples]).toEqual([5]);
-  });
-
-  it('a properly filled sheet has no examples — most rows looking complete means the sheet is done', () => {
-    const complete = Array.from({ length: 12 }, (_, i) => [`Store ${i}`, 'Owner', '0500000000', 'WEEKLY', '5000', 'Base']);
-    const rows = sheetRows(aSheet(headers, complete));
-    expect(templateExamples(rows, ['Credit cycle', 'Credit limit', 'Price list']).size).toBe(0);
-  });
-
-  it('MIG-003: a row of an unusual shape is reported for confirmation, never dropped by itself', () => {
-    // A real row with a note filled in looks exactly like a template example
-    // with a note, so this only ever raises a question.
-    const usual = Array.from({ length: 8 }, (_, i) => [`Store ${i}`, 'Owner', null, null, null, null]);
-    const odd = ['Store 9', 'Owner', '0500000000', null, null, null];
-    const outliers = shapeOutliers(sheetRows(aSheet(headers, [...usual, odd])));
-    expect(outliers).toEqual([{ row: 13, filled: 3, usual: 2 }]);
-  });
-
-  it('a sheet too small to have a usual shape reports nothing rather than guessing', () => {
-    expect(shapeOutliers(sheetRows(aSheet(headers, [['Alpha', 'Owner', '1', 'WEEKLY', '5000', 'Base']])))).toEqual([]);
   });
 
   it('CLIENT-DATA: a stray space in a SKU code goes; the rest is Green Agro\'s to spell', () => {

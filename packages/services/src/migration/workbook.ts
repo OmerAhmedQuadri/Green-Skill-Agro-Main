@@ -3,8 +3,8 @@
  *
  * The workbook is 2IM Labs' own template, returned partly filled. Every data
  * sheet puts its headers on row 4, and the template's demonstration rows are
- * styled rather than marked, so nothing in the cell values says "this is an
- * example" (CLIENT-DATA.md).
+ * shaded rather than marked, so nothing in the cell values says "this is an
+ * example" (CLIENT-DATA.md) — `styles.ts` reads the shading itself.
  *
  * This module therefore **classifies rather than decides**: a row is loadable,
  * or it is an issue for someone to confirm (MIG-003). Nothing doubtful is
@@ -68,46 +68,6 @@ export function columnOf(headers: readonly string[], name: string): number {
 }
 
 export const valueAt = (cells: readonly Cell[], at: number): string => text(cells[at]);
-
-/**
- * The template's demonstration rows, by the shape they have and the real rows
- * do not.
- *
- * Green Agro filled the Stores sheet with names and almost nothing else, so a
- * row carrying a credit cycle, a credit limit and a price list is the
- * template's, not theirs. Where a sheet's rows are all the same shape this
- * finds nothing, which is the honest answer: the caller then reports the
- * outliers rather than guessing (`shapeOutliers`).
- */
-export function templateExamples(rows: SheetRows, operationalColumns: readonly string[]): Set<number> {
-  const positions = operationalColumns
-    .map((name) => rows.headers.findIndex((h) => h.toLowerCase().startsWith(name.toLowerCase())))
-    .filter((at) => at >= 0);
-  if (positions.length === 0) return new Set();
-
-  const fillsOperational = ({ cells }: { cells: readonly Cell[] }) => positions.every((at) => text(cells[at]) !== '');
-  const candidates = rows.rows.filter(fillsOperational);
-  // Only a small minority can be the template's; if most rows look like this,
-  // the sheet is properly filled in and none of them are examples.
-  return candidates.length > 0 && candidates.length <= rows.rows.length / 4
-    ? new Set(candidates.map((r) => r.row))
-    : new Set();
-}
-
-/**
- * Rows whose shape differs from the sheet's usual one. Not proof of anything —
- * a real row with a note filled in looks the same as a template example with a
- * note — so these are reported for confirmation, never dropped on their own.
- */
-export function shapeOutliers(rows: SheetRows): { readonly row: number; readonly filled: number; readonly usual: number }[] {
-  if (rows.rows.length < 4) return [];
-  const counts = new Map<number, number>();
-  for (const { cells } of rows.rows) counts.set(filled(cells), (counts.get(filled(cells)) ?? 0) + 1);
-  const [usual] = [...counts].sort((a, b) => b[1] - a[1])[0] ?? [0];
-  return rows.rows
-    .filter(({ cells }) => filled(cells) !== usual)
-    .map(({ row, cells }) => ({ row, filled: filled(cells), usual }));
-}
 
 /** CLIENT-DATA: three SKU codes carry a stray space. Everything else is Green Agro's to spell. */
 export const tidySkuCode = (code: string): string => code.replace(/\s+/g, '');
