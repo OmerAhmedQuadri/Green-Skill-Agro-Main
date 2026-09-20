@@ -691,8 +691,7 @@
       },
       "media": {
         "photo_retention_days": "Days to keep selfies and odometer photos"
-      },
-      "audits.interval_days": "Days between vehicle audits"
+      }
     },
     "choices": {
       "TRAILING": "Trailing 30 days",

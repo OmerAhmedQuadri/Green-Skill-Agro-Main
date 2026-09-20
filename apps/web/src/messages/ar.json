@@ -691,8 +691,7 @@
       },
       "media": {
         "photo_retention_days": "عدد أيام الاحتفاظ بصور السيلفي والعدّاد"
-      },
-      "audits.interval_days": "الأيام بين عمليات جرد المركبة"
+      }
     },
     "choices": {
       "TRAILING": "آخر 30 يوماً",

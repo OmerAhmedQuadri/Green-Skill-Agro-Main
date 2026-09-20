@@ -105,7 +105,7 @@ describe('auditing a vehicle (workflow N, VEH-011..015)', () => {
     expect((await overdueAudits(ctx)).map((v) => v.id)).not.toContain(vehicleId);
     // Past the interval it is overdue again; the Admin can shorten or lengthen it.
     expect((await overdueAudits(await admin(days(31)))).map((v) => v.id)).toContain(vehicleId);
-    await updateSettings(ctx, [{ key: 'audits.interval_days', value: 60 }]);
+    await updateSettings(ctx, [{ key: 'vehicles.audit_interval_days', value: 60 }]);
     expect((await overdueAudits(await admin(days(31)))).map((v) => v.id)).not.toContain(vehicleId);
   });
 

@@ -317,7 +317,7 @@ export type OverdueVehicle = {
 export async function overdueAudits(ctx: Ctx): Promise<OverdueVehicle[]> {
   authorizeAny(ctx, AUDIT_READERS);
   const db = ctx.tx ?? getDb();
-  const intervalDays = (await readSettings(db))['audits.interval_days'];
+  const intervalDays = (await readSettings(db))['vehicles.audit_interval_days'];
   const rows = await db.select({
     id: vehicles.id, registration: vehicles.registration, sellerId: vehicleAssignments.sellerId, sellerName: seller.name,
     lastAuditedAt: sql<Date | null>`(select max(closed_at) from ${vehicleAudits} va where va.vehicle_id = ${vehicles.id} and va.status = 'CLOSED')`,

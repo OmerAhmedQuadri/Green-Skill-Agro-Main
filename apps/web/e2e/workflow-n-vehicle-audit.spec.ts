@@ -25,7 +25,7 @@ for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
     const admin = await sessionPage(browser, 'admin@dev.local', locale, origin);
     const second = await sessionPage(browser, 'manager@dev.local', locale, origin);
     await admin.request.patch('/api/v1/feature-toggles', { headers: headers(origin), data: { changes: [{ key: 'stores.approval_required', enabled: false }, { key: 'attendance.restricted_check_in', enabled: false }] } });
-    await admin.request.patch('/api/v1/settings', { headers: headers(origin), data: { changes: [{ key: 'audits.interval_days', value: 30 }] } });
+    await admin.request.patch('/api/v1/settings', { headers: headers(origin), data: { changes: [{ key: 'vehicles.audit_interval_days', value: 30 }] } });
     const { skuId } = await receiveStock(admin, origin, { code: 'OKRA-PK-5KG', packs: 8, lot });
 
     const seller = await freshSeller(browser, admin, origin, locale, `N Seller ${locale} ${stamp}`);
