@@ -1,4 +1,4 @@
-import type { RateBasis } from '../inventory/expiry';
+import type { RateBasis } from '../inventory';
 import { Dec, dec } from '../numeric';
 
 /**
