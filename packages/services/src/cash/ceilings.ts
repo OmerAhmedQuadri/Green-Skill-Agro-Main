@@ -7,7 +7,7 @@ import { inTx, type Executor, type Tx } from '../platform';
 import { defaultBranchId, getDb } from '../runtime';
 import { readSettings } from '../system';
 import { valueOf, vehicleBatches } from '../vehicles';
-import { cashInHand } from './ledger';
+import { cashInHandFor } from './ledger';
 
 const { ceilings, dashboardFlags, users, vehicleAssignments } = schema;
 
@@ -49,10 +49,12 @@ export async function sellerExposure(db: Executor, sellerIds?: readonly string[]
     .where(and(eq(users.role, 'SELLER'), eq(users.status, 'ACTIVE'), sellerIds ? inArray(users.id, [...sellerIds]) : undefined))
     .orderBy(asc(users.name));
   const ids = sellers.map((s) => s.id);
-  const [limits, stock] = [await ceilingsFor(db, ids), await vehicleStockValues(db, ids)];
+  // All three read every seller at once: this list is the console's, and a
+  // query per seller here would grow with the sales force.
+  const [limits, stock, cashHeld] = [await ceilingsFor(db, ids), await vehicleStockValues(db, ids), await cashInHandFor(db, ids)];
   const out: Exposure[] = [];
   for (const s of sellers) {
-    const cash = await cashInHand(db, s.id);
+    const cash = cashHeld.get(s.id) ?? ('0.00' as Money);
     const stockValue = stock.get(s.id) ?? ('0.00' as Money);
     const ceiling = limits.get(s.id) ?? { CASH_IN_HAND: null, VEHICLE_STOCK_VALUE: null };
     const over: CeilingKind[] = [];
