@@ -69,6 +69,7 @@ export const writeOffs = pgTable(
     photoId: uuid('photo_id').references(() => mediaAssets.id),
     conversionId: uuid('conversion_id').references(() => skuConversions.id),
     returnId: uuid('return_id').references(() => returns.id), // ADR-0039: a defective or unsaleable return
+    auditId: uuid('audit_id'), // VEH-013: a shortfall a vehicle audit found (ADR-0041)
     movementGroupId: uuid('movement_group_id'),
     submittedAt: timestamptz('submitted_at').notNull(),
     submittedBy: uuid('submitted_by').notNull().references(() => users.id),
@@ -86,6 +87,7 @@ export const writeOffs = pgTable(
     index('write_offs_photo_id_idx').on(t.photoId),
     index('write_offs_conversion_id_idx').on(t.conversionId),
     index('write_offs_return_id_idx').on(t.returnId),
+    index('write_offs_audit_id_idx').on(t.auditId),
     index('write_offs_submitted_by_idx').on(t.submittedBy),
     check('write_offs_quantity_positive', sql`${t.requestedQuantity} > 0`),
     check('write_offs_decided', sql`(${t.status} = 'SUBMITTED') = (${t.decidedAt} is null)`),

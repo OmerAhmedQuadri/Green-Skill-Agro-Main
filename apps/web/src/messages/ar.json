@@ -96,14 +96,16 @@
     "sales": "المبيعات",
     "auditLog": "سجل التدقيق",
     "dispatch": "الإرسال",
-    "cash": "النقد"
+    "cash": "النقد",
+    "audits": "الجرد"
   },
   "dashboard": {
     "welcome": "مرحباً، {name}",
     "signedInAs": "تم تسجيل الدخول بصفة {role}",
     "permissionCount": "{count, plural, zero {لا توجد صلاحيات} one {صلاحية واحدة} two {صلاحيتان} few {# صلاحيات} many {# صلاحية} other {# صلاحية}}",
     "unconfirmedDispatch": "{count, plural, zero {لا توجد أوامر إرسال متأخرة} one {أمر إرسال واحد في الطريق منذ مدة طويلة دون تأكيد.} two {أمرا إرسال في الطريق منذ مدة طويلة دون تأكيد.} few {# أوامر إرسال في الطريق منذ مدة طويلة دون تأكيد.} many {# أمر إرسال في الطريق منذ مدة طويلة دون تأكيد.} other {# أمر إرسال في الطريق منذ مدة طويلة دون تأكيد.}}",
-    "ceilingBreached": "{name} تجاوز {kind} — {amount} مقابل {ceiling}."
+    "ceilingBreached": "{name} تجاوز {kind} — {amount} مقابل {ceiling}.",
+    "auditsDue": "{count, plural, one {مركبة واحدة تحتاج جرد مخزون} two {مركبتان تحتاجان جرد مخزون} few {# مركبات تحتاج جرد مخزون} many {# مركبة تحتاج جرد مخزون} other {# مركبة تحتاج جرد مخزون}}"
   },
   "field": {
     "welcome": "يومك سعيد، {name}",
@@ -480,7 +482,8 @@
     "REFUND_NEEDS_SELLER": "يتطلب هذا الإرجاع إعادة نقد، لذا يسجّله البائع في المتجر.",
     "REFUND_EXCEEDS_CASH_IN_HAND": "لا يكفي النقد الذي بحوزتك لهذا الاسترداد. اعرض الاستبدال بدلًا منه.",
     "SETTLEMENT_ABOVE_CASH_IN_HAND": "هذا أكثر من النقد الذي يقول التطبيق إنه بحوزتك.",
-    "RECEIVER_REQUIRED": "اختر المدير الذي يستلم النقد."
+    "RECEIVER_REQUIRED": "اختر المدير الذي يستلم النقد.",
+    "AUDIT_NOT_COUNTED": "عُدّ كل دفعة قبل إغلاق الجرد."
   },
   "format": {
     "grams": "{value} جم",
@@ -688,7 +691,8 @@
       },
       "media": {
         "photo_retention_days": "عدد أيام الاحتفاظ بصور السيلفي والعدّاد"
-      }
+      },
+      "audits.interval_days": "الأيام بين عمليات جرد المركبة"
     },
     "choices": {
       "TRAILING": "آخر 30 يوماً",
@@ -1773,5 +1777,65 @@
       "VEHICLE_STOCK_VALUE": "تجاوز حد المخزون"
     },
     "warningOnly": "الحد تنبيه فقط: لا يُمنع أحد من العمل."
+  },
+  "audits": {
+    "loading": "جارٍ التحميل…",
+    "listTitle": "جرد المركبات",
+    "listSubtitle": "عُدّ ما في المركبة فعلًا، وفسّر كل فرق.",
+    "title": "جرد المركبة {registration}",
+    "statuses": {
+      "IN_PROGRESS": "جارٍ العد",
+      "CLOSED": "مغلق"
+    },
+    "openedBy": "فتحه {name}، {time}",
+    "closedBy": "أغلقه {name}، {time}",
+    "seller": "البائع: {name}",
+    "noSeller": "لا يوجد بائع لهذه المركبة.",
+    "remoteTitle": "تسليمات مؤكدة على كلام صاحب المتجر",
+    "remoteHint": "أُكدت دون أن يرى البائع البضاعة. يستحسن السؤال عنها.",
+    "linesTitle": "العد",
+    "item": "الصنف",
+    "batch": "الدفعة",
+    "system": "حسب النظام",
+    "counted": "المعدود",
+    "comment": "تعليق",
+    "outcomeHead": "الفرق",
+    "lotExpiry": "{lot}، تنتهي {expiry}",
+    "countedFor": "المعدود — {code}، الدفعة {lot}",
+    "commentFor": "تعليق — {code}، الدفعة {lot}",
+    "outcomes": {
+      "MATCH": "مطابق",
+      "SHORTFALL": "ناقص",
+      "SURPLUS": "زائد"
+    },
+    "writeOffRaised": "طلب شطب {number}",
+    "surplusStatuses": {
+      "PENDING": "بانتظار الموافقة",
+      "APPROVED": "أُضيف إلى المركبة",
+      "REJECTED": "لم يُضف"
+    },
+    "note": "ملاحظة (اختيارية)",
+    "saveCount": "حفظ العد",
+    "close": "إغلاق الجرد",
+    "closeHint": "الإغلاق ينشئ طلب شطب لكل نقص، ويرسل الزائد للموافقة. كل فرق يحتاج تعليقًا أولًا.",
+    "surplusTitle": "مخزون زائد",
+    "surplusHint": "الموافقة تضيفه إلى المركبة. لا يمكن لمن أغلق الجرد أن يوافق عليه.",
+    "surplusLine": "{code}: {packs} أكثر مما يقول النظام",
+    "approveSurplus": "أضفه",
+    "rejectSurplus": "لا تضفه",
+    "overdueTitle": "{count, plural, one {مركبة واحدة تحتاج جردًا} two {مركبتان تحتاجان جردًا} few {# مركبات تحتاج جردًا} many {# مركبة تحتاج جردًا} other {# مركبة تحتاج جردًا}}",
+    "lastAudited": "آخر جرد {time}",
+    "neverAudited": "لم تُجرد قط",
+    "vehicle": "المركبة",
+    "chooseVehicle": "اختر مركبة",
+    "startAudit": "بدء الجرد",
+    "doneTitle": "عمليات الجرد",
+    "none": "لا يوجد جرد بعد.",
+    "number": "الرقم",
+    "sellerHead": "البائع",
+    "opened": "فُتح",
+    "statusHead": "الحالة",
+    "differences": "الفروق",
+    "differenceCount": "{shortfalls} ناقص، {surpluses} زائد"
   }
 }

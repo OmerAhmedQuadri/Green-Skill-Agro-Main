@@ -8,3 +8,7 @@ export {
 } from './loads';
 export { recordVehicleReturn, listVehicleReturns, type VehicleReturn } from './returns';
 export { declareClosingStock, reviewClosingStock, listClosingStock, type ClosingDeclaration } from './closing';
+export {
+  openVehicleAudit, recordCount, closeVehicleAudit, decideSurplus, getVehicleAudit, listVehicleAudits, loadAudit, overdueAudits,
+  AUDIT_READERS, type VehicleAudit, type AuditLine, type AuditSummary, type CountInput, type OverdueVehicle,
+} from './audits';

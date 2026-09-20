@@ -56,4 +56,6 @@ export const keys = {
   cashManagers: ['cash-managers'] as const,
   dashboardFlags: ['dashboard-flags'] as const,
   refundsDue: ['refunds-due'] as const,
+  audits: (filter?: object) => (filter ? ['audits', filter] as const : ['audits'] as const),
+  audit: (id: string) => ['audit', id] as const,
 };
