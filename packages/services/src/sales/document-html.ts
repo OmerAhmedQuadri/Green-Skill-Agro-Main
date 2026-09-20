@@ -92,7 +92,7 @@ td { padding: 6px; border-bottom: 1px solid #e7e5e4; vertical-align: top; }
 </style></head>
 <body>
 <header>
-  <div><div class="brand">${bothHtml('Green Agro', 'غرين أغرو')}</div><div class="title">${both('Delivery document', 'سند تسليم')}</div></div>
+  <div><div class="brand">${bothHtml('Green Skill Agro', 'غرين سكيل أغرو')}</div><div class="title">${both('Delivery document', 'سند تسليم')}</div></div>
   <div class="meta"><div class="number">${escape(data.number)}</div><div>${escape(issued.format(data.issuedAt))}</div></div>
 </header>
 <div class="notice">${both('This is not a tax invoice. It is an unofficial record of goods delivered.', 'هذه ليست فاتورة ضريبية، وإنما سجل غير رسمي بالبضاعة المسلّمة.')}</div>

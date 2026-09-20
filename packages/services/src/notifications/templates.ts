@@ -21,14 +21,14 @@ function layout(locale: Locale, bodyHtml: string): string {
 
 const PASSWORD_RESET = {
   en: {
-    subject: 'Reset your Green Agro password',
-    lines: (name: string) => [`Hello ${name},`, 'Someone asked to reset the password for your Green Agro account. If it was you, use the link below — it works once and expires in 30 minutes.'],
+    subject: 'Reset your Green Skill Agro password',
+    lines: (name: string) => [`Hello ${name},`, 'Someone asked to reset the password for your Green Skill Agro account. If it was you, use the link below — it works once and expires in 30 minutes.'],
     button: 'Choose a new password',
     ignore: "If you didn't ask for this, ignore this email; your password stays as it is.",
   },
   ar: {
-    subject: 'إعادة تعيين كلمة المرور في غرين أغرو',
-    lines: (name: string) => [`مرحباً ${name}،`, 'طلب أحدهم إعادة تعيين كلمة المرور لحسابك في غرين أغرو. إن كنت أنت، فاستخدم الرابط أدناه — يعمل مرة واحدة وتنتهي صلاحيته خلال 30 دقيقة.'],
+    subject: 'إعادة تعيين كلمة المرور في غرين سكيل أغرو',
+    lines: (name: string) => [`مرحباً ${name}،`, 'طلب أحدهم إعادة تعيين كلمة المرور لحسابك في غرين سكيل أغرو. إن كنت أنت، فاستخدم الرابط أدناه — يعمل مرة واحدة وتنتهي صلاحيته خلال 30 دقيقة.'],
     button: 'اختر كلمة مرور جديدة',
     ignore: 'إن لم تطلب ذلك، فتجاهل هذه الرسالة؛ وستبقى كلمة المرور كما هي.',
   },
@@ -43,7 +43,7 @@ const DELIVERY_DOCUMENT = {
     subject: (n: string) => `Delivery document ${n}`,
     lines: (p: Readonly<Record<string, string>>) => [
       `Hello ${p.store ?? ''},`,
-      `Attached is delivery document ${p.number ?? ''} from Green Agro for goods delivered by ${p.seller ?? ''}, totalling ${p.total ?? ''} SAR.`,
+      `Attached is delivery document ${p.number ?? ''} from Green Skill Agro for goods delivered by ${p.seller ?? ''}, totalling ${p.total ?? ''} SAR.`,
       'This is not a tax invoice. It is an unofficial record of goods delivered.',
     ],
   },
@@ -51,7 +51,7 @@ const DELIVERY_DOCUMENT = {
     subject: (n: string) => `سند تسليم ${n}`,
     lines: (p: Readonly<Record<string, string>>) => [
       `مرحباً ${p.store ?? ''}،`,
-      `مرفق سند التسليم ${p.number ?? ''} من غرين أغرو للبضاعة التي سلّمها ${p.seller ?? ''}، بإجمالي ${p.total ?? ''} ر.س.`,
+      `مرفق سند التسليم ${p.number ?? ''} من غرين سكيل أغرو للبضاعة التي سلّمها ${p.seller ?? ''}، بإجمالي ${p.total ?? ''} ر.س.`,
       'هذه ليست فاتورة ضريبية، وإنما سجل غير رسمي بالبضاعة المسلّمة.',
     ],
   },

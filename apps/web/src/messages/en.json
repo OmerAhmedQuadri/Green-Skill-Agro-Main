@@ -1,6 +1,6 @@
 {
   "app": {
-    "name": "Green Agro",
+    "name": "Green Skill Agro",
     "tagline": "Field sales and inventory",
     "switchLanguage": "العربية"
   },
@@ -578,7 +578,7 @@
   },
   "vendors": {
     "title": "Vendors",
-    "subtitle": "Suppliers Green Agro buys from. Products name them by vendor code.",
+    "subtitle": "Suppliers Green Skill Agro buys from. Products name them by vendor code.",
     "newVendor": "New vendor",
     "create": "Create vendor",
     "profile": "Vendor profile",
