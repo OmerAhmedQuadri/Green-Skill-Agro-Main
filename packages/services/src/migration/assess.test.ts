@@ -170,12 +170,13 @@ describe('products, users and vehicles (MIG-001, MIG-003)', () => {
   it('ADR-0018: a seller with a phone and no email can still sign in', () => {
     const headers = ['Full name', 'Email', 'Phone', 'Role', 'Modules this person may access', 'Notes'];
     const sheet = aSheet('7. Users', headers, [
-      ['A Person', 'a@dev.local', null, 'Admin', null, null],
+      ['A Person', 'a@dev.local', null, 'Super Admin', null, null],
       ['B Person', null, '0512345678', 'Seller', null, null],
       ['C Person', null, null, 'Seller', null, null],
     ]);
     const { loadable, issues } = assessUsers(sheet);
-    expect(loadable.map((u) => u.role)).toEqual(['ADMIN', 'SELLER']);
+    // SUPER_ADMIN is its own role: importing it as ADMIN would take powers away.
+    expect(loadable.map((u) => u.role)).toEqual(['SUPER_ADMIN', 'SELLER']);
     // The third has no way to sign in at all.
     expect(issues).toMatchObject([{ kind: 'MISSING_REQUIRED_FIELD', row: 7 }]);
   });

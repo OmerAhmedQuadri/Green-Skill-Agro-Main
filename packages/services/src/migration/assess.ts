@@ -362,7 +362,12 @@ export function assessUsers(sheet: Sheet): Assessment<UserRow> {
     name: columnOf(rows.headers, 'Full name'), email: columnOf(rows.headers, 'Email'),
     phone: columnOf(rows.headers, 'Phone'), role: columnOf(rows.headers, 'Role'),
   };
-  const roles = new Map([['super admin', 'ADMIN'], ['admin', 'ADMIN'], ['manager', 'MANAGER'], ['seller', 'SELLER'], ['warehouse', 'MANAGER']]);
+  // SUPER_ADMIN is a role of its own (ROLES); mapping it to ADMIN would quietly
+  // demote the one account that can do everything.
+  const roles = new Map([
+    ['super admin', 'SUPER_ADMIN'], ['superadmin', 'SUPER_ADMIN'],
+    ['admin', 'ADMIN'], ['manager', 'MANAGER'], ['seller', 'SELLER'],
+  ]);
   const loadable: UserRow[] = [];
   const issues: Issue[] = [];
   const seen = new Set<string>();
