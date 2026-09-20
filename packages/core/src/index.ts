@@ -17,5 +17,6 @@ export * from './stores';
 export * from './sales';
 export * from './cash';
 export * from './targets';
+export * from './reports';
 export * from './dispatch';
 export * from './returns';

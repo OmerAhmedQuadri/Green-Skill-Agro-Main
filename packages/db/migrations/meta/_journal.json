@@ -134,6 +134,13 @@
       "when": 1789870325568,
       "tag": "0018_targets_commission",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1789892639281,
+      "tag": "0019_reporting_rollups",
+      "breakpoints": true
     }
   ]
 }
