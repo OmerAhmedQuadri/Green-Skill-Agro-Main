@@ -13,8 +13,17 @@ export default defineConfig({
   forbidOnly: Boolean(process.env.CI),
   retries: 0,
   reporter: [['list']],
-  // A full run on a laptop, with the worker printing documents alongside: a server round trip can pass five seconds.
-  expect: { timeout: 10_000 },
+  // A full run on a laptop, with the worker printing documents alongside: a
+  // server round trip can pass five seconds — and has been measured at 17.7s
+  // (workflow P applying a preset, from its trace). An assertion that gives up
+  // before the request it is waiting on has returned says nothing about the
+  // code, so this leaves real headroom; only a genuine failure pays for it.
+  expect: { timeout: 30_000 },
+  // Playwright's own default is 30s, which is a bet on how busy the machine is:
+  // workflow A takes 10s alone and has timed out at 30s inside a full run. The
+  // heavier specs raise this again for themselves; nothing should sit on the
+  // default, because failing that way says nothing about the code.
+  timeout: 120_000,
   use: { baseURL: 'http://localhost:3000', trace: 'retain-on-failure' },
   projects: [{
     name: 'chromium',
