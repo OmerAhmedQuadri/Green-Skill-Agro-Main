@@ -138,10 +138,17 @@ export const skus = pgTable(
     packWeightG: numeric('pack_weight_g', { precision: 12, scale: 3 }),
     packCount: integer('pack_count'),
     packaging: packagingType('packaging').notNull(),
+    /**
+     * RPT-004, OQ-023: the cushion the reorder projection keeps, in days of
+     * cover rather than a pack quantity, so it follows demand instead of going
+     * stale. Null means this SKU is not forecast.
+     */
+    safetyCoverDays: integer('safety_cover_days'),
     isActive: boolean('is_active').notNull().default(true),
     ...mutable(),
   },
   (t) => [
+    check('skus_safety_cover_days_positive', sql`${t.safetyCoverDays} is null or ${t.safetyCoverDays} > 0`),
     foreignKey({ name: 'skus_variety_fk', columns: [t.varietyId, t.productId], foreignColumns: [varieties.id, varieties.productId] }),
     unique('skus_physical_identity').on(t.productId, t.varietyId, t.packaging, t.packWeightG, t.packCount).nullsNotDistinct(),
     index('skus_variety_id_idx').on(t.varietyId),

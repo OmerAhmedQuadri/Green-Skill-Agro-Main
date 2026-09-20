@@ -122,7 +122,11 @@ export type ErrorCode =
   | 'REFUND_EXCEEDS_CASH_IN_HAND'
   | 'SETTLEMENT_ABOVE_CASH_IN_HAND'
   | 'RECEIVER_REQUIRED'
-  | 'AUDIT_NOT_COUNTED';
+  | 'AUDIT_NOT_COUNTED'
+  | 'INVALID_PERIOD'
+  | 'TARGET_EMPTY'
+  | 'TARGET_NOT_POSITIVE'
+  | 'PERIOD_CLOSED';
 
 export class DomainError extends Error {
   readonly code: ErrorCode;

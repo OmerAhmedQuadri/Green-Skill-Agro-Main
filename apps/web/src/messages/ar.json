@@ -483,7 +483,11 @@
     "REFUND_EXCEEDS_CASH_IN_HAND": "لا يكفي النقد الذي بحوزتك لهذا الاسترداد. اعرض الاستبدال بدلًا منه.",
     "SETTLEMENT_ABOVE_CASH_IN_HAND": "هذا أكثر من النقد الذي يقول التطبيق إنه بحوزتك.",
     "RECEIVER_REQUIRED": "اختر المدير الذي يستلم النقد.",
-    "AUDIT_NOT_COUNTED": "عُدّ كل دفعة قبل إغلاق الجرد."
+    "AUDIT_NOT_COUNTED": "عُدّ كل دفعة قبل إغلاق الجرد.",
+    "INVALID_PERIOD": "هذا ليس شهراً صالحاً.",
+    "TARGET_EMPTY": "حدّد رقماً واحداً على الأقل للهدف.",
+    "TARGET_NOT_POSITIVE": "يجب أن يكون كل رقم محدَّد أكبر من صفر.",
+    "PERIOD_CLOSED": "هذا الشهر نهائي ولا يمكن تغييره."
   },
   "format": {
     "grams": "{value} جم",
@@ -641,7 +645,8 @@
       "attendance": "الحضور",
       "stores": "المتاجر",
       "credit": "الائتمان",
-      "documents": "سندات التسليم"
+      "documents": "سندات التسليم",
+      "targets": "الأهداف والعمولة"
     },
     "fields": {
       "discount": {
@@ -691,6 +696,15 @@
       },
       "media": {
         "photo_retention_days": "عدد أيام الاحتفاظ بصور السيلفي والعدّاد"
+      },
+      "targets": {
+        "pace_threshold_percent": "تنبيه عند انخفاض البائع عن هذه النسبة من الوتيرة (٪)"
+      },
+      "imports": {
+        "lead_time_days": "مدة وصول الاستيراد (أيام)"
+      },
+      "period": {
+        "close_after_days": "الأيام بعد انتهاء الشهر قبل اعتماده نهائياً"
       }
     },
     "choices": {

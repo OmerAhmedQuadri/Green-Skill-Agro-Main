@@ -483,7 +483,11 @@
     "REFUND_EXCEEDS_CASH_IN_HAND": "You don't hold enough cash for this refund. Offer a replacement instead.",
     "SETTLEMENT_ABOVE_CASH_IN_HAND": "That is more cash than the app says you are holding.",
     "RECEIVER_REQUIRED": "Choose the manager who is taking the cash.",
-    "AUDIT_NOT_COUNTED": "Count every batch before closing the audit."
+    "AUDIT_NOT_COUNTED": "Count every batch before closing the audit.",
+    "INVALID_PERIOD": "That is not a valid month.",
+    "TARGET_EMPTY": "Set at least one figure for the target.",
+    "TARGET_NOT_POSITIVE": "Every figure set must be more than zero.",
+    "PERIOD_CLOSED": "That month is final and cannot be changed."
   },
   "format": {
     "grams": "{value} g",
@@ -641,7 +645,8 @@
       "attendance": "Attendance",
       "stores": "Stores",
       "credit": "Credit",
-      "documents": "Delivery documents"
+      "documents": "Delivery documents",
+      "targets": "Targets and commission"
     },
     "fields": {
       "discount": {
@@ -691,6 +696,15 @@
       },
       "media": {
         "photo_retention_days": "Days to keep selfies and odometer photos"
+      },
+      "targets": {
+        "pace_threshold_percent": "Flag a seller below this share of the pace (%)"
+      },
+      "imports": {
+        "lead_time_days": "Import lead time (days)"
+      },
+      "period": {
+        "close_after_days": "Days after a month ends before it is final"
       }
     },
     "choices": {
