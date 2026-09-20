@@ -58,7 +58,9 @@ export const SETTINGS = {
     permission: 'system.configure', group: 'credit',
   },
   // LIM-003
-  'ceilings.reminder_interval_hours': { kind: 'integer', min: 1, max: 168, default: 24, permission: 'system.set_limits', group: 'limits' },
+  // VEH-015, OQ-022: how long a vehicle may go without a physical audit before the dashboard says so.
+  'audits.interval_days': { kind: 'integer', min: 1, max: 365, default: 30, permission: 'system.set_limits', group: 'limits' },
+    'ceilings.reminder_interval_hours': { kind: 'integer', min: 1, max: 168, default: 24, permission: 'system.set_limits', group: 'limits' },
 } as const satisfies Record<string, Entry>;
 
 export type SettingKey = keyof typeof SETTINGS;

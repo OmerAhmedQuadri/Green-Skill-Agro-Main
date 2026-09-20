@@ -52,3 +52,14 @@ export const ListClosingStockQuery = z.object({
   status: z.enum(['MATCHED', 'VARIANCE_FLAGGED', 'REVIEWED']).optional(),
   from: z.iso.date().optional(), to: z.iso.date().optional(),
 });
+
+/** VEH-011..013, ADR-0041: the physical count of a vehicle's stock. */
+export const OpenAuditRequest = z.object({ vehicleId: z.uuid(), note: OptionalText(500) });
+export const RecordCountRequest = z.object({
+  version: Version,
+  lines: z.array(z.object({ batchId: z.uuid(), packs: z.number().int().min(0).max(1_000_000), comment: OptionalText(500) })).min(1).max(500),
+});
+export const CloseAuditRequest = z.object({ version: Version, note: OptionalText(500) });
+/** OQ-022 */
+export const DecideSurplusRequest = z.object({ lineId: z.uuid(), approve: z.boolean(), comment: OptionalText(500) });
+export const ListAuditsQuery = z.object({ vehicleId: z.uuid().optional(), status: z.enum(['IN_PROGRESS', 'CLOSED']).optional() });

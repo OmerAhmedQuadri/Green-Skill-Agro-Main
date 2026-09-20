@@ -1,6 +1,6 @@
 'use client';
 
-import { Banknote, CalendarCheck, CalendarClock, Car, ClipboardCheck, ClipboardList, History, LayoutDashboard, Menu, Package, PackageOpen, PackageX, Receipt, Settings, Ship, Store, Tag, Truck, Users, Warehouse, X } from 'lucide-react';
+import { Banknote, ListChecks, CalendarCheck, CalendarClock, Car, ClipboardCheck, ClipboardList, History, LayoutDashboard, Menu, Package, PackageOpen, PackageX, Receipt, Settings, Ship, Store, Tag, Truck, Users, Warehouse, X } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
@@ -15,7 +15,7 @@ import { SignOutButton } from './SignOutButton';
 const ICONS = {
   dashboard: LayoutDashboard, users: Users, catalogue: Package, vendors: Truck, pricing: Tag, settings: Settings,
   purchaseOrders: ClipboardList, incoming: Ship, stock: Warehouse, writeOffs: PackageX, expiry: CalendarClock,
-  vehicles: Car, attendance: CalendarCheck, closingStock: ClipboardCheck, stores: Store, sales: Receipt, dispatch: PackageOpen, cash: Banknote, auditLog: History,
+  vehicles: Car, attendance: CalendarCheck, closingStock: ClipboardCheck, stores: Store, sales: Receipt, dispatch: PackageOpen, cash: Banknote, audits: ListChecks, auditLog: History,
 } satisfies Record<NavIcon, unknown>;
 
 type Props = { items: { href: string; label: string; icon: NavIcon }[]; user: { name: string; role: string }; children: ReactNode };

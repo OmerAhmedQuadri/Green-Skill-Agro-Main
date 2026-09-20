@@ -126,6 +126,7 @@ const STATUS: Record<ErrorCode, number> = {
   REFUND_EXCEEDS_CASH_IN_HAND: 409,
   SETTLEMENT_ABOVE_CASH_IN_HAND: 409,
   RECEIVER_REQUIRED: 422,
+  AUDIT_NOT_COUNTED: 409,
 };
 
 export function problem(status: number, code: string, requestId: string, details?: Record<string, unknown>, headers?: HeadersInit): Response {

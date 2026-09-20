@@ -5,6 +5,7 @@ import {
   SALE_STATUSES, SALE_CANCEL_REASONS, DISCOUNT_REQUEST_STATUSES, DELIVERY_DOCUMENT_STATUSES, DOCUMENT_SEND_CHANNELS, CASH_LEDGER_ENTRY_TYPES,
   SALE_CHANNELS, DISPATCH_STATUSES, DISPATCH_CLOSE_REASONS, CONFIRMATION_MODES, SHORTFALL_RESOLUTIONS, LOST_CLAIM_STATUSES, DISPATCH_EVENT_TYPES,
   RETURN_KINDS, RETURN_CONDITIONS, RETURN_OUTCOMES, SETTLEMENT_ROUTES, SETTLEMENT_STATUSES, CEILING_KINDS,
+  AUDIT_STATUSES, AUDIT_OUTCOMES, SURPLUS_STATUSES,
 } from '@gsa/core';
 import { schema } from '@gsa/db';
 import { describe, expect, it } from 'vitest';
@@ -80,5 +81,8 @@ describe('database enums mirror core', () => {
     expect(schema.settlementRoute.enumValues).toEqual([...SETTLEMENT_ROUTES]);
     expect(schema.settlementStatus.enumValues).toEqual([...SETTLEMENT_STATUSES]);
     expect(schema.ceilingKindFlag.enumValues).toEqual([...CEILING_KINDS]);
+    expect(schema.auditStatus.enumValues).toEqual([...AUDIT_STATUSES]);
+    expect(schema.auditOutcome.enumValues).toEqual([...AUDIT_OUTCOMES]);
+    expect(schema.surplusStatus.enumValues).toEqual([...SURPLUS_STATUSES]);
   });
 });

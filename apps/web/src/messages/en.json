@@ -96,14 +96,16 @@
     "sales": "Sales",
     "auditLog": "Audit log",
     "dispatch": "Dispatch",
-    "cash": "Cash"
+    "cash": "Cash",
+    "audits": "Audits"
   },
   "dashboard": {
     "welcome": "Welcome, {name}",
     "signedInAs": "Signed in as {role}",
     "permissionCount": "{count, plural, one {# permission} other {# permissions}}",
     "unconfirmedDispatch": "{count, plural, one {# dispatch order has} other {# dispatch orders have}} been on the road too long without confirmation.",
-    "ceilingBreached": "{name} is over the {kind} — {amount} against {ceiling}."
+    "ceilingBreached": "{name} is over the {kind} — {amount} against {ceiling}.",
+    "auditsDue": "{count, plural, one {# vehicle is due a stock audit} other {# vehicles are due a stock audit}}"
   },
   "field": {
     "welcome": "Good day, {name}",
@@ -480,7 +482,8 @@
     "REFUND_NEEDS_SELLER": "This return needs cash handed back, so the seller records it at the store.",
     "REFUND_EXCEEDS_CASH_IN_HAND": "You don't hold enough cash for this refund. Offer a replacement instead.",
     "SETTLEMENT_ABOVE_CASH_IN_HAND": "That is more cash than the app says you are holding.",
-    "RECEIVER_REQUIRED": "Choose the manager who is taking the cash."
+    "RECEIVER_REQUIRED": "Choose the manager who is taking the cash.",
+    "AUDIT_NOT_COUNTED": "Count every batch before closing the audit."
   },
   "format": {
     "grams": "{value} g",
@@ -688,7 +691,8 @@
       },
       "media": {
         "photo_retention_days": "Days to keep selfies and odometer photos"
-      }
+      },
+      "audits.interval_days": "Days between vehicle audits"
     },
     "choices": {
       "TRAILING": "Trailing 30 days",
@@ -1773,5 +1777,65 @@
       "VEHICLE_STOCK_VALUE": "Over the stock limit"
     },
     "warningOnly": "A limit is a warning: nobody is stopped from working."
+  },
+  "audits": {
+    "loading": "Loading…",
+    "listTitle": "Vehicle audits",
+    "listSubtitle": "Count what is really on a vehicle, and explain every difference.",
+    "title": "Audit of {registration}",
+    "statuses": {
+      "IN_PROGRESS": "Counting",
+      "CLOSED": "Closed"
+    },
+    "openedBy": "Opened by {name}, {time}",
+    "closedBy": "Closed by {name}, {time}",
+    "seller": "Seller: {name}",
+    "noSeller": "No seller holds this vehicle.",
+    "remoteTitle": "Deliveries confirmed on the owner's word",
+    "remoteHint": "These were confirmed without the seller seeing the goods. Worth asking about.",
+    "linesTitle": "The count",
+    "item": "Item",
+    "batch": "Batch",
+    "system": "System says",
+    "counted": "Counted",
+    "comment": "Comment",
+    "outcomeHead": "Difference",
+    "lotExpiry": "{lot}, expires {expiry}",
+    "countedFor": "Counted — {code}, batch {lot}",
+    "commentFor": "Comment — {code}, batch {lot}",
+    "outcomes": {
+      "MATCH": "Matches",
+      "SHORTFALL": "Short",
+      "SURPLUS": "Extra"
+    },
+    "writeOffRaised": "Write-off {number} raised",
+    "surplusStatuses": {
+      "PENDING": "Waiting for approval",
+      "APPROVED": "Added to the vehicle",
+      "REJECTED": "Not added"
+    },
+    "note": "Note (optional)",
+    "saveCount": "Save the count",
+    "close": "Close the audit",
+    "closeHint": "Closing raises a write-off for anything short, and sends anything extra for approval. Every difference needs a comment first.",
+    "surplusTitle": "Extra stock found",
+    "surplusHint": "Approving adds it to the vehicle. The manager who closed the audit cannot approve it.",
+    "surplusLine": "{code}: {packs} more than the system says",
+    "approveSurplus": "Add it",
+    "rejectSurplus": "Don't add it",
+    "overdueTitle": "{count, plural, one {# vehicle is due an audit} other {# vehicles are due an audit}}",
+    "lastAudited": "last audited {time}",
+    "neverAudited": "never audited",
+    "vehicle": "Vehicle",
+    "chooseVehicle": "Choose a vehicle",
+    "startAudit": "Start an audit",
+    "doneTitle": "Audits",
+    "none": "No audits yet.",
+    "number": "Number",
+    "sellerHead": "Seller",
+    "opened": "Opened",
+    "statusHead": "Status",
+    "differences": "Differences",
+    "differenceCount": "{shortfalls} short, {surpluses} extra"
   }
 }
