@@ -61,6 +61,13 @@ for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
     await expect(admin.getByRole('link', { name: m.stores.viewPhoto })).toHaveAttribute('href', /\/api\/v1\/media\//);
     await admin.getByRole('button', { name: m.stores.approve, exact: true }).click();
     await expect(admin.getByText(m.stores.statuses.ACTIVE).first()).toBeVisible();
+
+    // STO-006: the list shows every store, not only what awaits approval. It
+    // used to open filtered for an approver, so a store vanished from it the
+    // moment it was approved and the page gave no sign it was hiding any.
+    await admin.goto('/console/stores');
+    await expect(admin.getByRole('link', { name, exact: true })).toBeVisible();
+    await admin.goto(`/console/stores/${storeId}`); // back to the store the rest of this works on
     await phone.goto(`/field/stores/${storeId}`);
     await expect(phone.getByTestId('credit-clear')).toBeVisible();
 
