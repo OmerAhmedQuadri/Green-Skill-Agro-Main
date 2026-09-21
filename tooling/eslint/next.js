@@ -32,6 +32,7 @@ export function next({ tsconfigRootDir, restrictedImports = [] }) {
           { selector: 'JSXText[value=/\\S/]', message: TEXT_MSG },
           { selector: 'JSXAttribute[name.name=/^(aria-label|placeholder|title|alt)$/] > Literal', message: TEXT_MSG },
           { selector: "ExpressionStatement[directive='use server']", message: 'ADR-0007: mutations go through /api/v1 route handlers, never Server Actions.' },
+          { selector: "JSXAttribute[name.name='dangerouslySetInnerHTML']", message: 'SECURITY §4: React escapes output. Raw HTML is never rendered.' },
         ],
       },
     },

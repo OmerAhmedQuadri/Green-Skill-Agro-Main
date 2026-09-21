@@ -1,5 +1,6 @@
 'use client';
 
+import { dec } from '@gsa/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
 import { useState, type FormEvent } from 'react';
@@ -14,6 +15,7 @@ import { decimalText, formText } from '@/lib/forms';
 import { useCommand, useErrorText } from '@/lib/hooks';
 import { keys } from '@/lib/query-keys';
 import { CreditPanel } from './CreditPanel';
+import { LedgerSummary } from './LedgerSummary';
 import { LedgerTable } from './LedgerTable';
 import { STATUS_TONE, type LedgerEntry, type Store, type StoreOptions } from './types';
 
@@ -103,7 +105,15 @@ export function StoreDetail({ id, can }: { id: string; can: Can }) {
 
       <Section title={t('terms')}>
         <Facts items={[
-          { label: t('creditMode'), value: s.creditMode === 'CUSTOM' ? t('customCycle', { days: s.creditCycleDays ?? 0 }) : t(`modes.${s.creditMode}`) },
+          {
+            label: t('creditMode'),
+            value: (
+              <>
+                {s.creditMode === 'CUSTOM' ? t('customCycle', { days: s.creditCycleDays ?? 0 }) : t(`modes.${s.creditMode}`)}
+                {dec(s.credit.outstanding).gt(0) ? <div className="mt-1 text-xs text-stone-500">{t('cycleKeepsDueDates')}</div> : null}
+              </>
+            ),
+          },
           { label: t('creditLimit'), value: format.money(s.creditLimit) },
           { label: t('priceList'), value: format.name(s.priceList) },
         ]} />
@@ -164,6 +174,7 @@ export function StoreDetail({ id, can }: { id: string; can: Can }) {
       </div>
 
       <Section title={t('ledger')}>
+        {ledger.data && ledger.data.length > 0 ? <LedgerSummary entries={ledger.data} credit={s.credit} /> : null}
         <LedgerTable entries={ledger.data ?? []} />
       </Section>
     </div>

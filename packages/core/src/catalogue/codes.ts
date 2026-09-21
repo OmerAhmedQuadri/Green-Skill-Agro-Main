@@ -23,7 +23,7 @@ function normaliseCode(raw: string, max: number, error: ErrorCode): string {
 /** CAT-008: a manually entered SKU code. Spaces are refused, not stripped. */
 export const normaliseSkuCode = (raw: string): string => normaliseCode(raw, 40, 'INVALID_SKU_CODE');
 
-/** VEN-001: the vendor code is Green Agro's own choice, e.g. `VEN-7K4M`. */
+/** VEN-001: the vendor code is Green Skill Agro's own choice, e.g. `VEN-7K4M`. */
 export const normaliseVendorCode = (raw: string): string => normaliseCode(raw, 20, 'INVALID_VENDOR_CODE');
 
 const letters = (value: string) => value.toUpperCase().replace(/[^A-Z0-9]/g, '');

@@ -73,6 +73,17 @@ for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
     // COM-006: Phase 1 calculates and reports. There is nothing here that pays it.
     await expect(phone.getByRole('button', { name: m.common.save })).toHaveCount(0);
 
+    // Workflows G and I, TGT-004, SAL-007: the same progress on the home screen
+    // the seller actually starts their day on, moved by the sale they recorded.
+    // Built in M11 and shown here ever since, but until now nothing checked it.
+    await phone.goto('/field/today');
+    await expect(phone.getByTestId('today-metric-REVENUE')).toBeVisible();
+    await expect(phone.getByTestId('today-metric-COLLECTED')).toBeVisible();
+    // The achievement carries the metric's own id, so it is found inside its row.
+    await expect(phone.getByTestId('today-metric-REVENUE').getByTestId('achievement-REVENUE')).toContainText('135');
+    await phone.getByTestId('to-targets').click();
+    await expect(phone).toHaveURL(/\/field\/targets$/);
+
     // COM-007: the manager sees this seller among the others.
     await admin.goto('/console/targets');
     const row = admin.getByTestId(`standing-${seller.id}`);

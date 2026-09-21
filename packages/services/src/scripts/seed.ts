@@ -3,6 +3,8 @@ import { schema } from '@gsa/db';
 import { eq } from 'drizzle-orm';
 import { hashPassword } from '../identity';
 import { loadSampleCatalogue, syncReferenceData } from '../reference-data';
+import { setCeiling, setCommissionRate } from '../system';
+import { setTarget } from '../targets';
 import { closeDb, defaultBranchId, getDb } from '../runtime';
 
 // Development accounts only (DEVELOPMENT §7). Never production; never UI-v1's demo credentials (ADR-0014).
@@ -51,10 +53,47 @@ for (const account of ACCOUNTS) {
 console.log('password: DEV_SEED_PASSWORD from .env');
 
 // MIG-006: the synthetic sample catalogue, loaded as the Super Admin so it is validated and audited like any change.
+// SEED_SAMPLE_CATALOGUE=0 leaves it out: a machine being prepared for the
+// migration import needs the accounts but an empty catalogue (pnpm db:import).
 if (!grantorId) throw new Error('no Super Admin seeded');
-const sample = await loadSampleCatalogue({
-  user: { id: grantorId as UserId, role: 'SUPER_ADMIN' }, permissions: effectivePermissions('SUPER_ADMIN', new Map()),
-  now: new Date(), requestId: 'dev-seed', locale: 'en', branchId, ip: null,
-}, { withProducts: true });
+if (process.env.SEED_SAMPLE_CATALOGUE === '0') {
+  console.log('skipped   sample catalogue (SEED_SAMPLE_CATALOGUE=0)');
+  await closeDb();
+  process.exit(0);
+}
+const superAdmin = {
+  user: { id: grantorId as UserId, role: 'SUPER_ADMIN' as const }, permissions: effectivePermissions('SUPER_ADMIN', new Map()),
+  now: new Date(), requestId: 'dev-seed', locale: 'en' as const, branchId, ip: null,
+};
+
+const sample = await loadSampleCatalogue(superAdmin, { withProducts: true });
 console.log(sample.loaded ? 'created  sample catalogue' : 'exists   sample catalogue');
+
+/**
+ * TGT-001, COM-001, LIM-001: this month's goals, the commission rates and the
+ * ceilings, so the targets and cash screens have something to show.
+ *
+ * Green Skill Agro returned sheet 9 untouched and told us (2026-09-21) to choose for
+ * now and settle it in production. These are the figures the template itself
+ * suggested — ours, provisional, and development-only: this script refuses to
+ * run against production at all, so nothing here becomes a real rate.
+ */
+const PROVISIONAL = { revenue: '60000.00', collected: '55000.00', newStores: 4, onTarget: '3', belowTarget: '1.5', cash: '15000.00', stock: '40000.00' };
+const period = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Riyadh', year: 'numeric', month: '2-digit' }).format(new Date()).slice(0, 7);
+
+for (const account of ACCOUNTS.filter((a) => a.role === 'SELLER')) {
+  const [seller] = await db.select({ id: schema.users.id }).from(schema.users).where(eq(schema.users.email, account.email));
+  if (!seller) continue;
+  await setTarget(superAdmin, {
+    sellerId: seller.id, period,
+    goals: { REVENUE: PROVISIONAL.revenue, COLLECTED: PROVISIONAL.collected, NEW_STORES: String(PROVISIONAL.newStores) },
+    note: 'Provisional — Green Skill Agro to set its own (sheet 9)',
+  });
+  await setCommissionRate(superAdmin, seller.id, { onTarget: PROVISIONAL.onTarget, belowTarget: PROVISIONAL.belowTarget });
+}
+// LIM-001: one ceiling for everyone, rather than a row per seller to maintain.
+await setCeiling(superAdmin, { kind: 'CASH_IN_HAND', sellerId: null, amount: PROVISIONAL.cash });
+await setCeiling(superAdmin, { kind: 'VEHICLE_STOCK_VALUE', sellerId: null, amount: PROVISIONAL.stock });
+console.log(`created  provisional targets, commission rates and ceilings for ${period}`);
+
 await closeDb();

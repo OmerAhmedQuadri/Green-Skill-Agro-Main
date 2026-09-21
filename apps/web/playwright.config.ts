@@ -13,8 +13,17 @@ export default defineConfig({
   forbidOnly: Boolean(process.env.CI),
   retries: 0,
   reporter: [['list']],
-  // A full run on a laptop, with the worker printing documents alongside: a server round trip can pass five seconds.
-  expect: { timeout: 10_000 },
+  // A full run on a laptop, with the worker printing documents alongside: a
+  // server round trip can pass five seconds — and has been measured at 17.7s
+  // (workflow P applying a preset, from its trace). An assertion that gives up
+  // before the request it is waiting on has returned says nothing about the
+  // code, so this leaves real headroom; only a genuine failure pays for it.
+  expect: { timeout: 30_000 },
+  // Playwright's own default is 30s, which is a bet on how busy the machine is:
+  // workflow A takes 10s alone and has timed out at 30s inside a full run. The
+  // heavier specs raise this again for themselves; nothing should sit on the
+  // default, because failing that way says nothing about the code.
+  timeout: 120_000,
   use: { baseURL: 'http://localhost:3000', trace: 'retain-on-failure' },
   projects: [{
     name: 'chromium',
@@ -26,9 +35,19 @@ export default defineConfig({
   }],
   webServer: [
     {
+      // `pnpm start` runs the standalone server the VPS runs (DEVELOPMENT §9),
+      // so the suite exercises what ships rather than `next start`.
       command: 'pnpm start',
       url: 'http://localhost:3000/api/v1/health',
-      reuseExistingServer: !process.env.CI,
+      /**
+       * Reuse is opt-in, not the default. Anything already on port 3000 — a
+       * forgotten `pnpm dev`, a server left by a crashed run — would otherwise
+       * be reused silently, and the suite would pass or fail against a build
+       * that is not the one under test. Set E2E_REUSE_SERVER=1 for the fast
+       * loop when you know what is running; the few seconds a fresh start
+       * costs are cheaper than one afternoon spent trusting a stale result.
+       */
+      reuseExistingServer: !process.env.CI && process.env.E2E_REUSE_SERVER === '1',
       timeout: 120_000,
     },
     {

@@ -1,5 +1,6 @@
 'use client';
 
+import { dec } from '@gsa/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { PackageOpen, Phone, ShoppingCart } from 'lucide-react';
 import Link from 'next/link';
@@ -101,6 +102,10 @@ export function FieldStoreScreen({ id }: { id: string }) {
         {editingCycle ? (
           <form className="space-y-2" noValidate onSubmit={submitCycle}>
             {cycle.error ? <Alert>{errorText(cycle.error)}</Alert> : null}
+            {/* ADR-0036: the cycle may change while money is owed, and the
+                debts keep the due dates they were posted with. Said here
+                because otherwise it reads as a way round the terms. */}
+            {dec(s.credit.outstanding).gt(0) ? <Alert tone="warning">{t('cycleKeepsDueDates')}</Alert> : null}
             <Field id="cy-mode" label={t('creditMode')}>
               <Select id="cy-mode" name="creditMode" defaultValue={s.creditMode}>
                 {(options.data?.creditModes ?? [s.creditMode]).map((m) => <option key={m} value={m}>{t(`modes.${m}`)}</option>)}
@@ -114,7 +119,7 @@ export function FieldStoreScreen({ id }: { id: string }) {
 
       <Card>
         <div className="border-b border-stone-200 p-4 font-semibold">{t('ledger')}</div>
-        <LedgerTable entries={ledger.data ?? []} compact />
+        <LedgerTable entries={ledger.data ?? []} compact area="field" />
       </Card>
     </div>
   );

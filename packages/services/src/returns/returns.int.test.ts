@@ -1,4 +1,4 @@
-import type { DomainError } from '@gsa/core';
+import { businessMonth, type DomainError } from '@gsa/core';
 import { describe, expect, it } from 'vitest';
 import { ownerQuery } from '../../test/db';
 import { anAccount, ctxFor } from '../../test/factories';
@@ -12,6 +12,7 @@ import { setPriceListItems } from '../pricing';
 import { getDb } from '../runtime';
 import { recordSale } from '../sales';
 import { getCreditStatus, listStoreLedger, recordPayment } from '../stores';
+import { actualsFor } from '../targets';
 import { updateSettings } from '../system';
 import { getMyVehicle } from '../vehicles';
 import { getReturn, getReturnable, listReturns, myRefundsDue, mySalesMonth, payRefundDue, recordReturn } from './index';
@@ -186,6 +187,10 @@ describe('recorded sales and the console (RET-009, workflow L)', () => {
     expect(await mySalesMonth(seller.ctx)).toMatchObject({ sold: '360.00', sales: 1, returned: '0.00', creditNotes: 0, net: '360.00' });
     await recordReturn(seller.ctx, { saleId: sale.id, kind: 'CREDIT_NOTE', condition: 'UNCLEARED_PAYMENT', lines: [{ saleLineId: line.id, batchId, packs: 1 }] });
     expect(await mySalesMonth(seller.ctx)).toMatchObject({ sold: '360.00', returned: '90.00', creditNotes: 1, net: '270.00' });
+    // Workflow L: and the seller's target progress falls with it. The line
+    // above proves recorded sales fall; this proves the figure a target is
+    // measured against is the same one.
+    expect(await actualsFor(getDb(), seller.account.id, businessMonth(new Date()))).toMatchObject({ REVENUE: '270.00' });
     const other = await ctxFor(await anAccount('SELLER'));
     expect(await code(mySalesMonth(other, { sellerId: seller.account.id }))).toBe('FORBIDDEN');
   });

@@ -1,6 +1,6 @@
 import { dec, DomainError, toMoney, type Money } from '@gsa/core';
 import { schema } from '@gsa/db';
-import { eq, sql } from 'drizzle-orm';
+import { inArray, sql } from 'drizzle-orm';
 import { authorize, type Ctx } from '../context';
 import { syncFlagsFor } from './ceilings';
 import type { Executor, Tx } from '../platform';
@@ -47,9 +47,27 @@ export async function postCashRefund(
 
 /** Cash in hand: the sum of the seller's cash ledger. */
 export async function cashInHand(db: Executor, sellerId: string): Promise<Money> {
-  const [row] = await db.select({ total: sql<string>`coalesce(sum(${cashLedgerEntries.amount}), 0)::numeric(14,2)` })
-    .from(cashLedgerEntries).where(eq(cashLedgerEntries.sellerId, sellerId));
-  return (row?.total ?? '0.00') as Money;
+  return (await cashInHandFor(db, [sellerId])).get(sellerId) ?? ('0.00' as Money);
+}
+
+/**
+ * The same sum for several sellers at once. The console lists every seller's
+ * cash, and asking per seller made that one query per seller — invisible with
+ * two of them, and the shape that does not stay invisible.
+ *
+ * A seller with no entries is absent from the grouping, so every id asked for
+ * is seeded at zero first.
+ */
+export async function cashInHandFor(db: Executor, sellerIds: readonly string[]): Promise<Map<string, Money>> {
+  const totals = new Map<string, Money>(sellerIds.map((id) => [id, '0.00' as Money]));
+  if (sellerIds.length === 0) return totals;
+  const rows = await db
+    .select({ sellerId: cashLedgerEntries.sellerId, total: sql<string>`coalesce(sum(${cashLedgerEntries.amount}), 0)::numeric(14,2)` })
+    .from(cashLedgerEntries)
+    .where(inArray(cashLedgerEntries.sellerId, [...sellerIds]))
+    .groupBy(cashLedgerEntries.sellerId);
+  for (const row of rows) totals.set(row.sellerId, row.total as Money);
+  return totals;
 }
 
 /** CSH-001, SAL-007: the seller's own cash in hand. */

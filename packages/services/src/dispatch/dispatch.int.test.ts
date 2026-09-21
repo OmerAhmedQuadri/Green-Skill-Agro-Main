@@ -1,4 +1,4 @@
-import type { DomainError, PermissionCode } from '@gsa/core';
+import { businessMonth, type DomainError, type PermissionCode } from '@gsa/core';
 import { describe, expect, it } from 'vitest';
 import { ownerQuery } from '../../test/db';
 import { anAccount, ctxFor } from '../../test/factories';
@@ -8,7 +8,9 @@ import { getMyCashInHand } from '../cash';
 import { listMyNotifications } from '../notifications';
 import { setPriceListItems } from '../pricing';
 import { decideDiscountRequest, getSale, listSales } from '../sales';
+import { getDb } from '../runtime';
 import { adjustBalance, listStoreLedger } from '../stores';
+import { actualsFor } from '../targets';
 import { basePriceListId } from '../../test/stores';
 import {
   cancelOrder, confirmReceipt, createOrderForSeller, decideLostClaim, dispatchApprovedSale, dispatchOptions, getDispatchOrder, listDispatchOrders,
@@ -215,6 +217,12 @@ describe('orders on a seller\'s behalf (workflow K, DSP-015..017)', () => {
     const done = await confirmReceipt(s.seller.ctx, order.id, { version: released.version, mode: 'IN_PERSON', lines: released.lines.map((l) => ({ lineId: l.id, received: l.packs, short: 0, damaged: 0 })) });
     expect(done).toMatchObject({ status: 'CLOSED', sale: { status: 'COMPLETED', total: '110.00' } });
     expect(await getSale(s.seller.ctx, saleId)).toMatchObject({ seller: { id: s.seller.account.id }, raisedBy: office.user.id });
+
+    // Workflow K: and it counts toward the seller's month. Nothing asserted
+    // this before — that a manager's order becomes the seller's completed sale
+    // was proved above, and that targets count completed sales was proved in
+    // targets, but the two were never put together.
+    expect(await actualsFor(getDb(), s.seller.account.id, businessMonth(s.ctx.now))).toMatchObject({ REVENUE: '110.00' });
   });
 
   it('PRC-013, ADR-0038: a manager who raised a discounted order cannot approve it', async () => {

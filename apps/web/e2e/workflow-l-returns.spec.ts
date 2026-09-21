@@ -137,5 +137,20 @@ for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
     // The seller sees it on their own sale.
     await phone.goto(`/field/sales/${onCredit.id}`);
     await expect(phone.getByTestId('sale-returns')).toContainText(m.returns.kinds.CREDIT_NOTE);
+
+    // RET-008, CRD-003: and the store's ledger reads as a return rather than an
+    // unexplained credit — the row links back to it, and the totals say what
+    // was invoiced, paid and returned without adding up a year of lines.
+    const returnId = /\/returns\/([0-9a-f-]{36})$/.exec(admin.url())?.[1];
+    expect(returnId).toBeTruthy();
+    await admin.goto(`/console/stores/${credit.id}`);
+    // Newest first, so the first credit note is the one just recorded. This
+    // store has taken several returns, which is why the totals are read for
+    // what they are rather than pinned to one of them.
+    await expect(admin.getByTestId('ledger-CREDIT_NOTE').first().getByRole('link'))
+      .toHaveAttribute('href', `/console/returns/${returnId}`);
+    await expect(admin.getByTestId('total-outstanding')).toHaveText(money('90.00'));
+    await expect(admin.getByTestId('total-returned')).toBeVisible();
+    await expect(admin.getByTestId('total-paid')).toBeVisible();
   });
 }

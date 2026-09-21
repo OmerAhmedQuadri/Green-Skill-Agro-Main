@@ -4,7 +4,7 @@ import {
   type PermissionCode, type PermissionOverrides, type Role, type UserId,
 } from '@gsa/core';
 import { schema } from '@gsa/db';
-import { and, asc, eq, gt, ilike, inArray, or, type SQL } from 'drizzle-orm';
+import { and, asc, eq, gt, ilike, inArray, or, sql, type SQL } from 'drizzle-orm';
 import type { Ctx } from '../context';
 import { audit, inTx, type Executor } from '../platform';
 import { getDb } from '../runtime';
@@ -207,16 +207,35 @@ export async function resetAccountPassword(ctx: Ctx, id: string): Promise<{ temp
   });
 }
 
+/**
+ * The value this row carried into the statement, for an upsert's `set`. The
+ * name comes from the schema because a Drizzle field and its column need not
+ * agree — `grantedAt` is the column `created_at` — and a guess compiles.
+ */
+const excluded = (column: { name: string }) => sql.raw(`excluded."${column.name}"`);
+
+/**
+ * One statement, not one per permission. A preset carries around forty
+ * overrides, and inserting them in a loop meant forty sequential round trips
+ * inside the transaction — enough to take seventeen seconds on a busy machine,
+ * which is how it was found.
+ */
 async function replaceOverrides(tx: Executor, ctx: Ctx, userId: string, overrides: PermissionOverrides, replaceAll: boolean) {
   if (replaceAll) await tx.delete(userPermissions).where(eq(userPermissions.userId, userId));
-  for (const [permission, granted] of overrides) {
-    await tx.insert(userPermissions)
-      .values({ userId, permission, granted, grantedBy: ctx.user.id, grantedAt: ctx.now })
-      .onConflictDoUpdate({
-        target: [userPermissions.userId, userPermissions.permission],
-        set: { granted, grantedBy: ctx.user.id, grantedAt: ctx.now },
-      });
-  }
+  const rows = [...overrides].map(([permission, granted]) => ({
+    userId, permission, granted, grantedBy: ctx.user.id, grantedAt: ctx.now,
+  }));
+  if (rows.length === 0) return;
+  await tx.insert(userPermissions).values(rows).onConflictDoUpdate({
+    target: [userPermissions.userId, userPermissions.permission],
+    // `excluded` is the row this statement tried to insert, so every row takes
+    // its own value rather than the last one's (a plain object would).
+    set: {
+      granted: excluded(userPermissions.granted),
+      grantedBy: excluded(userPermissions.grantedBy),
+      grantedAt: excluded(userPermissions.grantedAt),
+    },
+  });
 }
 
 /** USR-005..007, USR-011: grant or withdraw individual Config permissions, audited before/after. */

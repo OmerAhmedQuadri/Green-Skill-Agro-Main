@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# One-time setup of Green Agro staging on the VPS (ADR-0035). Run as root from
+# One-time setup of Green Skill Agro staging on the VPS (ADR-0035). Run as root from
 # the cloned repository:
 #
 #   bash /root/gsa-sales-inventory-app/Green-Skill-Agro-Main/deploy/setup-vps.sh app.greenskillagro.com

@@ -11,13 +11,16 @@ export class ApiError extends Error {
 type Init = { method?: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE'; body?: unknown; idempotencyKey?: string };
 
 export async function api<T>(path: string, init: Init = {}): Promise<T> {
+  const method = init.method ?? 'GET';
   const headers: Record<string, string> = {};
-  if (init.body !== undefined) headers['content-type'] = 'application/json';
+  // Declared on every state-changing request, body or not: the proxy requires a
+  // JSON content type (SECURITY §2), and sign-out sends no body at all.
+  if (method !== 'GET') headers['content-type'] = 'application/json';
   if (init.idempotencyKey) headers['idempotency-key'] = init.idempotencyKey;
   let response: Response;
   try {
     response = await fetch(`/api/v1${path}`, {
-      method: init.method ?? 'GET',
+      method,
       headers,
       credentials: 'same-origin',
       ...(init.body !== undefined ? { body: JSON.stringify(init.body) } : {}),

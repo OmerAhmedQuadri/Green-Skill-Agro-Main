@@ -21,7 +21,10 @@ export function StoresPage({ canApprove }: { canApprove: boolean }) {
   const tc = useTranslations('common');
   const format = useFormat();
   const errorText = useErrorText();
-  const [status, setStatus] = useState<Status>(canApprove ? 'PENDING_APPROVAL' : '');
+  // Every store, whoever is looking. An approver used to land on a list
+  // filtered to what awaits them, which meant the Stores page quietly showed
+  // three of seventy-six and gave no sign it was hiding any.
+  const [status, setStatus] = useState<Status>('');
   const [search, setSearch] = useState('');
   const [blockedOnly, setBlockedOnly] = useState(false);
   const filter = { status, search, blockedOnly };
@@ -35,6 +38,8 @@ export function StoresPage({ canApprove }: { canApprove: boolean }) {
       return api<StoreSummary[]>(`/stores?${qs.toString()}`);
     },
   });
+
+  const waiting = (list.data ?? []).filter((s) => s.status === 'PENDING_APPROVAL').length;
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -51,6 +56,16 @@ export function StoresPage({ canApprove }: { canApprove: boolean }) {
             <Checkbox checked={blockedOnly} onChange={(e) => setBlockedOnly(e.target.checked)} />{t('blockedOnly')}
           </label>
         </div>
+        {/* The approver's shortcut, as a count they can act on rather than a
+            filter applied on their behalf. Only shown unfiltered, where the
+            number is exactly what is on screen. */}
+        {canApprove && !status && waiting > 0 ? (
+          <div className="border-b border-stone-200 px-4 py-2.5 text-sm">
+            <button type="button" className="font-medium text-brand-800 hover:underline" onClick={() => setStatus('PENDING_APPROVAL')}>
+              {t('waitingCount', { count: waiting })}
+            </button>
+          </div>
+        ) : null}
         {list.error ? <div className="p-4"><Alert>{errorText(list.error)}</Alert></div> : null}
         {list.data?.length === 0 ? <p className="p-5 text-sm text-stone-500">{t('noStores')}</p> : null}
         {list.data && list.data.length > 0 ? (

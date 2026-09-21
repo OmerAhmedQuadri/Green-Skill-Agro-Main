@@ -10,6 +10,11 @@ import { sessionPage } from './helpers';
  */
 for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
   test(`Workflow P (${locale}) — USR-005, USR-007, USR-008, USR-010, USR-011, USR-014, AUD-003: an Admin configures a manager; the manager's console follows; the change is audited`, async ({ browser, baseURL }) => {
+    // The only workflow spec that ran on Playwright's 30s default while every
+    // sibling allows 480s. It is also the last spec in the suite, so it meets the
+    // busiest machine: alone it finishes in four seconds, at the end of a loaded
+    // run it did not, and the timeout read as the preset failing to apply.
+    test.setTimeout(480_000);
     const origin = baseURL ?? '';
 
     // The Admin works in this run's language.
@@ -28,14 +33,8 @@ for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
     await page.goto(`/console/users/${account.id}`);
     await expect(page.locator('html')).toHaveAttribute('dir', locale === 'ar' ? 'rtl' : 'ltr');
     await page.getByLabel(m.users.preset).selectOption({ label: m.presets.WAREHOUSE });
-    // Applying a preset ticks the boxes in the browser, so a click that lands
-    // before React has hydrated does nothing at all and leaves no trace. Under
-    // a loaded suite that happens often enough to matter, so press until it takes.
-    const receiveGoods = page.getByRole('checkbox', { name: m.permissions.inventory.receive_goods });
-    await expect(async () => {
-      await page.getByRole('button', { name: m.users.applyPreset, exact: true }).click();
-      await expect(receiveGoods).toBeChecked({ timeout: 2_000 });
-    }).toPass({ timeout: 30_000 });
+    await page.getByRole('button', { name: m.users.applyPreset, exact: true }).click();
+    await expect(page.getByRole('checkbox', { name: m.permissions.inventory.receive_goods })).toBeChecked();
     // USR-005/007: an action inside a module, not the module wholesale.
     await page.getByRole('checkbox', { name: m.permissions.users.manage_staff }).check();
     await page.getByRole('button', { name: m.users.savePermissions }).click();

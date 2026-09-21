@@ -9,7 +9,13 @@ let db: Db | undefined;
 
 /** One pool per process, connected as the runtime role (ADR-0008). */
 export function getDb(): Db {
-  db ??= createDb(loadConfig().DATABASE_URL);
+  /**
+   * Ten seconds to be handed a connection: long enough to ride out a burst,
+   * short enough that a caller is told rather than left waiting. Sixty for one
+   * statement — pathological for this application's queries, and generous
+   * enough not to cancel the worker's nightly rollups.
+   */
+  db ??= createDb(loadConfig().DATABASE_URL, { connectionTimeoutMillis: 10_000, statementTimeoutMillis: 60_000 });
   return db;
 }
 
