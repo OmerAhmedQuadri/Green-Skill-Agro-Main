@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { backupKey, expiredBackups, type StoredBackup } from './retention';
+import { BACKUP_NAME, BACKUP_PREFIX, backupKey, expiredBackups, type StoredBackup } from './retention';
 
 const NOW = new Date('2026-09-21T03:00:00Z');
 const daysAgo = (n: number) => new Date(NOW.getTime() - n * 24 * 60 * 60 * 1000);
@@ -37,5 +37,14 @@ describe('backup retention', () => {
   it('a bucket holding only a stranger removes nothing and refuses nothing', () => {
     const stranger: StoredBackup = { key: 'notes.txt', modified: daysAgo(400) };
     expect(expiredBackups([stranger], { now: NOW, days: 30 })).toEqual({ remove: [], refused: null });
+  });
+});
+
+describe('the listing prefix', () => {
+  it('matches every key the namer produces, so a prefixed listing misses none', () => {
+    for (const at of [new Date('2026-01-01T00:00:00Z'), new Date('2026-12-31T23:59:59Z'), new Date()]) {
+      expect(backupKey(at).startsWith(BACKUP_PREFIX)).toBe(true);
+      expect(BACKUP_NAME.test(backupKey(at))).toBe(true);
+    }
   });
 });

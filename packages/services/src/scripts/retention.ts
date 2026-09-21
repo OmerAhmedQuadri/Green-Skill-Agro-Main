@@ -15,6 +15,9 @@ export type StoredBackup = { readonly key: string; readonly modified: Date };
  */
 export const BACKUP_NAME = /^gsa-\d{8}T\d{6}Z\.dump$/;
 
+/** What every backup key starts with, so a listing can ask for ours alone. */
+export const BACKUP_PREFIX = 'gsa-';
+
 /** `gsa-20260921T031500Z.dump` — sorts chronologically, and says when at a glance. */
 export function backupKey(at: Date): string {
   return `gsa-${at.toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, 'Z')}.dump`;

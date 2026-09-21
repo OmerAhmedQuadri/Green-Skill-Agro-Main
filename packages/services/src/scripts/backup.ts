@@ -2,7 +2,7 @@ import { readFileSync, statSync } from 'node:fs';
 import { basename } from 'node:path';
 import { loadConfig } from '@gsa/config';
 import { AwsClient } from 'aws4fetch';
-import { BACKUP_NAME, backupKey, expiredBackups, type StoredBackup } from './retention';
+import { BACKUP_NAME, BACKUP_PREFIX, backupKey, expiredBackups, type StoredBackup } from './retention';
 
 /**
  * Upload one database dump to the backups bucket and delete the ones past
@@ -85,6 +85,10 @@ const listAll = async (): Promise<StoredBackup[]> => {
   do {
     const url = new URL(`${base}/${bucket}`);
     url.searchParams.set('list-type', '2');
+    // Only ours. In a bucket of its own this saves a little; in a bucket shared
+    // with media it is the difference between reading thirty keys and paging
+    // through every photo in the business to find them.
+    url.searchParams.set('prefix', BACKUP_PREFIX);
     if (token) url.searchParams.set('continuation-token', token);
     const response = await client.fetch(url.toString());
     if (response.status !== 200) throw new Error(`listing the bucket failed with HTTP ${response.status}`);
