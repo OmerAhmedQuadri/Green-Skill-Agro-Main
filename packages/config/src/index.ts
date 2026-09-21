@@ -38,13 +38,21 @@ const Env = z.object({
 
 export type Config = z.infer<typeof Env>;
 
+/**
+ * The environment is not valid. Its own type, so a caller can tell "this
+ * process was configured wrongly" apart from "something it depends on is
+ * unreachable" — the health endpoint reported the second for the first, and
+ * sent someone to restart a database that was never down.
+ */
+export class ConfigError extends Error {}
+
 let cached: Config | undefined;
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   if (cached) return cached;
   const parsed = Env.safeParse(env);
   if (!parsed.success) {
-    throw new Error(`Invalid configuration:\n${z.prettifyError(parsed.error)}`);
+    throw new ConfigError(`Invalid configuration:\n${z.prettifyError(parsed.error)}`);
   }
   cached = parsed.data;
   return cached;
