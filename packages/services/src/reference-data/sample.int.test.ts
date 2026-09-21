@@ -6,7 +6,7 @@ import { listPriceLists } from '../pricing';
 import { loadSampleCatalogue } from './sample';
 
 describe('sample catalogue (MIG-006, CAT-003)', () => {
-  it('CAT-003: a working category structure can be loaded for Green Agro to refine', async () => {
+  it('CAT-003: a working category structure can be loaded for Green Skill Agro to refine', async () => {
     const ctx = await ctxFor(await anAccount('SUPER_ADMIN'));
     expect(await loadSampleCatalogue(ctx, { withProducts: false })).toEqual({ loaded: true });
     const categories = await listCategories(ctx);

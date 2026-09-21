@@ -4,7 +4,7 @@ import { EXAMPLE_FILL, exampleRows } from './styles';
 
 /**
  * Built here rather than checked in: a real zip of real XML, so the parsing is
- * exercised, with none of Green Agro's contents (CLIENT-DATA.md).
+ * exercised, with none of Green Skill Agro's contents (CLIENT-DATA.md).
  *
  * The shape mirrors what Excel writes — fills are numbered by position, cell
  * formats point at a fill, and a cell points at a format.

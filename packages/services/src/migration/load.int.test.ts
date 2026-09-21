@@ -9,7 +9,7 @@ import { loadWorkbook } from './load';
 import type { Cell, Sheet } from './workbook';
 
 /**
- * Synthetic throughout, shaped like Green Agro's workbook: client data never
+ * Synthetic throughout, shaped like Green Skill Agro's workbook: client data never
  * enters the repo, tests included (CLIENT-DATA.md).
  */
 const aSheet = (sheet: string, headers: string[], rows: Cell[][]): Sheet => ({
@@ -64,7 +64,7 @@ describe('loading the setup workbook (MIG-004, MIG-006)', () => {
     expect(categories.map((c) => c.subCategories.map((s) => s.nameEn))).toEqual([['Hybrid F1', 'Open Pollinated']]);
     expect((await listVendors(ctx)).items.map((v) => [v.code, v.country])).toEqual([['VEN-001', 'IN']]);
 
-    // CAT-008: Green Agro's own codes are kept — they are printed on the packs.
+    // CAT-008: Green Skill Agro's own codes are kept — they are printed on the packs.
     const skus = (await listSkus(ctx)).items;
     expect(skus.map((s) => s.code).sort()).toEqual(['OKRA-PA-1KG', 'OKRA-PU-50G']);
     expect(skus.every((s) => s.basePrice !== null)).toBe(true);

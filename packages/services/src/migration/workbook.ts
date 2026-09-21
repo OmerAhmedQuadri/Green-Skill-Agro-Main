@@ -1,5 +1,5 @@
 /**
- * Reading Green Agro's setup workbook (MIG-001 assessment and cleansing).
+ * Reading Green Skill Agro's setup workbook (MIG-001 assessment and cleansing).
  *
  * The workbook is 2IM Labs' own template, returned partly filled. Every data
  * sheet puts its headers on row 4, and the template's demonstration rows are
@@ -21,7 +21,7 @@ export const HEADER_ROW = 3;
 export type Cell = string | number | boolean | Date | null;
 export type Sheet = { readonly sheet: string; readonly data: readonly (readonly Cell[])[] };
 
-/** Why a row was not loaded. Each one is a question for Green Agro (MIG-003). */
+/** Why a row was not loaded. Each one is a question for Green Skill Agro (MIG-003). */
 export type IssueKind =
   | 'LOOKS_LIKE_TEMPLATE_EXAMPLE'
   | 'MISSING_REQUIRED_FIELD'
@@ -69,5 +69,5 @@ export function columnOf(headers: readonly string[], name: string): number {
 
 export const valueAt = (cells: readonly Cell[], at: number): string => text(cells[at]);
 
-/** CLIENT-DATA: three SKU codes carry a stray space. Everything else is Green Agro's to spell. */
+/** CLIENT-DATA: three SKU codes carry a stray space. Everything else is Green Skill Agro's to spell. */
 export const tidySkuCode = (code: string): string => code.replace(/\s+/g, '');

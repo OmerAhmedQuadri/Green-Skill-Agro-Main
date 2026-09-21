@@ -10,13 +10,13 @@ import { assess, cleansingReport, exampleRows, loadWorkbook, survey, verificatio
 import { closeDb, getDb } from '../runtime';
 
 /**
- * Loading Green Agro's setup workbook (MIG-001..006).
+ * Loading Green Skill Agro's setup workbook (MIG-001..006).
  *
  *   pnpm db:import --workbook <file>                    assess only — writes the report, touches no database
  *   pnpm db:import --workbook <file> --load --as <email>  also loads it
  *
  * Assessing is the default because it is the safe half: it reads the file,
- * writes the cleansing report, and tells Green Agro what to answer. Loading is
+ * writes the cleansing report, and tells Green Skill Agro what to answer. Loading is
  * opt-in, names the account that will own every audit entry, and makes the
  * operator type the database host back before it writes anything.
  *

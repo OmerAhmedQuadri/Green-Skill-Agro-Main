@@ -73,7 +73,7 @@ console.log(sample.loaded ? 'created  sample catalogue' : 'exists   sample catal
  * TGT-001, COM-001, LIM-001: this month's goals, the commission rates and the
  * ceilings, so the targets and cash screens have something to show.
  *
- * Green Agro returned sheet 9 untouched and told us (2026-09-21) to choose for
+ * Green Skill Agro returned sheet 9 untouched and told us (2026-09-21) to choose for
  * now and settle it in production. These are the figures the template itself
  * suggested — ours, provisional, and development-only: this script refuses to
  * run against production at all, so nothing here becomes a real rate.
@@ -87,7 +87,7 @@ for (const account of ACCOUNTS.filter((a) => a.role === 'SELLER')) {
   await setTarget(superAdmin, {
     sellerId: seller.id, period,
     goals: { REVENUE: PROVISIONAL.revenue, COLLECTED: PROVISIONAL.collected, NEW_STORES: String(PROVISIONAL.newStores) },
-    note: 'Provisional — Green Agro to set its own (sheet 9)',
+    note: 'Provisional — Green Skill Agro to set its own (sheet 9)',
   });
   await setCommissionRate(superAdmin, seller.id, { onTarget: PROVISIONAL.onTarget, belowTarget: PROVISIONAL.belowTarget });
 }

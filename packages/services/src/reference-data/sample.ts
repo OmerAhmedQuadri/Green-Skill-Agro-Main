@@ -8,7 +8,7 @@ import { createVendor } from '../vendors';
 
 /**
  * MIG-006, CAT-003: a working sample so the system is usable from day one.
- * Synthetic by design (docs CLIENT-DATA): the same shape as Green Agro's
+ * Synthetic by design (docs CLIENT-DATA): the same shape as Green Skill Agro's
  * catalogue — its category structure, the mix of cans, pouches and bags, grams,
  * kilograms and seed counts — but invented vendors, varieties and prices.
  * Real data arrives through the migration import (MIG-001..005).

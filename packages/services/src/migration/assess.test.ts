@@ -121,7 +121,7 @@ describe('assessing the workbook (MIG-001, MIG-003, MIG-005)', () => {
     expect(issues[0]?.detail).toContain('6 stores');
   });
 
-  it('MIG-003: the one store Green Agro finished loads — being unlike its neighbours is not evidence', () => {
+  it('MIG-003: the one store Green Skill Agro finished loads — being unlike its neighbours is not evidence', () => {
     // The shape of a row used to condemn it, which was a guess and cost a real
     // SKU. Only the template's own shading marks an example now.
     const namesOnly = Array.from({ length: 6 }, (_, i) => [`Store ${i}`, null, null, null, null, null, null, null, null, null, null] as Cell[]);

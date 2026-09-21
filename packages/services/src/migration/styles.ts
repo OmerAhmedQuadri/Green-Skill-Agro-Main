@@ -6,7 +6,7 @@ import { unzipSync } from 'fflate';
  *
  * The template is ours, and it tints its examples beige. `read-excel-file`
  * reads values and drops formatting, so the assessment used to infer examples
- * from a row's shape — a guess, and one that was wrong about a SKU Green Agro
+ * from a row's shape — a guess, and one that was wrong about a SKU Green Skill Agro
  * had genuinely typed. The tint is a fact about a file we produced, so it is
  * read here instead.
  *

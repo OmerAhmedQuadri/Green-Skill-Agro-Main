@@ -16,7 +16,7 @@ export const paymentMethod = pgEnum('payment_method', ['CASH', 'BANK_TRANSFER'])
 const money = (name: string) => numeric(name, { precision: 14, scale: 2 });
 
 /**
- * STO-001..010, DATA-MODEL §5.6. Stores belong to Green Agro (STO-006); the
+ * STO-001..010, DATA-MODEL §5.6. Stores belong to Green Skill Agro (STO-006); the
  * account manager is in `store_assignments`. Credit blocking is derived at
  * the point of sale from the ledger, never stored (STATE-MACHINES §4).
  */

@@ -213,7 +213,7 @@ async function loadProducts(
 }
 
 /**
- * CAT-008: Green Agro's own SKU codes are kept rather than regenerated. They
+ * CAT-008: Green Skill Agro's own SKU codes are kept rather than regenerated. They
  * are printed on the packs and used in the warehouse, so the system adopting
  * them matters more than the codes it would have chosen.
  */

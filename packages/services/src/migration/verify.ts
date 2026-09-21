@@ -1,7 +1,7 @@
 import type { LoadResult } from './load';
 
 /**
- * What the import put into the system, for Green Agro to check against the
+ * What the import put into the system, for Green Skill Agro to check against the
  * workbook (MIG-004).
  *
  * The cleansing report says what did not load and why. This says what did, and

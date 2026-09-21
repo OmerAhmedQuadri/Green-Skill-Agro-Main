@@ -9,7 +9,7 @@ import type { Issue } from './workbook';
  * CLIENT-DATA is explicit that client data does not go into logs or chat. The
  * file lives outside git with the workbook it describes.
  *
- * It is written for Green Agro to answer, not for us to read, so it is ordered
+ * It is written for Green Skill Agro to answer, not for us to read, so it is ordered
  * by what blocks the system rather than by sheet.
  */
 
@@ -45,7 +45,7 @@ export type ReportInput = {
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
 /**
- * MIG-001, MIG-004: what loaded, what did not, and what Green Agro has to
+ * MIG-001, MIG-004: what loaded, what did not, and what Green Skill Agro has to
  * answer before the system can be used in earnest.
  */
 export function cleansingReport({ assessed, survey, workbook, at }: ReportInput): string {
@@ -132,7 +132,7 @@ export function cleansingReport({ assessed, survey, workbook, at }: ReportInput)
 
   lines.push('## Before the system is used in earnest');
   lines.push('');
-  lines.push('MIG-004 asks Green Agro to review and verify the loaded data. The counts above');
+  lines.push('MIG-004 asks Green Skill Agro to review and verify the loaded data. The counts above');
   lines.push('are the place to start: they should match what you expect to see in the system.');
   return `${lines.join('\n')}\n`;
 }

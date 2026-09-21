@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { columnOf, HEADER_ROW, sheetRows, tidySkuCode, valueAt, type Sheet } from './workbook';
 
 /**
- * Synthetic throughout: shaped like Green Agro's workbook, with none of its
+ * Synthetic throughout: shaped like Green Skill Agro's workbook, with none of its
  * contents. Client data never enters the repo, tests included (CLIENT-DATA.md).
  */
 const titleBlock = [[null], ['Sheet title'], ['Fill the rows beneath'], []];
@@ -36,7 +36,7 @@ describe('reading the setup workbook (MIG-001, MIG-002)', () => {
     expect(() => columnOf(rows.headers, 'VAT number')).toThrow(/no "VAT number" column/);
   });
 
-  it('CLIENT-DATA: a stray space in a SKU code goes; the rest is Green Agro\'s to spell', () => {
+  it('CLIENT-DATA: a stray space in a SKU code goes; the rest is Green Skill Agro\'s to spell', () => {
     expect(tidySkuCode('RED -CB-50G')).toBe('RED-CB-50G');
     expect(tidySkuCode('EGG -BE-50G')).toBe('EGG-BE-50G');
     // Inconsistent variety letters and a long prefix are theirs, and stay.
