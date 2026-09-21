@@ -15,7 +15,8 @@
     "seed": "tsx --env-file-if-exists=../../.env src/scripts/seed.ts",
     "first-admin": "tsx --env-file-if-exists=../../.env src/scripts/first-admin.ts",
     "import-workbook": "tsx --env-file-if-exists=../../.env src/scripts/import.ts",
-    "test:r2": "vitest run --config vitest.r2.config.ts"
+    "test:r2": "vitest run --config vitest.r2.config.ts",
+    "backup": "tsx --env-file-if-exists=../../.env src/scripts/backup.ts"
   },
   "dependencies": {
     "@gsa/config": "workspace:*",
