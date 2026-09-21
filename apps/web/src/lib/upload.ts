@@ -31,12 +31,37 @@ export async function compressPhoto(file: Blob, maxEdge = 1600, quality = 0.8): 
   });
 }
 
+/**
+ * Worth trying again: the connection failed, or storage is busy or briefly
+ * unwell. Not a 4xx — an expired signature or a content type that does not
+ * match the one signed will fail identically three times over and only make
+ * the person wait three times as long for the same answer.
+ */
+const RETRYABLE_STATUS: ReadonlySet<number> = new Set([408, 429, 500, 502, 503, 504]);
+
+const worthRetrying = (error: unknown): boolean =>
+  error instanceof ApiError && (error.code === 'NETWORK_ERROR' || RETRYABLE_STATUS.has(error.status));
+
+/**
+ * A stalled upload has to be abandoned rather than waited on. A dead
+ * connection never settles, so without this the request hangs for as long as
+ * the browser allows: the promise never rejects, `withRetry` never runs, and
+ * the seller watches a spinner that will never resolve — with no error, no
+ * retry and no saved photo. That is precisely the failure ADR-0009 exists to
+ * prevent, and retry alone cannot prevent it.
+ *
+ * Generous deliberately. A compressed photo is a few hundred kilobytes, so
+ * thirty seconds already means a very poor connection; the job here is to
+ * notice a connection that has died, not to police one that is merely slow.
+ */
+const UPLOAD_TIMEOUT_MS = 30_000;
+
 async function withRetry<T>(work: () => Promise<T>, attempts = 3): Promise<T> {
   for (let attempt = 1; ; attempt += 1) {
     try {
       return await work();
     } catch (error) {
-      if (!(error instanceof ApiError && error.code === 'NETWORK_ERROR') || attempt >= attempts) throw error;
+      if (!worthRetrying(error) || attempt >= attempts) throw error;
       await new Promise((r) => setTimeout(r, 500 * 2 ** (attempt - 1)));
     }
   }
@@ -58,8 +83,10 @@ export async function uploadMedia(kind: MediaKind, file: Blob, capture: Capture 
   }));
 
   await withRetry(async () => {
-    const response = await fetch(ticket.upload.url, { method: 'PUT', headers: ticket.upload.headers, body })
-      .catch(() => { throw new ApiError(0, 'NETWORK_ERROR'); });
+    // A fresh signal per attempt: an aborted one stays aborted.
+    const response = await fetch(ticket.upload.url, {
+      method: 'PUT', headers: ticket.upload.headers, body, signal: AbortSignal.timeout(UPLOAD_TIMEOUT_MS),
+    }).catch(() => { throw new ApiError(0, 'NETWORK_ERROR'); });
     if (!response.ok) throw new ApiError(response.status, 'UPLOAD_FAILED');
   });
 
