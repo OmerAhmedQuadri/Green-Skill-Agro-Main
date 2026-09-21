@@ -106,7 +106,7 @@ const listAll = async (): Promise<StoredBackup[]> => {
 };
 
 const kept = await listAll();
-const { remove, refused } = expiredBackups(kept, {
+const { remove, remaining, refused } = expiredBackups(kept, {
   now: new Date(), days: config.BACKUP_RETENTION_DAYS, justWritten: dryRun ? undefined : key,
 });
 
@@ -121,7 +121,6 @@ for (const old of remove) {
   console.log(`  ${dryRun ? 'would remove' : 'removed'} ${old.key} (older than ${config.BACKUP_RETENTION_DAYS} days)`);
 }
 
-const remaining = kept.filter((b) => !remove.includes(b));
 console.log(dryRun
-  ? `  dry run — nothing was uploaded or removed; ${kept.length} backup(s) in ${bucket}`
-  : `  ${remaining.length + 1} backup(s) in ${bucket}, oldest ${remaining[0]?.modified.toISOString().slice(0, 10) ?? 'today'}`);
+  ? `  dry run — nothing was uploaded or removed; ${remaining.length} backup(s) in ${bucket}`
+  : `  ${remaining.length} backup(s) in ${bucket}, oldest ${remaining[0]?.modified.toISOString().slice(0, 10) ?? 'today'}`);

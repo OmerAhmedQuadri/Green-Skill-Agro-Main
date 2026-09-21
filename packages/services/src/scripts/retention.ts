@@ -26,6 +26,13 @@ export function backupKey(at: Date): string {
 export type Retention = {
   /** Safe to delete. */
   readonly remove: readonly StoredBackup[];
+  /**
+   * What is left afterwards, oldest first — the number an operator reads to
+   * check nothing has gone missing, so it is computed here rather than counted
+   * again at the call site. The listing is taken *after* the upload, so the
+   * backup just written is already one of these and must not be added twice.
+   */
+  readonly remaining: readonly StoredBackup[];
   /** Set when expired backups were found and deliberately kept; the reason to print. */
   readonly refused: string | null;
 };
@@ -47,7 +54,7 @@ export function expiredBackups(
   const cutoff = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
   const remove = ours.filter((b) => b.modified < cutoff && b.key !== justWritten);
   if (remove.length > 0 && remove.length >= ours.length) {
-    return { remove: [], refused: `all ${ours.length} backup(s) look older than ${days} days — check BACKUP_RETENTION_DAYS and the server clock` };
+    return { remove: [], remaining: ours, refused: `all ${ours.length} backup(s) look older than ${days} days — check BACKUP_RETENTION_DAYS and the server clock` };
   }
-  return { remove, refused: null };
+  return { remove, remaining: ours.filter((b) => !remove.includes(b)), refused: null };
 }

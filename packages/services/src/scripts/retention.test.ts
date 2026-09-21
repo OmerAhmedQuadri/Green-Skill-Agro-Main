@@ -36,7 +36,7 @@ describe('backup retention', () => {
 
   it('a bucket holding only a stranger removes nothing and refuses nothing', () => {
     const stranger: StoredBackup = { key: 'notes.txt', modified: daysAgo(400) };
-    expect(expiredBackups([stranger], { now: NOW, days: 30 })).toEqual({ remove: [], refused: null });
+    expect(expiredBackups([stranger], { now: NOW, days: 30 })).toEqual({ remove: [], remaining: [], refused: null });
   });
 });
 
@@ -46,5 +46,25 @@ describe('the listing prefix', () => {
       expect(backupKey(at).startsWith(BACKUP_PREFIX)).toBe(true);
       expect(BACKUP_NAME.test(backupKey(at))).toBe(true);
     }
+  });
+});
+
+describe('what is left after a run', () => {
+  it('counts the backup just written once, not twice', () => {
+    // The listing is taken after the upload, so the new key is already in it.
+    const fresh = at(0);
+    const { remaining } = expiredBackups([at(40), at(2), fresh], { now: NOW, days: 30, justWritten: fresh.key });
+    expect(remaining.map((b) => b.key)).toEqual([at(2).key, fresh.key]);
+  });
+
+  it('leaves the count untouched when retention refuses', () => {
+    const { remove, remaining } = expiredBackups([at(400), at(390)], { now: NOW, days: 30 });
+    expect(remove).toEqual([]);
+    expect(remaining).toHaveLength(2);
+  });
+
+  it('does not count a stranger as a backup', () => {
+    const stranger: StoredBackup = { key: 'notes.txt', modified: daysAgo(1) };
+    expect(expiredBackups([stranger, at(1)], { now: NOW, days: 30 }).remaining).toHaveLength(1);
   });
 });
