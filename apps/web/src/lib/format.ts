@@ -30,6 +30,9 @@ export function useFormat() {
     const dateFormat = new Intl.DateTimeFormat(tag, { dateStyle: 'medium', timeZone: 'UTC' });
     const dateTimeFormat = new Intl.DateTimeFormat(tag, { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Riyadh' });
     const monthFormat = new Intl.DateTimeFormat(tag, { month: 'long', year: 'numeric', timeZone: 'UTC' });
+    const shortMonthFormat = new Intl.DateTimeFormat(tag, { month: 'short', timeZone: 'UTC' });
+    const dayFormat = new Intl.DateTimeFormat(tag, { day: 'numeric', month: 'short', timeZone: 'UTC' });
+    const compactFormat = new Intl.NumberFormat(tag, { notation: 'compact', maximumFractionDigits: 1 });
     return {
       locale,
       /** I18N-003: product, variety and category names are data, shown in the reader's language. */
@@ -45,6 +48,11 @@ export function useFormat() {
       date: (iso: string) => dateFormat.format(new Date(`${iso}T00:00:00Z`)),
       /** A month, `YYYY-MM` — a calendar month, so formatted as UTC like a date. */
       month: (period: string) => monthFormat.format(new Date(`${period}-01T00:00:00Z`)),
+      /** An axis label: a month's short name, or a day and month. */
+      shortMonth: (period: string) => shortMonthFormat.format(new Date(`${period}-01T00:00:00Z`)),
+      shortDay: (iso: string) => dayFormat.format(new Date(`${iso}T00:00:00Z`)),
+      /** An axis tick — 12K, 1.5M — never a figure to read a total from. */
+      compact: (value: number) => compactFormat.format(value),
       /** An instant, shown on Riyadh time (CONVENTIONS §4). */
       dateTime: (instant: string | Date) => dateTimeFormat.format(new Date(instant)),
       /** ADR-0015: grams are stored; a whole number of kilograms reads as kilograms. */

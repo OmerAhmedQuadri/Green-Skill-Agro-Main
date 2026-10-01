@@ -492,7 +492,8 @@
     "PERIOD_CLOSED": "That month is final and cannot be changed.",
     "VENDOR_REQUIRED": "Choose a vendor before approving this order.",
     "INVALID_VOUCHER_NUMBER": "That voucher number isn't valid — type it as printed, in letters and digits.",
-    "DUPLICATE_VOUCHER": "That voucher number has been used already — check the number on the slip."
+    "DUPLICATE_VOUCHER": "That voucher number has been used already — check the number on the slip.",
+    "RANGE_TOO_LONG": "A period can be a year at most."
   },
   "format": {
     "grams": "{value} g",
@@ -1962,7 +1963,7 @@
     "title": "Reports",
     "subtitle": "What sold, what is left, and what to order next.",
     "loading": "Loading…",
-    "linksHint": "Five of these read the same figures as the screens you work on, so they open there rather than showing a second copy.",
+    "linksHint": "Three of these read the same figures as the screens you work on, so they open there rather than showing a second copy.",
     "guideNotice": "There is less than a year of trading behind these figures. Treat them as a guide rather than a projection.",
     "trendsTitle": "Sales trends",
     "trendsSubtitle": "Month on month, and against the same month last season.",
@@ -2008,6 +2009,10 @@
     "orderPacksFor": "Packs to order for {code}",
     "convert": "Create the draft order",
     "entries": {
+      "sales": {
+        "title": "Sales analytics",
+        "hint": "Sales over time and by seller, store, vehicle and product, with filters — live."
+      },
       "trends": {
         "title": "Sales trends",
         "hint": "Month-on-month movement by product, SKU, seller, store or category."
@@ -2030,7 +2035,7 @@
       },
       "collections": {
         "title": "Collections",
-        "hint": "Outstanding balances by store, with ageing — on the stores screen."
+        "hint": "Collected by seller and period, and what each store owes, aged — in sales analytics."
       },
       "dispatch": {
         "title": "Dispatch orders",
@@ -2038,7 +2043,103 @@
       },
       "performance": {
         "title": "Seller performance",
-        "hint": "Sales, collections, targets and commission — on the targets screen."
+        "hint": "Sales, collections, new stores, distance, hours, target and commission — in sales analytics."
+      }
+    }
+  },
+  "analytics": {
+    "title": "Sales analytics",
+    "subtitle": "Every sale in a period, net of returns — over time, and by seller, store, product and category. Live.",
+    "loading": "Loading…",
+    "presets": {
+      "thisMonth": "This month",
+      "lastMonth": "Last month",
+      "last30": "Last 30 days",
+      "last90": "Last 90 days",
+      "thisYear": "This year"
+    },
+    "filters": {
+      "from": "From",
+      "to": "To",
+      "seller": "Seller",
+      "store": "Store",
+      "vehicle": "Vehicle",
+      "category": "Category",
+      "product": "Product",
+      "channel": "Sold from",
+      "all": "All",
+      "clear": "Clear filters"
+    },
+    "channels": {
+      "VEHICLE": "A vehicle",
+      "DISPATCH": "The warehouse"
+    },
+    "tiles": {
+      "net": "Net sales",
+      "sold": "Sold",
+      "returned": "Returned",
+      "channels": "Sold from vehicles",
+      "average": "Average sale {amount}",
+      "packs": "Packs kept by stores: {count}",
+      "fromWarehouse": "From the warehouse: {amount}"
+    },
+    "salesCount": "{count, plural, one {# sale} other {# sales}}",
+    "overTimeByDay": "Net sales by day",
+    "overTimeByMonth": "Net sales by month",
+    "netHint": "Sales completed in the period, less credit notes raised in it.",
+    "columnDescription": "{period}: {amount}",
+    "soldAndReturned": "Sold {sold} · returned {returned}",
+    "asTable": "Show as a table",
+    "period": "Period",
+    "sales": "Sales",
+    "bySeller": "By seller",
+    "byStore": "By store",
+    "byProduct": "By product",
+    "byCategory": "By category",
+    "others": "Others ({count})",
+    "nothing": "No sales in this period.",
+    "salesTitle": "The sales",
+    "completed": "Completed",
+    "document": "Document",
+    "total": "Total",
+    "more": "Show more",
+    "sellers": {
+      "title": "Sellers",
+      "rangeHint": "Each seller over the period. Target and commission show when the period is one whole month.",
+      "monthHint": "Each seller over {month}, with the month's target and commission.",
+      "seller": "Seller",
+      "collected": "Collected",
+      "newStores": "New stores",
+      "distance": "Distance",
+      "hours": "Active hours",
+      "target": "Target",
+      "commission": "Commission",
+      "km": "{km} km",
+      "noTarget": "No target",
+      "met": "Met",
+      "notMet": "Not met — {achievement}",
+      "noRate": "No rate set"
+    },
+    "collections": {
+      "title": "Collections",
+      "hint": "Collected from stores in the period, and what each store owes now, by how late.",
+      "onlySellerAndStore": "Collections follow the period, seller and store only — money is collected from a store, not for a product or on a vehicle.",
+      "collected": "Collected",
+      "cash": "In cash",
+      "bank": "By bank transfer",
+      "payments": "Payments",
+      "paymentsCount": "{count, plural, one {# payment} other {# payments}}",
+      "bySeller": "Collected by seller",
+      "owedTitle": "What stores owe now",
+      "owedNothing": "No store owes anything.",
+      "nothingCollected": "Nothing collected in this period.",
+      "allStores": "All stores",
+      "bands": {
+        "NOT_DUE": "Not yet due",
+        "DAYS_1_30": "1–30 days late",
+        "DAYS_31_60": "31–60 days",
+        "DAYS_61_90": "61–90 days",
+        "OVER_90": "Over 90 days"
       }
     }
   }

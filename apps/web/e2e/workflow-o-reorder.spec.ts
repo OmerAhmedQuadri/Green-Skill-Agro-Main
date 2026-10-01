@@ -122,12 +122,13 @@ for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
  * rendering a second copy of the same figures (the project lead's decision).
  */
 for (const locale of ['en', 'ar'] as const) {
-  test(`Reports index (${locale}) — RPT-003, RPT-007, RPT-008, RPT-009, RPT-010: the outputs that already have a screen link to it`, async ({ browser, baseURL }) => {
+  test(`Reports index (${locale}) — RPT-003, RPT-007, RPT-008, RPT-009, RPT-010: each output opens where its figures are`, async ({ browser, baseURL }) => {
     const admin = await sessionPage(browser, 'admin@dev.local', locale, baseURL ?? '');
     await admin.goto('/console/reports');
     for (const [entry, href] of [
-      ['stock', '/console/stock'], ['expiry', '/console/expiry'], ['collections', '/console/stores'],
-      ['dispatch', '/console/dispatch'], ['performance', '/console/targets'],
+      ['stock', '/console/stock'], ['expiry', '/console/expiry'], ['dispatch', '/console/dispatch'],
+      // ADR-0048: collections and seller performance are part of sales analytics.
+      ['sales', '/console/reports/sales'], ['collections', '/console/reports/sales#collections'], ['performance', '/console/reports/sales#sellers'],
     ] as const) {
       await expect(admin.getByTestId(`report-${entry}`)).toHaveAttribute('href', href);
     }

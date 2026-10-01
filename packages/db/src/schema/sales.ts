@@ -52,6 +52,8 @@ export const sales = pgTable(
     index('sales_seller_id_idx').on(t.sellerId, t.createdAt),
     index('sales_store_id_idx').on(t.storeId, t.createdAt),
     index('sales_vehicle_id_idx').on(t.vehicleId),
+    // ADR-0048: sales analytics reads completed sales by when they completed, live.
+    index('sales_completed_at_idx').on(t.completedAt).where(sql`${t.status} = 'COMPLETED'`),
     index('sales_holding_idx').on(t.status).where(sql`${t.status} in ('PENDING_DISCOUNT_APPROVAL', 'DISCOUNT_APPROVED')`),
     index('sales_ledger_entry_id_idx').on(t.ledgerEntryId),
     index('sales_payment_id_idx').on(t.paymentId),

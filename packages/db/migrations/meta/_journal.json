@@ -162,6 +162,13 @@
       "when": 1790826642890,
       "tag": "0022_payment_vouchers",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1790849900565,
+      "tag": "0023_sales_completed_index",
+      "breakpoints": true
     }
   ]
 }

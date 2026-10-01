@@ -1,0 +1,1 @@
+CREATE INDEX "sales_completed_at_idx" ON "sales" USING btree ("completed_at") WHERE "sales"."status" = 'COMPLETED';

@@ -21,3 +21,16 @@ export const ConvertToDraftRequest = z.object({
 
 /** RPT-010: a seller's own month. Absent means the current one. */
 export const MyPerformanceQuery = z.object({ month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/).optional() });
+
+/** ADR-0048: a view of sales — a range of Riyadh days (at most a year), and anything else it is cut by. */
+export const SalesAnalyticsQuery = z.object({
+  from: z.iso.date(), to: z.iso.date(),
+  sellerId: z.uuid().optional(), storeId: z.uuid().optional(), vehicleId: z.uuid().optional(),
+  productId: z.uuid().optional(), categoryId: z.uuid().optional(), channel: z.enum(['VEHICLE', 'DISPATCH']).optional(),
+});
+
+/** RPT-008 (ADR-0048): collections answer to the period and the seller and store filters only. */
+export const CollectionsQuery = z.object({ from: z.iso.date(), to: z.iso.date(), sellerId: z.uuid().optional(), storeId: z.uuid().optional() });
+
+/** RPT-010 (ADR-0048) */
+export const SellerPerformanceQuery = z.object({ from: z.iso.date(), to: z.iso.date(), sellerId: z.uuid().optional() });

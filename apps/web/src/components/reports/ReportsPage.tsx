@@ -6,24 +6,26 @@ import { useTranslations } from 'next-intl';
 import { Card } from '@gsa/ui';
 import { PageHeader } from '@/components/common/PageHeader';
 
-type EntryKey = 'trends' | 'seasonal' | 'reorder' | 'stock' | 'expiry' | 'collections' | 'dispatch' | 'performance';
+type EntryKey = 'sales' | 'trends' | 'seasonal' | 'reorder' | 'stock' | 'expiry' | 'collections' | 'dispatch' | 'performance';
 type Entry = { key: EntryKey; href: string; own: boolean };
 
 /**
- * §11's eight outputs in one place. Three are reports in their own right and
- * have a screen here. The other five are readings of data an operational screen
- * already shows properly, so they link to it rather than restate it — one set of
- * figures, one place to change them.
+ * §11's outputs in one place. Six are reports with a screen here — sales
+ * analytics (ADR-0048) carries collections and seller performance too. The
+ * other three are readings of data an operational screen already shows
+ * properly, so they link to it rather than restate it — one set of figures, one
+ * place to change them.
  */
 const ENTRIES: readonly Entry[] = [
+  { key: 'sales', href: '/console/reports/sales', own: true }, // ADR-0048
   { key: 'trends', href: '/console/reports/trends', own: true },
   { key: 'seasonal', href: '/console/reports/trends?compare=YEAR_AGO', own: true },
   { key: 'reorder', href: '/console/reports/reorder', own: true },
   { key: 'stock', href: '/console/stock', own: false },
   { key: 'expiry', href: '/console/expiry', own: false },
-  { key: 'collections', href: '/console/stores', own: false },
+  { key: 'collections', href: '/console/reports/sales#collections', own: true }, // ADR-0048
   { key: 'dispatch', href: '/console/dispatch', own: false },
-  { key: 'performance', href: '/console/targets', own: false },
+  { key: 'performance', href: '/console/reports/sales#sellers', own: true }, // ADR-0048
 ];
 
 export function ReportsPage({ canForecast }: { canForecast: boolean }) {

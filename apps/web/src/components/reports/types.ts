@@ -1,3 +1,5 @@
+import type { reports } from '@gsa/services';
+
 export const TREND_DIMENSIONS = ['PRODUCT', 'SKU', 'SELLER', 'STORE', 'CATEGORY'] as const;
 export type TrendDimension = (typeof TREND_DIMENSIONS)[number];
 
@@ -37,3 +39,10 @@ export type Recommendation = {
 };
 
 export type Reorder = { builtAt: string | null; items: Recommendation[] };
+
+// ADR-0048: the sales view, as the services shape it.
+export type SalesAnalytics = reports.SalesAnalytics;
+export type AnalyticsOptions = reports.AnalyticsOptions;
+export type BreakdownRow = reports.BreakdownRow;
+export type Collections = reports.Collections;
+export type SellerPerformance = reports.SellerPerformance;
