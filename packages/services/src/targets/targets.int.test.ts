@@ -1,5 +1,6 @@
-import { businessMonth, type DomainError } from '@gsa/core';
+import { businessDayStart, businessMonth, type DomainError } from '@gsa/core';
 import { describe, expect, it } from 'vitest';
+import { ownerQuery } from '../../test/db';
 import { anAccount, ctxFor } from '../../test/factories';
 import { aPhoto } from '../../test/media';
 import { aSellingSeller } from '../../test/sales';
@@ -15,12 +16,18 @@ import { checkPace, closePeriods, listStandings, listTargets, myStanding, setTar
 const code = async (p: Promise<unknown>) => p.then(() => 'NO_ERROR', (e: DomainError) => e.code ?? String(e));
 const admin = async (now?: Date) => ctxFor(await anAccount('ADMIN'), now ? { now } : {});
 const period = businessMonth(new Date());
-/** An instant in a later month, so the period under test has frozen. */
-const monthsOn = (n: number) => {
-  const d = new Date();
-  d.setUTCMonth(d.getUTCMonth() + n, 15);
-  return d;
-};
+/**
+ * Instants on the business calendar, never UTC's. `period` is a Riyadh month,
+ * and for 21:00–24:00 UTC Riyadh is already on the next date — on a month's
+ * last night, the next month. UTC arithmetic here once landed "a month on" on
+ * the 15th of the month under test, and "the 20th" in the month before it.
+ * Midday, so no instant sits near a boundary.
+ */
+const HOUR = 3_600_000;
+const midday = (date: string) => new Date(businessDayStart(date).getTime() + 12 * HOUR);
+const [periodYear, periodMonth] = period.split('-').map(Number) as [number, number];
+/** The 15th of the month `n` after the period under test, so that period has frozen. */
+const monthsOn = (n: number) => midday(new Date(Date.UTC(periodYear, periodMonth - 1 + n, 15)).toISOString().slice(0, 10));
 
 /**
  * A seller who sold three bags at 90.00 for cash, declared the 270.00 and had a
@@ -121,14 +128,36 @@ describe('monthly targets and commission (workflow O, TGT-001..006, COM-001..009
     expect(await code(setTarget(later, { sellerId: setup.seller.account.id, period, goals: { REVENUE: '100.00' } }))).toBe('PERIOD_CLOSED');
   });
 
+  it('TGT-005: the month just ended is frozen by the 01:00 run, while UTC is still in that month', async () => {
+    // The daily job runs at 01:00 Riyadh — 22:00 UTC the day before. On the 1st
+    // that is still the last day of the old month in UTC, and the job used to
+    // step back through UTC months, so it went from the new month straight to
+    // the one before the old one and never looked at the month just ended.
+    const ctx = await admin();
+    const setup = await aSellerWhoSettled(ctx);
+    await setTarget(ctx, { sellerId: setup.seller.account.id, period, goals: { REVENUE: '5000.00' } });
+    await updateSettings(ctx, [{ key: 'period.close_after_days', value: 0 }]);
+    const firstOfNext = new Date(Date.UTC(periodYear, periodMonth, 1)).toISOString().slice(0, 10);
+    const jobRuns = new Date(businessDayStart(firstOfNext).getTime() + HOUR);
+    try {
+      await closePeriods(await admin(jobRuns));
+      const written = await ownerQuery<{ n: string }>(
+        'select count(*)::text as n from commission_periods where seller_id = $1 and period = $2',
+        [setup.seller.account.id, period],
+      );
+      expect(written[0]?.n).toBe('1');
+    } finally {
+      await updateSettings(ctx, [{ key: 'period.close_after_days', value: 3 }]);
+    }
+  });
+
   it('TGT-006: a seller far enough behind the pace their month needs is told, and so are their managers', async () => {
     const ctx = await admin();
     const setup = await aSellerWhoSettled(ctx);
     // A goal far beyond what they have sold, with the month well under way.
     await setTarget(ctx, { sellerId: setup.seller.account.id, period, goals: { REVENUE: '500000.00' } });
     await updateSettings(ctx, [{ key: 'targets.pace_threshold_percent', value: 80 }]);
-    const midMonth = new Date();
-    midMonth.setUTCDate(20);
+    const midMonth = midday(`${period}-20`);
     const later = await ctxFor(await anAccount('ADMIN'), { now: midMonth });
 
     const standing = await myStanding({ ...setup.seller.ctx, now: midMonth });
