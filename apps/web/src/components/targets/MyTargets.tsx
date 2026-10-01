@@ -27,7 +27,7 @@ export function MyTargets() {
   const s = standing.data;
 
   return (
-    <div className="space-y-4 p-4">
+    <div className="space-y-4">
       <PageHeader
         title={t('myTitle')}
         subtitle={<bdi dir="ltr">{s.period}</bdi>}

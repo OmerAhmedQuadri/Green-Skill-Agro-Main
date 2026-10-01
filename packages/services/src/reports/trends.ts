@@ -1,4 +1,4 @@
-import { movements, type Movement } from '@gsa/core';
+import { businessDate, movements, type Movement } from '@gsa/core';
 import { schema } from '@gsa/db';
 import { desc, eq, gte, sql, type SQL } from 'drizzle-orm';
 import { authorize, type Ctx } from '../context';
@@ -50,7 +50,7 @@ export async function salesTrends(
   const compare = input.compare ?? 'PREVIOUS';
   // Year-on-year needs the same months a year earlier to compare against.
   const span = (input.months ?? 12) + (compare === 'YEAR_AGO' ? 12 : 1);
-  const from = daysBack(new Date(ctx.now).toISOString().slice(0, 10), span * 31);
+  const from = daysBack(businessDate(ctx.now), span * 31);
 
   const cut = cutFor(dimension);
   const rows = await db.select({

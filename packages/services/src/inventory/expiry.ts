@@ -24,7 +24,6 @@ export type ExpiryFlag = {
 };
 
 const DAY = 86_400_000;
-const iso = (d: Date) => d.toISOString().slice(0, 10);
 
 /**
  * EXP-001..005, 008: every batch held that has an expiry date — batches of
@@ -97,7 +96,8 @@ export async function computeExpiryFlags(now: Date, batchIds?: readonly string[]
         held: quantity(r.held), expiresOn, today,
         soldTrailing: quantity(trailing.find((t) => t.batchId === r.batch.id)?.q ?? '0'),
         soldSeasonal: haveSeason ? quantity(seasonal.find((s) => s.skuId === r.sku.id)?.q ?? '0') : null,
-        daysHeld: daysBetween(iso(r.batch.firstReceivedAt), today), basis: settings['expiry.rate_basis'],
+        // Both ends on the Riyadh calendar (CONVENTIONS §4): stock received just after midnight is that day's, not the day before's.
+        daysHeld: daysBetween(businessDate(r.batch.firstReceivedAt), today), basis: settings['expiry.rate_basis'],
       }),
       prioritised: flag?.prioritised ?? false, note: flag?.note ?? null,
     };
