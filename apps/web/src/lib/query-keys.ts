@@ -59,6 +59,7 @@ export const keys = {
   settlements: (filter?: object) => (filter ? ['settlements', filter] as const : ['settlements'] as const),
   settlement: (id: string) => ['settlement', id] as const,
   sellerCash: ['seller-cash'] as const,
+  transfers: ['transfers'] as const,
   cashManagers: ['cash-managers'] as const,
   dashboardFlags: ['dashboard-flags'] as const,
   refundsDue: ['refunds-due'] as const,

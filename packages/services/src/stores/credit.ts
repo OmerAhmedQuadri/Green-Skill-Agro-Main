@@ -82,7 +82,8 @@ export type PaymentMethod = 'CASH' | 'BANK_TRANSFER';
 /**
  * A payment taken from a store, in the caller's transaction: the ledger
  * credit settling the oldest debts (CRD-003), the payment record and — for
- * cash — the collector's cash in hand (CSH-001, ADR-0037). A bill-to-bill
+ * cash — the collector's cash in hand (CSH-001, ADR-0037); for a bank
+ * transfer, word to whoever confirms transfers (ADR-0046). A bill-to-bill
  * sale settles through here too (SAL-006).
  */
 export async function takePayment(
@@ -98,6 +99,8 @@ export async function takePayment(
     ledgerEntryId: entryId, branchId: ctx.branchId,
   });
   if (input.method === 'CASH') await postCashCollection(tx, ctx, { sellerId: ctx.user.id, amount: input.amount, referenceType: 'PAYMENT', referenceId: id });
+  // ADR-0046: a transfer earns nothing until someone checks it arrived, so whoever can is told.
+  if (input.method === 'BANK_TRANSFER') await notify(tx, ctx, { permission: 'cash.approve_settlement' }, 'TRANSFER_RECORDED', { number, amount: input.amount }, '/console/cash');
   await audit(tx, ctx, { action: 'stores.payment_recorded', entityType: 'payment', entityId: id, after: { number, storeId: input.storeId, amount: input.amount, method: input.method } });
   return { id, number, reference };
 }
@@ -205,12 +208,15 @@ export async function listStoreLedger(ctx: Ctx, storeId: string): Promise<Ledger
   const db = getDb();
   await loadStore(db, ctx, storeId);
   const by = aliasedTable(users, 'by');
+  // ADR-0046: debt put back by a transfer that never arrived names that transfer.
+  const reinstated = aliasedTable(payments, 'reinstated');
   const rows = await db.select({
-    e: storeLedgerEntries, byName: by.name, paymentNumber: payments.number,
+    e: storeLedgerEntries, byName: by.name, paymentNumber: sql<string | null>`coalesce(${payments.number}, ${reinstated.number})`,
     settled: sql<string>`coalesce((select sum(${paymentAllocations.amount}) from ${paymentAllocations} where ${paymentAllocations.debitEntryId} = ${storeLedgerEntries.id}), 0)`,
   }).from(storeLedgerEntries)
     .innerJoin(by, eq(by.id, storeLedgerEntries.createdBy))
     .leftJoin(payments, eq(payments.ledgerEntryId, storeLedgerEntries.id))
+    .leftJoin(reinstated, and(eq(storeLedgerEntries.referenceType, 'TRANSFER_NOT_RECEIVED'), eq(reinstated.id, storeLedgerEntries.referenceId)))
     .where(eq(storeLedgerEntries.storeId, storeId))
     .orderBy(asc(storeLedgerEntries.occurredAt), asc(storeLedgerEntries.id));
   let running = dec('0');

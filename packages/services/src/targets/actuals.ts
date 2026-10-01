@@ -1,19 +1,20 @@
 import {
-  businessMonth, Dec, dec, settledByPeriod, toMoney,
-  type CashFlow, type Money, type SettlementApproval, type TargetActuals,
+  businessMonth, confirmedTransfersByPeriod, Dec, dec, settledByPeriod, toMoney,
+  type CashFlow, type ConfirmedTransfer, type Money, type SettlementApproval, type TargetActuals,
 } from '@gsa/core';
 import { schema } from '@gsa/db';
 import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import type { Executor } from '../platform';
 import { readSettings } from '../system';
 
-const { cashLedgerEntries, returns, sales, stores } = schema;
+const { cashLedgerEntries, payments, returns, sales, stores, transferDecisions } = schema;
 
 /**
  * The four figures a target is measured against (TGT-003), for one month, plus
- * the credit the business gave away in it. `COLLECTED` is the settled cash
- * COM-001 pays commission on, so a seller's collections figure and their
- * commission can never tell different stories.
+ * the credit the business gave away in it. `COLLECTED` is the money COM-001
+ * pays commission on — settled cash and confirmed bank transfers (ADR-0046) —
+ * so a seller's collections figure and their commission can never tell
+ * different stories.
  */
 export type Actuals = TargetActuals & { readonly creditAgainstOtherDebts: Money };
 
@@ -113,14 +114,35 @@ export async function settledCashByPeriod(
   return new Map([...perSeller].map(([id, b]) => [id, settledByPeriod(b.inflows, b.outflows, b.approvals, closeAfterDays)]));
 }
 
+/**
+ * COM-001, COM-005 (ADR-0046): bank transfers a manager confirmed arrived, by
+ * the month each counts in, for the sellers who recorded them. Read whole for
+ * the same reason as the cash ledger: a confirmation can land a month late.
+ */
+export async function confirmedTransfersFor(
+  db: Executor, sellerIds: readonly string[], closeAfterDays: number,
+): Promise<Map<string, ReadonlyMap<string, Money>>> {
+  const rows = await db.select({
+    sellerId: payments.receivedBy, receivedAt: payments.receivedAt, amount: payments.amount, confirmedAt: transferDecisions.decidedAt,
+  }).from(payments)
+    .innerJoin(transferDecisions, eq(transferDecisions.paymentId, payments.id))
+    .where(and(inArray(payments.receivedBy, [...sellerIds]), eq(transferDecisions.outcome, 'CONFIRMED')));
+  const perSeller = new Map<string, ConfirmedTransfer[]>(sellerIds.map((id) => [id, []]));
+  for (const row of rows) {
+    perSeller.get(row.sellerId)?.push({ period: businessMonth(row.receivedAt), confirmedAt: row.confirmedAt, amount: row.amount as Money });
+  }
+  return new Map([...perSeller].map(([id, transfers]) => [id, confirmedTransfersByPeriod(transfers, closeAfterDays)]));
+}
+
 /** Every figure for a set of sellers in one month (TGT-003, COM-001). */
 export async function actualsForMany(db: Executor, sellerIds: readonly string[], period: string): Promise<Map<string, Actuals>> {
   if (sellerIds.length === 0) return new Map();
   const closeAfterDays = (await readSettings(db))['period.close_after_days'];
-  const [figures, newStores, settled] = await Promise.all([
+  const [figures, newStores, settled, transfers] = await Promise.all([
     salesFigures(db, sellerIds, period),
     newStoreCounts(db, sellerIds, period),
     settledCashByPeriod(db, sellerIds, closeAfterDays),
+    confirmedTransfersFor(db, sellerIds, closeAfterDays),
   ]);
   return new Map(sellerIds.map((id) => {
     const f = figures.get(id);
@@ -128,7 +150,7 @@ export async function actualsForMany(db: Executor, sellerIds: readonly string[],
       REVENUE: f?.revenue ?? '0.00',
       PACKS_SOLD: f?.packs ?? '0',
       NEW_STORES: newStores.get(id) ?? '0',
-      COLLECTED: settled.get(id)?.get(period) ?? '0.00',
+      COLLECTED: toMoney(dec(settled.get(id)?.get(period) ?? '0').plus(dec(transfers.get(id)?.get(period) ?? '0'))),
       creditAgainstOtherDebts: f?.creditAgainstOtherDebts ?? ('0.00' as Money),
     }];
   }));

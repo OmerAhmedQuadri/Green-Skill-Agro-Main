@@ -6,5 +6,5 @@ import { requireSession } from '@/server/session';
 export default async function Page() {
   const ctx = await requireSession();
   if (!canSeeCash(ctx.permissions)) notFound();
-  return <CashPage />;
+  return <CashPage canConfirm={ctx.permissions.has('cash.approve_settlement')} />;
 }

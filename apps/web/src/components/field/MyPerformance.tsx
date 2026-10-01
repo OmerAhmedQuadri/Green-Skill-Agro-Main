@@ -86,6 +86,7 @@ function Figures({ p }: { p: Performance }) {
       <Block title={t('now')} hint={t('nowHint')}>
         <Row label={t('cashInHand')} value={format.money(p.now.cashInHand)} testId="performance-cash-in-hand" strong />
         <Row label={t('awaiting')} value={format.money(p.now.awaitingApproval)} testId="performance-awaiting" />
+        <Row label={t('transfersAwaiting')} value={format.money(p.now.transfersAwaiting)} testId="performance-transfers-awaiting" />
       </Block>
 
       <Block title={t('sales')} hint={t('salesCount', { count: p.sales.sales })}>

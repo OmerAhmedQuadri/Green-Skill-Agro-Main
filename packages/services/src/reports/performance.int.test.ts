@@ -50,7 +50,8 @@ describe("a seller's own performance (RPT-010, RPT-008)", () => {
     expect(mine.collected).toEqual({ cash: '360.00', bank: '90.00', total: '450.00', payments: 3 });
     expect(mine.handedOver).toBe('270.00');
     // 360 collected in cash, 270 approved out; the 90 awaiting moves nothing until it is decided.
-    expect(mine.now).toEqual({ cashInHand: '90.00', awaitingApproval: '90.00' });
+    // ADR-0046: the 90 by bank transfer earns nothing until someone confirms it arrived.
+    expect(mine.now).toEqual({ cashInHand: '90.00', awaitingApproval: '90.00', transfersAwaiting: '90.00' });
   });
 
   it('COM-001: the commission is the Targets screen\'s own figure, so the two cannot disagree', async () => {
@@ -66,7 +67,7 @@ describe("a seller's own performance (RPT-010, RPT-008)", () => {
     expect(before.sales).toMatchObject({ sold: '0.00', sales: 0 });
     expect(before.collected.total).toBe('0.00');
     expect(before.handedOver).toBe('0.00');
-    expect(before.now).toEqual({ cashInHand: '90.00', awaitingApproval: '90.00' });
+    expect(before.now).toEqual({ cashInHand: '90.00', awaitingApproval: '90.00', transfersAwaiting: '90.00' });
   });
 
   it('CSH-006: handed over counts what the manager approved, not what was declared', async () => {

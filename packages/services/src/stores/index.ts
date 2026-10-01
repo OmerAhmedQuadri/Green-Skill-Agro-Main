@@ -5,3 +5,6 @@ export {
   postStoreDebit, postStoreCredit, debtsAround, takePayment, recordPayment, adjustBalance, getCreditStatus, grantCreditOverride, consumeCreditOverride,
   listStoreLedger, type Payment, type PaymentMethod, type LedgerEntry,
 } from './credit';
+export {
+  listAwaitingTransfers, transfersAwaitingBy, decideTransfer, type AwaitingTransfer, type TransferDecision,
+} from './transfers';

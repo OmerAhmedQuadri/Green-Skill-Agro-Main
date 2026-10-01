@@ -8,6 +8,7 @@ import { authorize, type Ctx } from '../context';
 import type { Executor } from '../platform';
 import { mySalesMonth, type SalesMonth } from '../returns';
 import { getDb } from '../runtime';
+import { transfersAwaitingBy } from '../stores';
 import { myStanding } from '../targets';
 
 const { cashSettlements, payments } = schema;
@@ -70,6 +71,8 @@ export type MyPerformance = {
   readonly now: {
     readonly cashInHand: Money;
     /** Handed over and not yet decided by a manager, from any month. */ readonly awaitingApproval: Money;
+    /** ADR-0046: collected by bank transfer and not yet confirmed, from any month — it earns nothing until it is. */
+    readonly transfersAwaiting: Money;
   };
   readonly sales: SalesMonth;
   readonly collected: Collected;
@@ -104,10 +107,11 @@ export async function myPerformance(ctx: Ctx, input: { month?: string | undefine
   const inHand = await cashInHand(db, me);
   const [awaiting] = await db.select({ amount: sql<string>`coalesce(sum(${cashSettlements.declaredAmount}), 0)::numeric(14,2)` })
     .from(cashSettlements).where(and(eq(cashSettlements.sellerId, me), eq(cashSettlements.status, 'SUBMITTED')));
+  const transfersAwaiting = (await transfersAwaitingBy(db, [me])).get(me) ?? ZERO;
 
   return {
     month,
-    now: { cashInHand: inHand, awaitingApproval: (awaiting?.amount ?? ZERO) as Money },
+    now: { cashInHand: inHand, awaitingApproval: (awaiting?.amount ?? ZERO) as Money, transfersAwaiting },
     sales,
     collected,
     handedOver,

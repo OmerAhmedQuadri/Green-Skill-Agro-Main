@@ -86,6 +86,8 @@ for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
     await expect(phone.getByTestId('performance-settled')).toHaveText(amount('270.00'));
     await expect(phone.getByTestId('performance-awaiting')).toHaveText(amount('90.00'));
     await expect(phone.getByTestId('performance-cash-in-hand')).toHaveText(amount('90.00'));
+    // ADR-0046: the bank transfer earns nothing until an approver confirms it arrived.
+    await expect(phone.getByTestId('performance-transfers-awaiting')).toHaveText(amount('90.00'));
     // COM-001: …and the Targets screen's commission — 5% of the 270.00 that reached the business.
     await expect(phone.getByTestId('performance-commission-base')).toHaveText(amount('270.00'));
     await expect(phone.getByTestId('performance-commission')).toHaveText(amount('13.50'));

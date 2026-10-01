@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { DomainError } from '../errors';
 import type { Money } from '../numeric';
 import { assertDecisionComment, assertDeclarable, isOverCeiling, reminderDue, remindersEscalate, settlementPostings, transitionSettlement } from './settlements';
+import { assertTransferDecision } from './transfers';
 
 const code = (fn: () => unknown) => { try { fn(); return 'NO_ERROR'; } catch (e) { return (e as DomainError).code; } };
 const m = (v: string) => v as Money;
@@ -59,5 +60,22 @@ describe('ceilings (LIM-002..005, OQ-005, OQ-021)', () => {
     expect(remindersEscalate(0)).toBe(false);
     expect(remindersEscalate(1)).toBe(true);
     expect(remindersEscalate(4)).toBe(true);
+  });
+});
+
+describe("a store's bank transfer (ADR-0046)", () => {
+  const decision = (over: Partial<Parameters<typeof assertTransferDecision>[0]> = {}) => ({
+    decided: false, recordedBy: 'seller', decidedBy: 'manager', outcome: 'CONFIRMED' as const, reason: null, ...over,
+  });
+
+  it('ADR-0046: decided once, and by someone other than whoever recorded it', () => {
+    expect(code(() => assertTransferDecision(decision()))).toBe('NO_ERROR');
+    expect(code(() => assertTransferDecision(decision({ decided: true })))).toBe('ALREADY_DECIDED');
+    expect(code(() => assertTransferDecision(decision({ decidedBy: 'seller' })))).toBe('FOUR_EYES');
+  });
+
+  it("ADR-0046: not received has to say why — it puts the money back on the store's balance", () => {
+    expect(code(() => assertTransferDecision(decision({ outcome: 'NOT_RECEIVED', reason: '  ' })))).toBe('REASON_REQUIRED');
+    expect(code(() => assertTransferDecision(decision({ outcome: 'NOT_RECEIVED', reason: 'Not on the statement' })))).toBe('NO_ERROR');
   });
 });
