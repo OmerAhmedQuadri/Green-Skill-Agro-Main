@@ -288,7 +288,8 @@
     },
     "vendors": {
       "manage": "Create and edit vendor profiles",
-      "view": "View vendor profiles"
+      "view": "View vendor profiles",
+      "view_names": "View vendor names"
     },
     "procurement": {
       "view": "View purchase orders and incoming stock",
@@ -489,7 +490,8 @@
     "INVALID_PERIOD": "That is not a valid month.",
     "TARGET_EMPTY": "Set at least one figure for the target.",
     "TARGET_NOT_POSITIVE": "Every figure set must be more than zero.",
-    "PERIOD_CLOSED": "That month is final and cannot be changed."
+    "PERIOD_CLOSED": "That month is final and cannot be changed.",
+    "VENDOR_REQUIRED": "Choose a vendor before approving this order."
   },
   "format": {
     "grams": "{value} g",
@@ -882,7 +884,10 @@
       "COMPLETE": "Closed complete",
       "SHORT": "Closed short",
       "CANCELLED": "Cancelled"
-    }
+    },
+    "vendorAtApproval": "Chosen at approval",
+    "vendorOptional": "Optional — the approver can choose it.",
+    "vendorNeededToApprove": "This order has no vendor yet. Choose one to approve it."
   },
   "receiving": {
     "receive": "Receive goods",

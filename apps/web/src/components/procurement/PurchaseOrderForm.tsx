@@ -15,19 +15,24 @@ import { keys } from '@/lib/query-keys';
 import type { PoDetail } from './types';
 
 export type PoInput = {
-  vendorId: string; expectedArrival: string | null; notes: string | null;
+  /** Absent when this person cannot choose a vendor, so an edit never clears one (ADR-0045). */
+  vendorId?: string | null; expectedArrival: string | null; notes: string | null;
   lines: { skuId: string; orderedPacks: number; expectedUnitCost: string }[];
 };
 type DraftLine = { skuId: string; code: string; label: string; orderedPacks: string; expectedUnitCost: string };
 
-/** PO-002: vendor, items, quantities in packs, expected unit cost per pack, expected arrival. */
-export function PurchaseOrderForm({ order, submitLabel, pending, error, onSubmit, onCancel }: {
-  order?: PoDetail; submitLabel: string; pending: boolean; error: ApiError | null; onSubmit: (input: PoInput) => void; onCancel: () => void;
+/**
+ * PO-002: vendor, items, quantities in packs, expected unit cost per pack,
+ * expected arrival. ADR-0045: only someone who can see vendor names chooses
+ * one, and may leave it for the approver; anyone else drafts without it.
+ */
+export function PurchaseOrderForm({ order, chooseVendor, submitLabel, pending, error, onSubmit, onCancel }: {
+  order?: PoDetail; chooseVendor: boolean; submitLabel: string; pending: boolean; error: ApiError | null; onSubmit: (input: PoInput) => void; onCancel: () => void;
 }) {
   const t = useTranslations();
   const format = useFormat();
   const errorText = useErrorText();
-  const vendorCodes = useQuery({ queryKey: keys.vendorCodes, queryFn: () => api<VendorCode[]>('/vendor-codes') });
+  const vendorCodes = useQuery({ queryKey: keys.vendorCodes, queryFn: () => api<VendorCode[]>('/vendor-codes'), enabled: chooseVendor });
   const [lines, setLines] = useState<DraftLine[]>(() => (order?.lines ?? []).map((l) => ({
     skuId: l.skuId, code: l.code, label: format.name(l.product), orderedPacks: String(l.orderedPacks), expectedUnitCost: l.expectedUnitCost,
   })));
@@ -49,7 +54,8 @@ export function PurchaseOrderForm({ order, submitLabel, pending, error, onSubmit
     event.preventDefault();
     const f = new FormData(event.currentTarget);
     onSubmit({
-      vendorId: formText(f, 'vendorId'), expectedArrival: formText(f, 'expectedArrival') || null, notes: formText(f, 'notes') || null,
+      ...(chooseVendor ? { vendorId: formText(f, 'vendorId') || null } : {}),
+      expectedArrival: formText(f, 'expectedArrival') || null, notes: formText(f, 'notes') || null,
       lines: lines.map((l) => ({ skuId: l.skuId, orderedPacks: wholeNumber(l.orderedPacks) ?? 0, expectedUnitCost: decimalText(l.expectedUnitCost) })),
     });
   };
@@ -58,12 +64,14 @@ export function PurchaseOrderForm({ order, submitLabel, pending, error, onSubmit
     <form onSubmit={submit} className="space-y-5" noValidate>
       {error ? <Alert>{errorText(error)}</Alert> : null}
       <div className="grid gap-4 sm:grid-cols-3">
-        <Field id="po-vendor" label={t('procurement.vendor')}>
-          <Select id="po-vendor" name="vendorId" defaultValue={order?.vendor.id ?? ''} dir="ltr" required>
-            <option value="">{t('common.choose')}</option>
-            {vendorCodes.data?.map((v) => <option key={v.id} value={v.id}>{v.code}</option>)}
-          </Select>
-        </Field>
+        {chooseVendor ? (
+          <Field id="po-vendor" label={t('procurement.vendor')} hint={t('procurement.vendorOptional')}>
+            <Select id="po-vendor" name="vendorId" defaultValue={order?.vendor?.id ?? ''}>
+              <option value="">{t('procurement.vendorAtApproval')}</option>
+              {vendorCodes.data?.map((v) => <option key={v.id} value={v.id}>{v.name ? `${v.code} · ${v.name}` : v.code}</option>)}
+            </Select>
+          </Field>
+        ) : null}
         <Field id="po-arrival" label={t('procurement.expectedArrival')}>
           <Input id="po-arrival" name="expectedArrival" type="date" dir="ltr" defaultValue={order?.expectedArrival ?? ''} />
         </Field>

@@ -93,10 +93,11 @@ for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
 
     // RPT-005, PO-008: converting makes a DRAFT the manager edits — nothing is ordered.
     await expect(admin.getByText(m.reports.convertHint)).toBeVisible();
-    const vendors = (await (await admin.request.get('/api/v1/vendors')).json()) as { items: { id: string; name: string }[] };
+    const vendors = (await (await admin.request.get('/api/v1/vendors')).json()) as { items: { id: string; code: string; name: string }[] };
     const vendor = vendors.items[0];
     if (!vendor) throw new Error('no vendor — run pnpm db:seed');
-    await admin.getByLabel(m.reports.vendor).selectOption({ label: vendor.name });
+    // ADR-0045: the picker shows code and name to someone who may see names.
+    await admin.getByLabel(m.reports.vendor).selectOption({ label: `${vendor.code} · ${vendor.name}` });
     await admin.getByLabel(fill(m.reports.orderPacksFor, { code: 'OKRA-PK-5KG' })).fill(n('50'));
     await admin.getByTestId('convert-to-draft').click();
 

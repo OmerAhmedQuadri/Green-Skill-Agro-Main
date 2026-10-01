@@ -42,6 +42,16 @@ export function can(permissions: ReadonlySet<PermissionCode>, code: PermissionCo
   return permissions.has(code);
 }
 
+/**
+ * ADR-0045: whether vendor names may be shown — and so whether a vendor may be
+ * chosen on a purchase order. Profiles imply names: a name cannot be hidden from
+ * someone who can open the profile it is printed on. Decided here and nowhere
+ * else, so a screen and the server cannot disagree.
+ */
+export function canSeeVendorNames(permissions: ReadonlySet<PermissionCode>): boolean {
+  return permissions.has('vendors.view_names') || permissions.has('vendors.view');
+}
+
 /** Which account tiers an actor may create, modify or deactivate (PERMISSIONS §3.2). */
 export function manageableRoles(actor: ReadonlySet<PermissionCode>): ReadonlySet<Role> {
   const roles = new Set<Role>();

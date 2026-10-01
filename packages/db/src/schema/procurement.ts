@@ -22,7 +22,7 @@ export const purchaseOrders = pgTable(
   {
     id: id(),
     number: text('number').notNull().unique(),
-    vendorId: uuid('vendor_id').notNull().references(() => vendors.id),
+    vendorId: uuid('vendor_id').references(() => vendors.id), // ADR-0045: chosen at the latest on approval
     warehouseId: uuid('warehouse_id').notNull().references(() => warehouses.id),
     status: poStatus('status').notNull().default('DRAFT'),
     closeReason: poCloseReason('close_reason'),
@@ -38,6 +38,9 @@ export const purchaseOrders = pgTable(
     index('purchase_orders_status_idx').on(t.status),
     index('purchase_orders_warehouse_id_idx').on(t.warehouseId),
     check('purchase_orders_closed_has_reason', sql`(${t.status} = 'CLOSED') = (${t.closeReason} is not null)`),
+    // ADR-0045: only an order that never reached approval may be without a
+    // vendor — a draft, one awaiting approval, or one cancelled before either.
+    check('purchase_orders_vendor_from_approval', sql`${t.vendorId} is not null or ${t.status} in ('DRAFT', 'PENDING_APPROVAL') or (${t.status} = 'CLOSED' and ${t.closeReason} = 'CANCELLED')`),
   ],
 );
 

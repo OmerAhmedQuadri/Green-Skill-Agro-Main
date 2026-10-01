@@ -1,5 +1,5 @@
 import {
-  DomainError, dec, isEditable, money, outstandingPacks, templateFrom, transitionPo,
+  DomainError, canSeeVendorNames, dec, isEditable, money, outstandingPacks, templateFrom, transitionPo,
   type AttributeMode, type CountUnit, type Money, type PackSize, type PoAction, type PoCloseReason, type PoStatus, type PurchaseOrderId, type SkuId, type VendorId,
 } from '@gsa/core';
 import { schema } from '@gsa/db';
@@ -32,7 +32,12 @@ export type PoLine = {
 
 export type PoSummary = {
   readonly id: PurchaseOrderId; readonly number: string; readonly status: PoStatus; readonly closeReason: PoCloseReason | null;
-  readonly vendor: { readonly id: VendorId; readonly code: string; readonly name: string };
+  /**
+   * ADR-0045: null until someone who can see vendor names chooses one — at the
+   * latest, the approver. The name is null for a caller who cannot see names;
+   * it never leaves the server for them, whatever a screen would hide.
+   */
+  readonly vendor: { readonly id: VendorId; readonly code: string; readonly name: string | null } | null;
   readonly expectedArrival: string | null; readonly origin: 'MANUAL' | 'FORECAST';
   readonly lineCount: number; readonly orderValue: Money; readonly createdAt: Date; readonly version: number;
 };
@@ -67,16 +72,22 @@ export async function listPurchaseOrders(
       lineCount: sql<number>`(select count(*)::int from ${purchaseOrderLines} where ${purchaseOrderLines.purchaseOrderId} = ${purchaseOrders.id})`,
       orderValue: sql<string>`(select coalesce(sum(${purchaseOrderLines.orderedPacks} * ${purchaseOrderLines.expectedUnitCost}), 0)::numeric(14,2) from ${purchaseOrderLines} where ${purchaseOrderLines.purchaseOrderId} = ${purchaseOrders.id})`,
     })
-    .from(purchaseOrders).innerJoin(vendors, eq(vendors.id, purchaseOrders.vendorId))
+    // Left, not inner: an order may not have a vendor yet (ADR-0045), and an
+    // inner join would quietly drop every such draft from the list.
+    .from(purchaseOrders).leftJoin(vendors, eq(vendors.id, purchaseOrders.vendorId))
     .where(and(...where)).orderBy(desc(purchaseOrders.id)).limit(limit + 1);
-  const page = rows.slice(0, limit).map((r) => summary(r));
+  const names = canSeeVendorNames(ctx.permissions);
+  const page = rows.slice(0, limit).map((r) => summary(r, names));
   return { items: page, nextCursor: rows.length > limit ? (page.at(-1)?.id ?? null) : null };
 }
 
-function summary(r: { po: typeof purchaseOrders.$inferSelect; vendorCode: string; vendorName: string; lineCount: number; orderValue: string }): PoSummary {
+function summary(
+  r: { po: typeof purchaseOrders.$inferSelect; vendorCode: string | null; vendorName: string | null; lineCount: number; orderValue: string },
+  names: boolean,
+): PoSummary {
   return {
     id: r.po.id as PurchaseOrderId, number: r.po.number, status: r.po.status, closeReason: r.po.closeReason,
-    vendor: { id: r.po.vendorId as VendorId, code: r.vendorCode, name: r.vendorName },
+    vendor: r.po.vendorId && r.vendorCode ? { id: r.po.vendorId as VendorId, code: r.vendorCode, name: names ? r.vendorName : null } : null,
     expectedArrival: r.po.expectedArrival, origin: r.po.origin, lineCount: r.lineCount, orderValue: money(r.orderValue),
     createdAt: r.po.createdAt, version: r.po.version,
   };
@@ -84,17 +95,22 @@ function summary(r: { po: typeof purchaseOrders.$inferSelect; vendorCode: string
 
 export async function getPurchaseOrder(ctx: Ctx, id: string): Promise<PoDetail> {
   authorizeAny(ctx, PO_READERS);
-  return loadPurchaseOrder(getDb(), id);
+  return loadPurchaseOrder(getDb(), id, canSeeVendorNames(ctx.permissions));
 }
 
-export async function loadPurchaseOrder(db: Executor, id: string): Promise<PoDetail> {
+/**
+ * `names` is required, so every caller decides: true only when the order goes
+ * back to someone who can see vendor names (ADR-0045). Reads that stay on the
+ * server — checking a status, building a template — pass false.
+ */
+export async function loadPurchaseOrder(db: Executor, id: string, names: boolean): Promise<PoDetail> {
   const [head] = await db
     .select({
       po: purchaseOrders, vendorCode: vendors.code, vendorName: vendors.name,
       lineCount: sql<number>`(select count(*)::int from ${purchaseOrderLines} where ${purchaseOrderLines.purchaseOrderId} = ${purchaseOrders.id})`,
       orderValue: sql<string>`(select coalesce(sum(${purchaseOrderLines.orderedPacks} * ${purchaseOrderLines.expectedUnitCost}), 0)::numeric(14,2) from ${purchaseOrderLines} where ${purchaseOrderLines.purchaseOrderId} = ${purchaseOrders.id})`,
     })
-    .from(purchaseOrders).innerJoin(vendors, eq(vendors.id, purchaseOrders.vendorId)).where(eq(purchaseOrders.id, id));
+    .from(purchaseOrders).leftJoin(vendors, eq(vendors.id, purchaseOrders.vendorId)).where(eq(purchaseOrders.id, id));
   if (!head) throw new DomainError('NOT_FOUND', { entity: 'purchase_order', id });
   const [lines, events, receipts] = await inOrder([
     db.select({
@@ -118,7 +134,7 @@ export async function loadPurchaseOrder(db: Executor, id: string): Promise<PoDet
   const attributes = typeIds.length ? await db.select().from(productTypeAttributes).where(inArray(productTypeAttributes.productTypeId, typeIds)) : [];
   const templateOf = (typeId: string) => templateFrom(attributes.filter((a) => a.productTypeId === typeId));
   return {
-    ...summary(head), closeNote: head.po.closeNote, notes: head.po.notes, warehouseId: head.po.warehouseId,
+    ...summary(head, names), closeNote: head.po.closeNote, notes: head.po.notes, warehouseId: head.po.warehouseId,
     lines: lines.map((l) => ({
       id: l.line.id, skuId: l.sku.id as SkuId, code: l.sku.code, size: sizeOf(l.sku), countUnit: l.countUnit,
       product: { nameEn: l.productEn, nameAr: l.productAr },
@@ -163,6 +179,16 @@ async function checkVendor(db: Executor, vendorId: string) {
   if (!vendor.isActive) throw new DomainError('REFERENCE_INACTIVE', { entity: 'vendor', id: vendorId });
 }
 
+/**
+ * ADR-0045: choosing a vendor — or changing or clearing one — needs vendor
+ * names. Someone who cannot see names drafts without one, and the approver
+ * chooses.
+ */
+async function chooseVendor(db: Executor, ctx: Ctx, vendorId: string | null): Promise<void> {
+  if (!canSeeVendorNames(ctx.permissions)) throw new DomainError('FORBIDDEN', { permission: 'vendors.view_names' });
+  if (vendorId) await checkVendor(db, vendorId);
+}
+
 async function recordEvent(db: Executor, ctx: Ctx, poId: string, action: string, from: PoStatus | null, to: PoStatus, reason: string | null) {
   await db.insert(purchaseOrderEvents).values({ purchaseOrderId: poId, action, fromStatus: from, toStatus: to, reason, actorId: ctx.user.id, occurredAt: ctx.now });
 }
@@ -174,41 +200,45 @@ async function recordEvent(db: Executor, ctx: Ctx, poId: string, action: string,
  */
 export async function createPurchaseOrder(
   ctx: Ctx,
-  input: { vendorId: string; expectedArrival?: string | null | undefined; notes?: string | null | undefined; lines: readonly LineInput[]; origin?: 'MANUAL' | 'FORECAST' | undefined },
+  input: { vendorId?: string | null | undefined; expectedArrival?: string | null | undefined; notes?: string | null | undefined; lines: readonly LineInput[]; origin?: 'MANUAL' | 'FORECAST' | undefined },
 ): Promise<PoDetail> {
   authorize(ctx, 'procurement.manage_po');
+  const vendorId = input.vendorId ?? null;
   return inTx(ctx, async (tx) => {
-    await checkVendor(tx, input.vendorId);
+    if (vendorId) await chooseVendor(tx, ctx, vendorId);
     const lines = await checkLines(tx, input.lines);
     const [warehouse] = await tx.select({ id: warehouses.id }).from(warehouses).where(eq(warehouses.isActive, true)).orderBy(asc(warehouses.createdAt)).limit(1);
     if (!warehouse) throw new Error('no active warehouse — run pnpm db:sync');
     const number = await nextDocumentNumber(tx, 'PO', ctx.now);
     const [po] = await tx.insert(purchaseOrders).values({
-      number, vendorId: input.vendorId, warehouseId: warehouse.id, origin: input.origin ?? 'MANUAL',
+      number, vendorId, warehouseId: warehouse.id, origin: input.origin ?? 'MANUAL',
       expectedArrival: input.expectedArrival ?? null, notes: input.notes?.trim() || null, branchId: ctx.branchId,
       createdBy: ctx.user.id, updatedBy: ctx.user.id,
     }).returning({ id: purchaseOrders.id });
     if (!po) throw new Error('purchase order insert returned nothing');
     await tx.insert(purchaseOrderLines).values(lines.map((l) => ({ purchaseOrderId: po.id, ...l })));
     await recordEvent(tx, ctx, po.id, 'create', null, 'DRAFT', null);
-    await audit(tx, ctx, { action: 'procurement.po_created', entityType: 'purchase_order', entityId: po.id, after: { number, vendorId: input.vendorId, lines, origin: input.origin ?? 'MANUAL' } });
-    return loadPurchaseOrder(tx, po.id);
+    await audit(tx, ctx, { action: 'procurement.po_created', entityType: 'purchase_order', entityId: po.id, after: { number, vendorId, lines, origin: input.origin ?? 'MANUAL' } });
+    return loadPurchaseOrder(tx, po.id, canSeeVendorNames(ctx.permissions));
   });
 }
 
 /** Only a draft is edited; submitted orders change by transition (STATE-MACHINES §1). */
 export async function updatePurchaseOrder(
   ctx: Ctx, id: string,
-  input: { version: number; vendorId?: string | undefined; expectedArrival?: string | null | undefined; notes?: string | null | undefined; lines?: readonly LineInput[] | undefined },
+  input: { version: number; vendorId?: string | null | undefined; expectedArrival?: string | null | undefined; notes?: string | null | undefined; lines?: readonly LineInput[] | undefined },
 ): Promise<PoDetail> {
   authorize(ctx, 'procurement.manage_po');
   return inTx(ctx, async (tx) => {
-    const current = await loadPurchaseOrder(tx, id);
+    const current = await loadPurchaseOrder(tx, id, false);
     if (!isEditable(current.status)) throw new DomainError('PO_NOT_EDITABLE', { status: current.status });
-    if (input.vendorId && input.vendorId !== current.vendor.id) await checkVendor(tx, input.vendorId);
+    // undefined leaves the vendor alone; a value or null sets or clears it.
+    const before = current.vendor?.id ?? null;
+    const vendorId = input.vendorId === undefined ? before : input.vendorId;
+    if (vendorId !== before) await chooseVendor(tx, ctx, vendorId);
     const lines = input.lines ? await checkLines(tx, input.lines) : null;
     const [row] = await tx.update(purchaseOrders).set({
-      vendorId: input.vendorId ?? current.vendor.id,
+      vendorId,
       expectedArrival: input.expectedArrival === undefined ? current.expectedArrival : input.expectedArrival,
       notes: input.notes === undefined ? current.notes : (input.notes?.trim() || null),
       updatedAt: ctx.now, updatedBy: ctx.user.id, version: current.version + 1,
@@ -220,23 +250,33 @@ export async function updatePurchaseOrder(
     }
     await audit(tx, ctx, {
       action: 'procurement.po_updated', entityType: 'purchase_order', entityId: id,
-      before: { vendorId: current.vendor.id, expectedArrival: current.expectedArrival, lines: current.lines.map((l) => ({ skuId: l.skuId, orderedPacks: l.orderedPacks, expectedUnitCost: l.expectedUnitCost })) },
-      after: { vendorId: input.vendorId ?? current.vendor.id, expectedArrival: input.expectedArrival ?? current.expectedArrival, lines: lines ?? undefined },
+      before: { vendorId: before, expectedArrival: current.expectedArrival, lines: current.lines.map((l) => ({ skuId: l.skuId, orderedPacks: l.orderedPacks, expectedUnitCost: l.expectedUnitCost })) },
+      after: { vendorId, expectedArrival: input.expectedArrival ?? current.expectedArrival, lines: lines ?? undefined },
     });
-    return loadPurchaseOrder(tx, id);
+    return loadPurchaseOrder(tx, id, canSeeVendorNames(ctx.permissions));
   });
 }
 
-/** Every state change (PO-001, 003, 005, 007): the core transition decides; this persists it. */
+/**
+ * Every state change (PO-001, 003, 005, 007): the core transition decides; this
+ * persists it. ADR-0045: approval is where a vendor is chosen if the drafter
+ * could not — drafts are the only editable state, so it cannot wait for an
+ * edit. Only approve accepts one.
+ */
 export async function transitionPurchaseOrder(
-  ctx: Ctx, id: string, action: PoAction, input: { version: number; reason?: string | null | undefined },
+  ctx: Ctx, id: string, action: PoAction, input: { version: number; reason?: string | null | undefined; vendorId?: string | undefined },
 ): Promise<PoDetail> {
   authorizeAny(ctx, ['procurement.manage_po', 'procurement.approve_po']);
+  if (input.vendorId && action !== 'approve') throw new DomainError('INVALID_TRANSITION', { action, field: 'vendorId' });
   return inTx(ctx, async (tx) => {
-    const current = await loadPurchaseOrder(tx, id);
+    const current = await loadPurchaseOrder(tx, id, false);
     const reason = input.reason?.trim() || null;
-    const next = transitionPo(current.status, action, ctx.permissions, reason);
+    const chosen = input.vendorId && input.vendorId !== current.vendor?.id ? input.vendorId : null;
+    const vendorId = chosen ?? current.vendor?.id ?? null;
+    const next = transitionPo(current.status, action, ctx.permissions, reason, vendorId !== null);
+    if (chosen) await chooseVendor(tx, ctx, chosen);
     const [row] = await tx.update(purchaseOrders).set({
+      ...(chosen ? { vendorId: chosen } : {}),
       status: next.to, closeReason: next.closeReason, closeNote: next.to === 'CLOSED' ? reason : current.closeNote,
       updatedAt: ctx.now, updatedBy: ctx.user.id, version: current.version + 1,
     }).where(and(eq(purchaseOrders.id, id), eq(purchaseOrders.version, input.version))).returning({ id: purchaseOrders.id });
@@ -244,9 +284,10 @@ export async function transitionPurchaseOrder(
     await recordEvent(tx, ctx, id, action, current.status, next.to, reason);
     await audit(tx, ctx, {
       action: `procurement.po_${action}`, entityType: 'purchase_order', entityId: id,
-      before: { status: current.status }, after: { status: next.to, closeReason: next.closeReason, reason },
+      before: { status: current.status, ...(chosen ? { vendorId: current.vendor?.id ?? null } : {}) },
+      after: { status: next.to, closeReason: next.closeReason, reason, ...(chosen ? { vendorId: chosen } : {}) },
     });
-    return loadPurchaseOrder(tx, id);
+    return loadPurchaseOrder(tx, id, canSeeVendorNames(ctx.permissions));
   });
 }
 

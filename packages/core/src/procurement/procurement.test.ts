@@ -9,7 +9,29 @@ const code = (fn: () => unknown) => { try { fn(); return 'NO_ERROR'; } catch (e)
 const perms = (...p: PermissionCode[]) => new Set<PermissionCode>(p);
 const manager = perms('procurement.manage_po');
 const admin = perms('procurement.manage_po', 'procurement.approve_po');
-const go = (s: PoStatus, a: PoAction, p = admin, reason: string | null = null) => transitionPo(s, a, p, reason);
+// The lifecycle tests are about states and permissions, so the order names a
+// vendor unless a test says otherwise (ADR-0045 has its own block below).
+const go = (s: PoStatus, a: PoAction, p = admin, reason: string | null = null, hasVendor = true) => transitionPo(s, a, p, reason, hasVendor);
+
+describe('the vendor, chosen at the latest on approval (PO-002, ADR-0045)', () => {
+  it('PO-002: a draft is submitted without one, by someone who cannot see vendor names', () => {
+    expect(go('DRAFT', 'submit', manager, null, false).to).toBe('PENDING_APPROVAL');
+  });
+
+  it('PO-002: but it is neither approved nor placed without one', () => {
+    expect(code(() => go('PENDING_APPROVAL', 'approve', admin, null, false))).toBe('VENDOR_REQUIRED');
+    expect(code(() => go('APPROVED', 'place', admin, null, false))).toBe('VENDOR_REQUIRED');
+    expect(go('PENDING_APPROVAL', 'approve', admin, null, true).to).toBe('APPROVED');
+  });
+
+  it('a manager is refused approval for the permission, not for the missing vendor', () => {
+    expect(code(() => go('PENDING_APPROVAL', 'approve', manager, null, false))).toBe('FORBIDDEN');
+  });
+
+  it('an order cancelled before approval never needed one', () => {
+    expect(go('PENDING_APPROVAL', 'cancel', manager, 'not needed after all', false).closeReason).toBe('CANCELLED');
+  });
+});
 
 describe('purchase order lifecycle (PO-001, STATE-MACHINES §1)', () => {
   it('PO-001: the order moves through its nine states', () => {

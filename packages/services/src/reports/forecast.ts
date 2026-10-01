@@ -111,9 +111,10 @@ export const sweepForecast = async (now: Date) => recordRecommendations(await wo
 
 
 /**
- * RPT-005, PO-008: turn a recommendation into a **draft** purchase order. The
- * manager chooses the vendor and may change every quantity first, and the draft
- * then goes through the ordinary approval — the system has still not ordered
+ * RPT-005, PO-008: turn a recommendation into a **draft** purchase order. A
+ * manager who can see vendor names may choose the vendor; one who cannot leaves
+ * it for the approver (ADR-0045). Every quantity may change first, and the
+ * draft goes through the ordinary approval — the system has still not ordered
  * anything. `origin: 'FORECAST'` records where the figures came from.
  *
  * The expected cost is the last one paid for that SKU, or zero where it has
@@ -121,7 +122,7 @@ export const sweepForecast = async (now: Date) => recordRecommendations(await wo
  */
 export async function convertToDraftOrder(
   ctx: Ctx,
-  input: { vendorId: string; lines: readonly { skuId: string; packs: number }[] },
+  input: { vendorId?: string | null | undefined; lines: readonly { skuId: string; packs: number }[] },
 ): Promise<{ id: string; number: string }> {
   authorize(ctx, 'reports.view_forecast');
   const db = ctx.tx ?? getDb();

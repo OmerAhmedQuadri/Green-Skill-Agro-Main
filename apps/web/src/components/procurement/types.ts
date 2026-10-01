@@ -12,7 +12,8 @@ export type LotMatch = inventory.LotMatch;
 export type PoStatus = PoSummary['status'];
 export type PoAction = 'submit' | 'reject' | 'approve' | 'place' | 'confirm' | 'despatch' | 'close_short' | 'cancel';
 
-export type ProcurementCan = { manage: boolean; approve: boolean; receive: boolean; import: boolean };
+/** `vendorNames` (ADR-0045): may see vendor names, and so choose a vendor. */
+export type ProcurementCan = { manage: boolean; approve: boolean; receive: boolean; import: boolean; vendorNames: boolean };
 
 /** Which actions each state offers, and whether they need a reason (STATE-MACHINES §1). The service decides; this only offers. */
 export const ACTIONS: Record<PoStatus, { action: PoAction; needs: 'manage' | 'approve'; reason?: true; tone?: 'danger' }[]> = {

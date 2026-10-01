@@ -12,7 +12,7 @@ export const TrendsQuery = z.object({
 
 /** RPT-005, PO-008: a recommendation becomes a DRAFT order the manager then edits. */
 export const ConvertToDraftRequest = z.object({
-  vendorId: z.uuid(),
+  vendorId: z.uuid().nullable().optional(), // ADR-0045: left to the approver without vendor names
   lines: z.array(z.object({
     skuId: z.uuid(),
     packs: z.coerce.number().int().min(1).max(1_000_000),

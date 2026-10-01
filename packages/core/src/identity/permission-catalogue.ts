@@ -32,6 +32,7 @@ export const PERMISSION_MATRIX = [
   ['pricing.set_discount_ceilings',   F, F,  OFF, NO],
   ['vendors.manage',                  F, F,  NO,  NO],   // OQ-013: Admin too
   ['vendors.view',                    F, F,  OFF, NO],
+  ['vendors.view_names',              F, F,  OFF, NO],   // ADR-0045: names without the profile
   // Procurement
   ['procurement.view',                F, F,  OFF, NO],
   ['procurement.manage_po',           F, F,  OFF, NO],

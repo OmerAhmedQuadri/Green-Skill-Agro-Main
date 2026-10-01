@@ -1,5 +1,5 @@
 import {
-  cleanName, countryCode, DomainError, normaliseEmail, normalisePhone, normaliseVendorCode, type VendorId,
+  canSeeVendorNames, cleanName, countryCode, DomainError, normaliseEmail, normalisePhone, normaliseVendorCode, type VendorId,
 } from '@gsa/core';
 import { schema } from '@gsa/db';
 import { and, asc, eq, gt, ilike, or, type SQL } from 'drizzle-orm';
@@ -83,10 +83,13 @@ export async function getVendor(ctx: Ctx, id: string): Promise<Vendor> {
  * Picking a vendor on a product or an order needs the codes, not the
  * profiles, so product editors and buyers get them without vendor access (VEN-005).
  */
-export async function listVendorCodes(ctx: Ctx): Promise<{ id: VendorId; code: string }[]> {
-  authorizeAny(ctx, ['vendors.view', 'catalogue.manage_products', 'procurement.manage_po']);
-  const rows = await getDb().select({ id: vendors.id, code: vendors.code }).from(vendors).where(eq(vendors.isActive, true)).orderBy(asc(vendors.code));
-  return rows.map((r) => ({ id: r.id as VendorId, code: r.code }));
+export async function listVendorCodes(ctx: Ctx): Promise<{ id: VendorId; code: string; name: string | null }[]> {
+  authorizeAny(ctx, ['vendors.view', 'vendors.view_names', 'catalogue.manage_products', 'procurement.manage_po']);
+  // ADR-0045: the name rides along only for someone who may see it — the
+  // purchase-order and reorder pickers use this, and choose by name.
+  const names = canSeeVendorNames(ctx.permissions);
+  const rows = await getDb().select({ id: vendors.id, code: vendors.code, name: vendors.name }).from(vendors).where(eq(vendors.isActive, true)).orderBy(asc(vendors.code));
+  return rows.map((r) => ({ id: r.id as VendorId, code: r.code, name: names ? r.name : null }));
 }
 
 /** Workflow B (VEN-001/002): Admin and Super Admin (OQ-013). */

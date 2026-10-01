@@ -1,3 +1,4 @@
+import { canSeeVendorNames } from '@gsa/core';
 import type { Ctx } from '@gsa/services';
 import type { ProcurementCan } from '@/components/procurement/types';
 
@@ -7,4 +8,5 @@ export const procurementCan = (ctx: Ctx): ProcurementCan => ({
   approve: ctx.permissions.has('procurement.approve_po'),
   receive: ctx.permissions.has('inventory.receive_goods'),
   import: ctx.permissions.has('inventory.bulk_import'),
+  vendorNames: canSeeVendorNames(ctx.permissions),
 });
