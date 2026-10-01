@@ -1,0 +1,2 @@
+ALTER TABLE "purchase_orders" ALTER COLUMN "vendor_id" DROP NOT NULL;--> statement-breakpoint
+ALTER TABLE "purchase_orders" ADD CONSTRAINT "purchase_orders_vendor_from_approval" CHECK ("purchase_orders"."vendor_id" is not null or "purchase_orders"."status" in ('DRAFT', 'PENDING_APPROVAL') or ("purchase_orders"."status" = 'CLOSED' and "purchase_orders"."close_reason" = 'CANCELLED'));

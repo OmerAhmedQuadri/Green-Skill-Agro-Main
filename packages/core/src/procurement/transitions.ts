@@ -33,13 +33,22 @@ const RULES: Record<Exclude<PoAction, 'cancel'>, Rule> = {
 export type PoTransition = { readonly to: PoStatus; readonly closeReason: PoCloseReason | null };
 
 /**
+ * ADR-0045: an order may be drafted and submitted without a vendor, by someone
+ * who cannot see vendor names; the approver chooses one. From approval on, it
+ * must name one. Later states never get here without it — the database checks.
+ */
+const NEEDS_VENDOR: ReadonlySet<PoAction> = new Set<PoAction>(['approve', 'place']);
+
+/**
  * The only way a purchase order changes state (STATE-MACHINES §1). Checks the
- * source state, the permission and the reason; the caller persists the result.
- * Cancelling needs manage_po before approval and approve_po after, and is
- * refused once anything is received — that order is closed short instead.
+ * source state, the permission, the reason and the vendor; the caller persists
+ * the result. Cancelling needs manage_po before approval and approve_po after,
+ * and is refused once anything is received — that order is closed short instead.
+ *
+ * `hasVendor` is required rather than defaulted, so no caller can forget it.
  */
 export function transitionPo(
-  status: PoStatus, action: PoAction, permissions: ReadonlySet<PermissionCode>, reason: string | null,
+  status: PoStatus, action: PoAction, permissions: ReadonlySet<PermissionCode>, reason: string | null, hasVendor: boolean,
 ): PoTransition {
   if (action === 'cancel') {
     const allowed = BEFORE_APPROVAL.includes(status) ? 'procurement.manage_po' : 'procurement.approve_po';
@@ -52,6 +61,7 @@ export function transitionPo(
   if (!rule.from.includes(status)) throw new DomainError('INVALID_TRANSITION', { status, action });
   if (!permissions.has(rule.permission)) throw new DomainError('FORBIDDEN', { permission: rule.permission });
   if (rule.reason === 'REQUIRED' && !reason?.trim()) throw new DomainError('REASON_REQUIRED', { action });
+  if (NEEDS_VENDOR.has(action) && !hasVendor) throw new DomainError('VENDOR_REQUIRED', { action });
   const closeReason: PoCloseReason | null = action === 'close_short' ? 'SHORT' : action === 'close_complete' ? 'COMPLETE' : null;
   return { to: rule.to, closeReason };
 }

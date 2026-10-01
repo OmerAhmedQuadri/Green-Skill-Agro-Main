@@ -37,7 +37,8 @@ for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
     // PO-002/003: a permitted manager enters the order and submits it.
     await manager.goto('/console/purchase-orders/new');
     await expect(manager.locator('html')).toHaveAttribute('dir', locale === 'ar' ? 'rtl' : 'ltr');
-    await manager.getByLabel(m.procurement.vendor).selectOption({ label: 'VEN-SAMPLE1' });
+    // ADR-0045: the Operations Manager may see vendor names, so chooses by code and name.
+    await manager.getByLabel(m.procurement.vendor).selectOption({ label: 'VEN-SAMPLE1 · Sample Seed House' });
     await manager.getByLabel(m.procurement.expectedArrival).fill(isoInDays(10));
     for (const [code, packs, cost] of [['OKRA-PK-5KG', '20', '70.00'], ['OKRA-PK-1KG', '10', '16.50']] as const) {
       await manager.getByLabel(m.procurement.addSku).fill(code);

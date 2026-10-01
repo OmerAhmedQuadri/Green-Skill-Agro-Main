@@ -13,6 +13,7 @@ import { useFormat } from '@/lib/format';
 import { useErrorText } from '@/lib/hooks';
 import { keys } from '@/lib/query-keys';
 import { PoStatusBadge } from './StatusBadge';
+import { VendorLabel } from './VendorLabel';
 import type { PoStatus, PoSummary } from './types';
 
 type Page = { items: PoSummary[]; nextCursor: string | null };
@@ -63,7 +64,7 @@ export function PurchaseOrdersPage({ canCreate }: { canCreate: boolean }) {
             {rows.map((po) => (
               <tr key={po.id} className="hover:bg-stone-50">
                 <Cell><Link href={`/console/purchase-orders/${po.id}`} className="font-mono font-medium text-brand-800 hover:underline"><bdi dir="ltr">{po.number}</bdi></Link></Cell>
-                <Cell><bdi dir="ltr" className="font-mono">{po.vendor.code}</bdi><div className="text-xs text-stone-500">{po.vendor.name}</div></Cell>
+                <Cell><VendorLabel vendor={po.vendor} stacked /></Cell>
                 <Cell>{po.expectedArrival ? format.date(po.expectedArrival) : '—'}</Cell>
                 <Cell>{format.money(po.orderValue)}</Cell>
                 <Cell><PoStatusBadge po={po} /></Cell>

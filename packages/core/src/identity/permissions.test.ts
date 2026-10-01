@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { type DomainError } from '../errors';
 import { moduleOf, PERMISSION_CODES, type PermissionCode } from './permission-catalogue';
 import {
-  assertCanChangePermissions, assertCanManageAccount, configurableFor, effectivePermissions, grantFor,
+  assertCanChangePermissions, assertCanManageAccount, canSeeVendorNames, configurableFor, effectivePermissions, grantFor,
 } from './permissions';
 import { ROLES } from './roles';
 import { PRESET_DEFAULTS, presetOverrides } from './presets';
@@ -12,15 +12,17 @@ const FIELD: PermissionCode[] = ['attendance.self', 'inventory.confirm_load', 'i
 const errorCode = (fn: () => void) => { try { fn(); } catch (e) { return (e as DomainError).code; } return undefined; };
 
 describe('permission catalogue', () => {
-  it('USR-009: 60 unique module.action codes', () => {
-    expect(PERMISSION_CODES).toHaveLength(60);
-    expect(new Set(PERMISSION_CODES).size).toBe(60);
+  // A count on purpose: a permission added by accident should fail here.
+  // 61 since ADR-0045 split vendor names from vendor profiles.
+  it('USR-009: 61 unique module.action codes', () => {
+    expect(PERMISSION_CODES).toHaveLength(61);
+    expect(new Set(PERMISSION_CODES).size).toBe(61);
     for (const code of PERMISSION_CODES) expect(code).toMatch(/^[a-z]+\.[a-z_]+$/);
   });
 
   it('USR-002: Super Admin holds every matrix permission, but not field self-service', () => {
     const sa = effectivePermissions('SUPER_ADMIN', none);
-    expect(sa.size).toBe(56);
+    expect(sa.size).toBe(57); // 56, plus vendors.view_names (ADR-0045)
     for (const code of FIELD) expect(sa.has(code)).toBe(false);
   });
 
@@ -152,3 +154,25 @@ describe('who may change whose access (PERMISSIONS §3.2)', () => {
       .toBe('FORBIDDEN');
   });
 });
+
+describe('vendor names (ADR-0045)', () => {
+  const held = (...codes: PermissionCode[]) => new Set<PermissionCode>(codes);
+
+  it('are shown with the names permission alone, or with profiles, which imply them', () => {
+    expect(canSeeVendorNames(held())).toBe(false);
+    expect(canSeeVendorNames(held('vendors.view_names'))).toBe(true);
+    expect(canSeeVendorNames(held('vendors.view'))).toBe(true);
+  });
+
+  it('are configurable for a manager and off by default; an admin always has them; a seller never', () => {
+    expect(grantFor('MANAGER', 'vendors.view_names')).toBe('OFF');
+    expect(canSeeVendorNames(effectivePermissions('MANAGER', new Map()))).toBe(false);
+    expect(canSeeVendorNames(effectivePermissions('ADMIN', new Map()))).toBe(true);
+    expect(grantFor('SELLER', 'vendors.view_names')).toBe('NONE');
+  });
+
+  it('the Warehouse preset leaves them off; warehouse staff see codes', () => {
+    expect(canSeeVendorNames(effectivePermissions('MANAGER', presetOverrides(PRESET_DEFAULTS.WAREHOUSE)))).toBe(false);
+  });
+});
+

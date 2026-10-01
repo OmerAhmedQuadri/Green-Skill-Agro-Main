@@ -13,17 +13,20 @@ export const ListPurchaseOrdersQuery = z.object({
   vendorId: z.uuid().optional(), search: z.string().trim().max(40).optional(), cursor: z.uuid().optional(), limit: Limit.optional(),
 });
 
+// ADR-0045: the vendor is optional until approval, and only someone who can see
+// vendor names may set it — the server refuses anyone else, whatever is sent.
 export const CreatePurchaseOrderRequest = z.object({
-  vendorId: z.uuid(), expectedArrival: IsoDate.nullable().optional(), notes: z.string().trim().max(1000).nullable().optional(),
+  vendorId: z.uuid().nullable().optional(), expectedArrival: IsoDate.nullable().optional(), notes: z.string().trim().max(1000).nullable().optional(),
   lines: z.array(Line).min(1).max(200),
 });
 
 export const UpdatePurchaseOrderRequest = z.object({
-  version: Version, vendorId: z.uuid().optional(), expectedArrival: IsoDate.nullable().optional(),
+  version: Version, vendorId: z.uuid().nullable().optional(), expectedArrival: IsoDate.nullable().optional(),
   notes: z.string().trim().max(1000).nullable().optional(), lines: z.array(Line).min(1).max(200).optional(),
 });
 
-export const TransitionRequest = z.object({ version: Version, reason: z.string().trim().max(500).nullable().optional() });
+/** `vendorId` is accepted only by approve — where the approver chooses one the drafter could not (ADR-0045). */
+export const TransitionRequest = z.object({ version: Version, reason: z.string().trim().max(500).nullable().optional(), vendorId: z.uuid().optional() });
 
 /** RCV-003..007: one line per batch; a PO line may appear more than once (RCV-004). */
 export const ReceiveGoodsRequest = z.object({

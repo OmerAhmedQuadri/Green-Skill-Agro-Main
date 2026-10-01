@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Pencil } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useState, type FormEvent } from 'react';
-import { Alert, Badge, Button, Field, Input } from '@gsa/ui';
+import { Alert, Badge, Button, Field, Input, Select } from '@gsa/ui';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Facts, Section } from '@/components/common/Section';
 import { Cell, Table } from '@/components/common/Table';
@@ -17,6 +17,8 @@ import { ImportPanel } from './ImportPanel';
 import { PurchaseOrderForm, type PoInput } from './PurchaseOrderForm';
 import { ReceivePanel } from './ReceivePanel';
 import { PoStatusBadge } from './StatusBadge';
+import { VendorLabel } from './VendorLabel';
+import type { VendorCode } from '@/components/catalogue/types';
 import { ACTIONS, RECEIVABLE, type PoAction, type PoDetail, type ProcurementCan } from './types';
 
 const EVENTS = ['create', 'submit', 'reject', 'approve', 'place', 'confirm', 'despatch', 'receive', 'close_complete', 'close_short', 'cancel'] as const;
@@ -40,9 +42,13 @@ export function PurchaseOrderView({ id, can }: { id: string; can: ProcurementCan
   };
   const update = useCommand((body: PoInput & { version: number }, key) =>
     api<PoDetail>(`/purchase-orders/${id}`, { method: 'PATCH', body, idempotencyKey: key }), { onSuccess: (p) => { replace(p); setEditing(false); } });
-  const transition = useCommand(({ action, ...body }: { action: PoAction; version: number; reason: string | null }, key) =>
+  const transition = useCommand(({ action, ...body }: { action: PoAction; version: number; reason: string | null; vendorId?: string }, key) =>
     api<PoDetail>(`/purchase-orders/${id}/transitions/${action.replace(/_/g, '-')}`, { method: 'POST', body, idempotencyKey: key }),
   { onSuccess: (p) => { replace(p); setAsking(null); } });
+
+  // ADR-0045: approving an order that has no vendor yet is where one is chosen.
+  const choosing = asking === 'approve' && !po.data?.vendor;
+  const vendorCodes = useQuery({ queryKey: keys.vendorCodes, queryFn: () => api<VendorCode[]>('/vendor-codes'), enabled: choosing });
 
   if (po.error) return <Alert>{errorText(po.error)}</Alert>;
   if (!po.data) return <p className="text-sm text-stone-500">{t('common.loading')}</p>;
@@ -57,13 +63,13 @@ export function PurchaseOrderView({ id, can }: { id: string; can: ProcurementCan
         back={{ href: '/console/purchase-orders', label: t('procurement.title') }}
         title={<span className="flex flex-wrap items-center gap-3"><bdi dir="ltr" className="font-mono">{o.number}</bdi><PoStatusBadge po={o} />
           {o.origin === 'FORECAST' ? <Badge>{t('procurement.fromForecast')}</Badge> : null}</span>}
-        subtitle={`${o.vendor.code} · ${o.vendor.name}`}
+        subtitle={<VendorLabel vendor={o.vendor} />}
         actions={offered.length > 0 ? (
           <>
             {offered.map((a) => (
               <Button key={a.action} variant={a.tone === 'danger' ? 'danger' : a.action === 'submit' || a.action === 'approve' || a.action === 'place' ? 'primary' : 'secondary'}
                 disabled={transition.isPending}
-                onClick={() => (a.reason ? setAsking(a.action) : transition.run({ action: a.action, version: o.version, reason: null }))}>
+                onClick={() => (a.reason || (a.action === 'approve' && !o.vendor) ? setAsking(a.action) : transition.run({ action: a.action, version: o.version, reason: null }))}>
                 {t(`procurement.actions.${a.action}`)}
               </Button>
             ))}
@@ -76,10 +82,24 @@ export function PurchaseOrderView({ id, can }: { id: string; can: ProcurementCan
         <Section title={t(`procurement.actions.${asking}`)}>
           <form className="flex flex-wrap items-end gap-3 p-5" noValidate onSubmit={(e: FormEvent<HTMLFormElement>) => {
             e.preventDefault();
-            transition.run({ action: asking, version: o.version, reason: formText(new FormData(e.currentTarget), 'reason') });
+            const f = new FormData(e.currentTarget);
+            transition.run(choosing
+              ? { action: asking, version: o.version, reason: null, vendorId: formText(f, 'vendorId') }
+              : { action: asking, version: o.version, reason: formText(f, 'reason') });
           }}>
             {transition.error ? <Alert className="w-full">{errorText(transition.error)}</Alert> : null}
-            <div className="min-w-72 flex-1"><Field id="po-reason" label={t('procurement.reason')}><Input id="po-reason" name="reason" required maxLength={500} /></Field></div>
+            {choosing ? (
+              <div className="min-w-72 flex-1">
+                <Field id="po-approve-vendor" label={t('procurement.vendor')} hint={t('procurement.vendorNeededToApprove')}>
+                  <Select id="po-approve-vendor" name="vendorId" required defaultValue="">
+                    <option value="">{t('common.choose')}</option>
+                    {vendorCodes.data?.map((v) => <option key={v.id} value={v.id}>{v.name ? `${v.code} · ${v.name}` : v.code}</option>)}
+                  </Select>
+                </Field>
+              </div>
+            ) : (
+              <div className="min-w-72 flex-1"><Field id="po-reason" label={t('procurement.reason')}><Input id="po-reason" name="reason" required maxLength={500} /></Field></div>
+            )}
             <Button type="submit" variant={asking === 'cancel' ? 'danger' : 'primary'} disabled={transition.isPending}>{t(`procurement.actions.${asking}`)}</Button>
             <Button variant="ghost" onClick={() => setAsking(null)}>{t('common.back')}</Button>
           </form>
@@ -90,12 +110,12 @@ export function PurchaseOrderView({ id, can }: { id: string; can: ProcurementCan
         actions={o.status === 'DRAFT' && can.manage && !editing ? <Button variant="ghost" size="sm" onClick={() => setEditing(true)}><Pencil className="size-4" aria-hidden />{t('common.edit')}</Button> : undefined}>
         {editing ? (
           <div className="p-5">
-            <PurchaseOrderForm key={o.version} order={o} submitLabel={t('common.save')} pending={update.isPending} error={update.error}
+            <PurchaseOrderForm key={o.version} order={o} chooseVendor={can.vendorNames} submitLabel={t('common.save')} pending={update.isPending} error={update.error}
               onSubmit={(input) => update.run({ ...input, version: o.version })} onCancel={() => setEditing(false)} />
           </div>
         ) : (
           <Facts items={[
-            { label: t('procurement.vendor'), value: <span><bdi dir="ltr" className="font-mono">{o.vendor.code}</bdi>{' · '}{o.vendor.name}</span> },
+            { label: t('procurement.vendor'), value: <VendorLabel vendor={o.vendor} /> },
             {
               label: t('procurement.expectedArrival'),
               value: o.expectedArrival ? (

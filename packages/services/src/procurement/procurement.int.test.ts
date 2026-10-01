@@ -4,6 +4,8 @@ import { ownerQuery } from '../../test/db';
 import { anAccount, ctxFor } from '../../test/factories';
 import { anOrderInTransit, okraSkus } from '../../test/procurement';
 import { listStock } from '../inventory';
+import { convertToDraftOrder } from '../reports';
+import { listVendorCodes } from '../vendors';
 import {
   createPurchaseOrder, getPurchaseOrder, listIncoming, listPurchaseOrders, receiveGoods, transitionPurchaseOrder, updatePurchaseOrder,
 } from './index';
@@ -43,7 +45,8 @@ describe('purchase orders (PO-001..008)', () => {
     const ctx = await admin();
     const okra = await okraSkus(ctx);
     const m = await buyer();
-    const draft = await createPurchaseOrder(m, { vendorId: okra.vendor.id, lines: [{ skuId: okra.bag.id, orderedPacks: 5, expectedUnitCost: '70' }] });
+    // ADR-0045: this buyer cannot see vendor names, so drafts without a vendor.
+    const draft = await createPurchaseOrder(m, { lines: [{ skuId: okra.bag.id, orderedPacks: 5, expectedUnitCost: '70' }] });
     const pending = await transitionPurchaseOrder(m, draft.id, 'submit', { version: draft.version });
     expect(pending.status).toBe('PENDING_APPROVAL');
     expect(await code(transitionPurchaseOrder(m, pending.id, 'approve', { version: pending.version }))).toBe('FORBIDDEN');
@@ -113,7 +116,7 @@ describe('purchase orders (PO-001..008)', () => {
     const ctx = await admin();
     const okra = await okraSkus(ctx);
     const m = await buyer();
-    const proposed = await createPurchaseOrder(m, { vendorId: okra.vendor.id, origin: 'FORECAST', lines: [{ skuId: okra.bag.id, orderedPacks: 30, expectedUnitCost: '70' }] });
+    const proposed = await createPurchaseOrder(m, { origin: 'FORECAST', lines: [{ skuId: okra.bag.id, orderedPacks: 30, expectedUnitCost: '70' }] }); // no vendor names: ADR-0045
     expect(proposed).toMatchObject({ status: 'DRAFT', origin: 'FORECAST' });
     const adjusted = await updatePurchaseOrder(m, proposed.id, { version: proposed.version, lines: [{ skuId: okra.bag.id, orderedPacks: 25, expectedUnitCost: '70' }] });
     expect((await transitionPurchaseOrder(m, adjusted.id, 'submit', { version: adjusted.version })).status).toBe('PENDING_APPROVAL');
@@ -128,3 +131,83 @@ describe('purchase orders (PO-001..008)', () => {
     expect((await getPurchaseOrder(await manager(['procurement.view']), po.id)).number).toBe(po.number);
   });
 });
+
+describe('vendor names, and who chooses the vendor (ADR-0045)', () => {
+  const line = (skuId: string) => [{ skuId, orderedPacks: 5, expectedUnitCost: '70' }];
+  const namesBuyer = () => manager(['procurement.view', 'procurement.manage_po', 'vendors.view_names']);
+
+  it('PO-002: a buyer who cannot see vendor names drafts without one — and the draft is still listed', async () => {
+    const okra = await okraSkus(await admin());
+    const m = await buyer();
+    const draft = await createPurchaseOrder(m, { lines: line(okra.bag.id) });
+    expect(draft.vendor).toBeNull();
+    // An inner join on vendors drops exactly this order from the list.
+    expect((await listPurchaseOrders(m, { status: 'DRAFT' })).items.map((p) => p.id)).toContain(draft.id);
+  });
+
+  it('PO-002: nor can they choose, change or clear one, whatever the request says', async () => {
+    const ctx = await admin();
+    const okra = await okraSkus(ctx);
+    const m = await buyer();
+    expect(await code(createPurchaseOrder(m, { vendorId: okra.vendor.id, lines: line(okra.bag.id) }))).toBe('FORBIDDEN');
+    const chosen = await createPurchaseOrder(ctx, { vendorId: okra.vendor.id, lines: line(okra.bag.id) });
+    expect(await code(updatePurchaseOrder(m, chosen.id, { version: chosen.version, vendorId: null }))).toBe('FORBIDDEN');
+    // An edit that does not mention the vendor leaves it where it was.
+    const edited = await updatePurchaseOrder(m, chosen.id, { version: chosen.version, notes: 'checked' });
+    expect(edited.vendor).toEqual({ id: okra.vendor.id, code: okra.vendor.code, name: null });
+  });
+
+  it('VEN-005: without names they see the code and never the name, in the list and the detail', async () => {
+    const ctx = await admin();
+    const okra = await okraSkus(ctx);
+    const po = await createPurchaseOrder(ctx, { vendorId: okra.vendor.id, lines: line(okra.bag.id) });
+    const m = await buyer();
+    const listed = (await listPurchaseOrders(m, { status: 'DRAFT' })).items.find((p) => p.id === po.id);
+    expect(listed?.vendor).toEqual({ id: okra.vendor.id, code: okra.vendor.code, name: null });
+    expect((await getPurchaseOrder(m, po.id)).vendor?.name).toBeNull();
+    // With the names permission, or with profiles — which imply it — the name is there.
+    expect((await getPurchaseOrder(await namesBuyer(), po.id)).vendor?.name).toBe(okra.vendor.name);
+    expect((await getPurchaseOrder(await manager(['procurement.view', 'vendors.view']), po.id)).vendor?.name).toBe(okra.vendor.name);
+  });
+
+  it('VEN-005: the vendor picker carries names only for someone who may see them', async () => {
+    const okra = await okraSkus(await admin());
+    const pick = async (ctx: Awaited<ReturnType<typeof buyer>>) => (await listVendorCodes(ctx)).find((v) => v.id === okra.vendor.id);
+    expect(await pick(await buyer())).toEqual({ id: okra.vendor.id, code: okra.vendor.code, name: null });
+    expect((await pick(await namesBuyer()))?.name).toBe(okra.vendor.name);
+  });
+
+  it('PO-002: a buyer who can see names chooses the vendor while drafting', async () => {
+    const okra = await okraSkus(await admin());
+    const draft = await createPurchaseOrder(await namesBuyer(), { vendorId: okra.vendor.id, lines: line(okra.bag.id) });
+    expect(draft.vendor).toEqual({ id: okra.vendor.id, code: okra.vendor.code, name: okra.vendor.name });
+  });
+
+  it('PO-002: an order is not approved without a vendor; the approver chooses one in the approve step', async () => {
+    const okra = await okraSkus(await admin());
+    const m = await buyer();
+    const draft = await createPurchaseOrder(m, { lines: line(okra.bag.id) });
+    const pending = await transitionPurchaseOrder(m, draft.id, 'submit', { version: draft.version });
+    expect(await code(transitionPurchaseOrder(await admin(), pending.id, 'approve', { version: pending.version }))).toBe('VENDOR_REQUIRED');
+    const approved = await transitionPurchaseOrder(await admin(), pending.id, 'approve', { version: pending.version, vendorId: okra.vendor.id });
+    expect(approved).toMatchObject({ status: 'APPROVED', vendor: { id: okra.vendor.id, name: okra.vendor.name } });
+    // Only approve takes a vendor: the others would be a back door around drafts being the only editable state.
+    expect(await code(transitionPurchaseOrder(await admin(), approved.id, 'place', { version: approved.version, vendorId: okra.vendor.id }))).toBe('INVALID_TRANSITION');
+  });
+
+  it('PO-008, RPT-005: a manager without names turns a recommendation into a draft for the approver', async () => {
+    const okra = await okraSkus(await admin());
+    const planner = await manager(['reports.view_forecast', 'procurement.view', 'procurement.manage_po']);
+    const draft = await convertToDraftOrder(planner, { lines: [{ skuId: okra.bag.id, packs: 12 }] });
+    expect((await getPurchaseOrder(planner, draft.id)).vendor).toBeNull();
+    expect(await code(convertToDraftOrder(planner, { vendorId: okra.vendor.id, lines: [{ skuId: okra.bag.id, packs: 12 }] }))).toBe('FORBIDDEN');
+  });
+
+  it('the database refuses an approved order without a vendor, whatever the code does', async () => {
+    const okra = await okraSkus(await admin());
+    const draft = await createPurchaseOrder(await admin(), { lines: line(okra.bag.id) });
+    await expect(ownerQuery(`update purchase_orders set status = 'APPROVED' where id = $1`, [draft.id]))
+      .rejects.toThrow(/purchase_orders_vendor_from_approval/);
+  });
+});
+

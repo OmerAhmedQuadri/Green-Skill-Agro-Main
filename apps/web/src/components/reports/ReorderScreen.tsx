@@ -13,9 +13,9 @@ import { useFormat } from '@/lib/format';
 import { wholeNumber } from '@/lib/forms';
 import { useErrorText, useOnceCommand } from '@/lib/hooks';
 import { keys } from '@/lib/query-keys';
+import type { VendorCode } from '@/components/catalogue/types';
 import type { Reorder } from './types';
 
-type Vendor = { id: string; name: string };
 
 /**
  * Workflow O (RPT-004..006, RPT-005, PO-008): what the projection says to order
@@ -23,8 +23,9 @@ type Vendor = { id: string; name: string };
  * nothing is ordered until a manager converts it, and what they get is a draft
  * that still goes through the ordinary approval.
  */
-export function ReorderScreen() {
+export function ReorderScreen({ chooseVendor }: { chooseVendor: boolean }) {
   const t = useTranslations('reports');
+  const tp = useTranslations('procurement');
   const format = useFormat();
   const errorText = useErrorText();
   const router = useRouter();
@@ -32,7 +33,10 @@ export function ReorderScreen() {
   const [packs, setPacks] = useState<Record<string, string>>({});
 
   const reorder = useQuery({ queryKey: keys.reorder, queryFn: () => api<Reorder>('/reports/reorder') });
-  const vendors = useQuery({ queryKey: keys.vendors(), queryFn: () => api<{ items: Vendor[] }>('/vendors') });
+  // ADR-0045: the picker, not full profiles — so someone who may see names but
+  // not profiles can still choose. Without names there is no picker: the draft
+  // goes without a vendor and the approver chooses one.
+  const vendors = useQuery({ queryKey: keys.vendorCodes, queryFn: () => api<VendorCode[]>('/vendor-codes'), enabled: chooseVendor });
   const convert = useOnceCommand((body: unknown, key) =>
     api<{ id: string; number: string }>('/reports/reorder/draft', { method: 'POST', body, idempotencyKey: key }), {
     onSuccess: (po) => router.push(`/console/purchase-orders/${po.id}`),
@@ -91,14 +95,16 @@ export function ReorderScreen() {
         <Card className="space-y-4 p-4">
           <h2 className="text-sm font-semibold text-stone-900">{t('convertTitle')}</h2>
           <p className="text-sm text-stone-600">{t('convertHint')}</p>
-          <div className="flex flex-wrap items-end gap-3">
-            <Field id="vendor" label={t('vendor')}>
-              <Select id="vendor" value={vendorId} onChange={(e) => setVendorId(e.target.value)}>
-                <option value="">{t('chooseVendor')}</option>
-                {vendors.data?.items.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
-              </Select>
-            </Field>
-          </div>
+          {chooseVendor ? (
+            <div className="flex flex-wrap items-end gap-3">
+              <Field id="vendor" label={t('vendor')} hint={tp('vendorOptional')}>
+                <Select id="vendor" value={vendorId} onChange={(e) => setVendorId(e.target.value)}>
+                  <option value="">{tp('vendorAtApproval')}</option>
+                  {vendors.data?.map((v) => <option key={v.id} value={v.id}>{v.name ? `${v.code} · ${v.name}` : v.code}</option>)}
+                </Select>
+              </Field>
+            </div>
+          ) : null}
           <Table head={[t('item'), t('orderPacks')]}>
             {toOrder.map((i) => (
               <tr key={i.skuId}>
@@ -111,10 +117,10 @@ export function ReorderScreen() {
             ))}
           </Table>
           <Button
-            disabled={!vendorId || convert.isPending}
+            disabled={convert.isPending}
             data-testid="convert-to-draft"
             onClick={() => convert.run({
-              vendorId,
+              ...(chooseVendor && vendorId ? { vendorId } : {}),
               lines: toOrder
                 .map((i) => ({ skuId: i.skuId, packs: wholeNumber(packsFor(i.skuId, i.suggested)) ?? 0 }))
                 .filter((l) => l.packs > 0),

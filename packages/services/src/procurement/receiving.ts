@@ -1,5 +1,5 @@
 import {
-  checkReceiptLine, DomainError, isDomainError, packCount, resolveReceiptLine, RECEIVABLE, statusAfterReceipt, templateFrom, toBaseUnits, transfer,
+  canSeeVendorNames, checkReceiptLine, DomainError, isDomainError, packCount, resolveReceiptLine, RECEIVABLE, statusAfterReceipt, templateFrom, toBaseUnits, transfer,
   type ErrorCode, type Leg, type PoStatus, type ReceiptLineInput, type ReceivingSku, type SkuUnits,
 } from '@gsa/core';
 import { schema } from '@gsa/db';
@@ -112,7 +112,7 @@ export async function receiveGoods(
       action: 'inventory.goods_received', entityType: 'goods_receipt', entityId: receipt.id,
       after: { purchaseOrderId: poId, source, fileName: input.fileName ?? null, lines: resolved.map((r) => r.line), status: final },
     });
-    return loadPurchaseOrder(tx, poId);
+    return loadPurchaseOrder(tx, poId, canSeeVendorNames(ctx.permissions));
   });
 }
 
@@ -160,7 +160,7 @@ export async function previewReceiptImport(
     throw new DomainError('INVALID_IMPORT_FILE', { reason: 'UNREADABLE' });
   }
   const db = getDb();
-  const po = await loadPurchaseOrder(db, poId);
+  const po = await loadPurchaseOrder(db, poId, false);
   if (!RECEIVABLE.includes(po.status)) throw new DomainError('PO_NOT_RECEIVABLE', { status: po.status });
   const lines = await orderLines(db, poId);
 
@@ -201,7 +201,7 @@ export async function receiptTemplate(
   ctx: Ctx, poId: string, labels: Readonly<Record<ReceiptColumn, string>>,
 ): Promise<{ fileName: string; content: Buffer }> {
   authorize(ctx, 'inventory.bulk_import');
-  const po = await loadPurchaseOrder(getDb(), poId);
+  const po = await loadPurchaseOrder(getDb(), poId, false);
   const defaults = new Map((await orderLines(getDb(), poId)).map((l) => [l.lineId, l.shelfLifeMonths]));
   const header = RECEIPT_COLUMNS.map((c) => ({ value: labels[c], fontWeight: 'bold' as const }));
   const body = po.lines.filter((l) => l.outstandingPacks > 0).map((l) => [
