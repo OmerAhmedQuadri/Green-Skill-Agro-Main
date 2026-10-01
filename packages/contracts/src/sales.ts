@@ -12,9 +12,14 @@ export const RecordSaleRequest = z.object({
 
 export const SaleOptionsQuery = z.object({ storeId: z.uuid() });
 
+const SaleChannel = z.enum(['VEHICLE', 'DISPATCH']);
+
 export const ListSalesQuery = z.object({
   status: z.enum(['PENDING_DISCOUNT_APPROVAL', 'DISCOUNT_APPROVED', 'PENDING_DELIVERY', 'COMPLETED', 'CANCELLED']).optional(),
   awaitingDecision: QueryBoolean.optional(), storeId: z.uuid().optional(), sellerId: z.uuid().optional(),
+  /** ADR-0048: completed within these Riyadh days, given together; and what else a view of sales is cut by. */
+  from: z.iso.date().optional(), to: z.iso.date().optional(), vehicleId: z.uuid().optional(), channel: SaleChannel.optional(),
+  productId: z.uuid().optional(), categoryId: z.uuid().optional(),
   cursor: z.string().max(500).optional(), limit: Limit.optional(),
 });
 

@@ -1,9 +1,9 @@
 import {
-  DomainError, packsHeld, quantity, type CountUnit, type CreditMode, type DeliveryDocumentStatus, type DiscountRequestStatus,
+  analyticsRange, DomainError, packsHeld, quantity, type CountUnit, type CreditMode, type DeliveryDocumentStatus, type DiscountRequestStatus,
   type DocumentSendChannel, type Money, type PackSize, type Percent, type SaleCancelReason, type SaleChannel, type SaleStatus,
 } from '@gsa/core';
 import { schema } from '@gsa/db';
-import { aliasedTable, and, asc, desc, eq, inArray, lt, or, sql, type SQL } from 'drizzle-orm';
+import { aliasedTable, and, asc, desc, eq, gte, inArray, lt, or, sql, type SQL } from 'drizzle-orm';
 import { sizeOf } from '../catalogue';
 import type { Ctx } from '../context';
 import { decodeCursor, encodeCursor, inOrder, pageLimit, type Executor } from '../platform';
@@ -65,6 +65,7 @@ export type SaleSummary = {
   readonly documentNumber: string | null; readonly approvalStatus: DiscountRequestStatus | null; readonly expiresAt: Date | null;
   readonly cancelReason: SaleCancelReason | null;
   /** ADR-0038: the dispatch order carrying a dispatch sale. */ readonly dispatchOrderId: string | null;
+  readonly vehicle: { readonly id: string; readonly registration: string } | null;
 };
 
 /**
@@ -157,6 +158,11 @@ export async function loadSale(db: Executor, ctx: Ctx, id: string): Promise<Sale
 export type SaleFilter = {
   readonly status?: SaleStatus | undefined; readonly awaitingDecision?: boolean | undefined;
   readonly storeId?: string | undefined; readonly sellerId?: string | undefined;
+  /** ADR-0048: completed within these Riyadh days, both included — given together. */
+  readonly from?: string | undefined; readonly to?: string | undefined;
+  readonly vehicleId?: string | undefined; readonly channel?: SaleChannel | undefined;
+  /** ADR-0048: sales with at least one line of this product, or of this category. */
+  readonly productId?: string | undefined; readonly categoryId?: string | undefined;
   readonly cursor?: string | undefined; readonly limit?: number | undefined;
 };
 
@@ -168,6 +174,16 @@ export async function querySales(db: Executor, ctx: Ctx, filter: SaleFilter): Pr
   if (filter.awaitingDecision) where.push(eq(discountApprovalRequests.status, 'PENDING'));
   if (filter.storeId) where.push(eq(sales.storeId, filter.storeId));
   if (filter.sellerId) where.push(eq(sales.sellerId, filter.sellerId));
+  if (filter.from !== undefined || filter.to !== undefined) {
+    const range = analyticsRange(filter.from ?? '', filter.to ?? '');
+    where.push(gte(sales.completedAt, range.start), lt(sales.completedAt, range.end));
+  }
+  if (filter.vehicleId) where.push(eq(sales.vehicleId, filter.vehicleId));
+  if (filter.channel) where.push(eq(sales.channel, filter.channel));
+  if (filter.productId || filter.categoryId) {
+    where.push(sql`exists (select 1 from ${saleLines} join ${skus} on ${skus.id} = ${saleLines.skuId} join ${products} on ${products.id} = ${skus.productId}
+      where ${saleLines.saleId} = ${sales.id}${filter.productId ? sql` and ${skus.productId} = ${filter.productId}` : sql``}${filter.categoryId ? sql` and ${products.categoryId} = ${filter.categoryId}` : sql``})`);
+  }
   if (filter.cursor) {
     const [at, id] = decodeCursor(filter.cursor, 2) as [string, string];
     where.push(or(lt(sales.createdAt, new Date(at)), and(eq(sales.createdAt, new Date(at)), lt(sales.id, id))));
@@ -175,10 +191,11 @@ export async function querySales(db: Executor, ctx: Ctx, filter: SaleFilter): Pr
   const rows = await db.select({
     s: sales, storeName: stores.name, sellerName: seller.name, documentNumber: deliveryDocuments.number,
     approvalStatus: discountApprovalRequests.status, expiresAt: discountApprovalRequests.expiresAt, dispatchOrderId: dispatchOrders.id,
+    registration: vehicles.registration,
   }).from(sales)
     .innerJoin(stores, eq(stores.id, sales.storeId)).innerJoin(seller, eq(seller.id, sales.sellerId))
     .leftJoin(deliveryDocuments, eq(deliveryDocuments.saleId, sales.id)).leftJoin(discountApprovalRequests, eq(discountApprovalRequests.saleId, sales.id))
-    .leftJoin(dispatchOrders, eq(dispatchOrders.saleId, sales.id))
+    .leftJoin(dispatchOrders, eq(dispatchOrders.saleId, sales.id)).leftJoin(vehicles, eq(vehicles.id, sales.vehicleId))
     .where(and(...where)).orderBy(desc(sales.createdAt), desc(sales.id)).limit(limit + 1);
   const page = rows.slice(0, limit);
   const last = page.at(-1);
@@ -188,6 +205,7 @@ export async function querySales(db: Executor, ctx: Ctx, filter: SaleFilter): Pr
       total: r.s.total as Money, discount: r.s.discount as Money, createdAt: r.s.createdAt, completedAt: r.s.completedAt,
       documentNumber: r.documentNumber, approvalStatus: r.approvalStatus, expiresAt: r.expiresAt, cancelReason: r.s.cancelReason,
       dispatchOrderId: r.dispatchOrderId,
+      vehicle: r.s.vehicleId && r.registration ? { id: r.s.vehicleId, registration: r.registration } : null,
     })),
     nextCursor: rows.length > limit && last ? encodeCursor([last.s.createdAt.toISOString(), last.s.id]) : null,
   };

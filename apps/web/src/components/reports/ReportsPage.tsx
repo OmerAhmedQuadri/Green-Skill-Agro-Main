@@ -6,7 +6,7 @@ import { useTranslations } from 'next-intl';
 import { Card } from '@gsa/ui';
 import { PageHeader } from '@/components/common/PageHeader';
 
-type EntryKey = 'trends' | 'seasonal' | 'reorder' | 'stock' | 'expiry' | 'collections' | 'dispatch' | 'performance';
+type EntryKey = 'sales' | 'trends' | 'seasonal' | 'reorder' | 'stock' | 'expiry' | 'collections' | 'dispatch' | 'performance';
 type Entry = { key: EntryKey; href: string; own: boolean };
 
 /**
@@ -16,6 +16,7 @@ type Entry = { key: EntryKey; href: string; own: boolean };
  * figures, one place to change them.
  */
 const ENTRIES: readonly Entry[] = [
+  { key: 'sales', href: '/console/reports/sales', own: true }, // ADR-0048
   { key: 'trends', href: '/console/reports/trends', own: true },
   { key: 'seasonal', href: '/console/reports/trends?compare=YEAR_AGO', own: true },
   { key: 'reorder', href: '/console/reports/reorder', own: true },
