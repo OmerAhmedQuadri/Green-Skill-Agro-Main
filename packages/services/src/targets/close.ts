@@ -12,15 +12,20 @@ import { standingsFor } from './targets';
 
 const { commissionPeriods, sellerTargets, users } = schema;
 
-/** The months that may still be waiting for a snapshot: this one and the few before it. */
+/**
+ * The months that may still be waiting for a snapshot: this one and the few
+ * before it, counted back on the business calendar.
+ *
+ * It used to step back through UTC months from `now`. The job runs at 01:00
+ * Riyadh, which is 22:00 UTC the day before — so on the 1st, UTC was still in
+ * the old month, and one UTC month back from there skipped the month that had
+ * just ended. Harmless while a month closes a few days late; with
+ * `period.close_after_days` at 0 that month froze a day late.
+ */
 function recentPeriods(now: Date, count = 4): string[] {
-  const out: string[] = [];
-  const cursor = new Date(now);
-  for (let i = 0; i < count; i += 1) {
-    out.push(businessMonth(cursor));
-    cursor.setUTCMonth(cursor.getUTCMonth() - 1, 1);
-  }
-  return out;
+  const [year, month] = businessMonth(now).split('-').map(Number) as [number, number];
+  return Array.from({ length: count }, (_, back) =>
+    new Date(Date.UTC(year, month - 1 - back, 1)).toISOString().slice(0, 7));
 }
 
 /**

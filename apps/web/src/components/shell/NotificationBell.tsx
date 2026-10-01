@@ -3,9 +3,9 @@
 import { NOTIFICATION_POLL_MS, type NotificationKind } from '@gsa/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Bell } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { cn } from '@gsa/ui';
 import { api } from '@/lib/api';
 import { useFormat } from '@/lib/format';
@@ -45,9 +45,45 @@ export function NotificationBell({ inverse = false }: { inverse?: boolean }) {
   const format = useFormat();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const [open, setOpen] = useState(false);
+  const pathname = usePathname();
+  // Open on one page only. The shell outlives navigation, so a plain boolean
+  // left the panel open over the next page after the browser's back button;
+  // remembering where it was opened closes it without an effect to reset it.
+  const [openOn, setOpenOn] = useState<string | null>(null);
+  const open = openOn === pathname;
+  const close = () => setOpenOn(null);
   const anchor = useRef<HTMLDivElement>(null);
+  const bell = useRef<HTMLButtonElement>(null);
   const [offset, setOffset] = useState(0);
+
+  /**
+   * Dismissed the way a popover is expected to be: a press anywhere outside it,
+   * Escape, or focus moving elsewhere. It used to close only from the bell or by
+   * choosing a notification, so it stayed open over whatever came next.
+   *
+   * `pointerdown`, not `click`, so a tap on a phone counts and the panel has
+   * gone before whatever was pressed acts. The bell sits inside the wrapper, so
+   * pressing it is not "outside" and its own click still toggles.
+   */
+  useEffect(() => {
+    if (!open) return undefined;
+    const outside = (target: EventTarget | null) => target instanceof Node && !anchor.current?.contains(target);
+    const onPointer = (e: PointerEvent) => { if (outside(e.target)) setOpenOn(null); };
+    const onFocus = (e: FocusEvent) => { if (outside(e.target)) setOpenOn(null); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      setOpenOn(null);
+      bell.current?.focus(); // back to where the keyboard was
+    };
+    document.addEventListener('pointerdown', onPointer);
+    document.addEventListener('focusin', onFocus);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('pointerdown', onPointer);
+      document.removeEventListener('focusin', onFocus);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
 
   // Measured as it opens, and again if the window changes under it.
   useLayoutEffect(() => {
@@ -67,7 +103,7 @@ export function NotificationBell({ inverse = false }: { inverse?: boolean }) {
 
   return (
     <div className="relative" ref={anchor}>
-      <button type="button" data-testid="notification-bell" onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-label={t('open', { count: unread })}
+      <button type="button" ref={bell} data-testid="notification-bell" onClick={() => setOpenOn(open ? null : pathname)} aria-expanded={open} aria-label={t('open', { count: unread })}
         className={cn('relative inline-flex size-10 items-center justify-center rounded-md', inverse ? 'text-white hover:bg-white/10' : 'text-stone-700 hover:bg-stone-100')}>
         <Bell className="size-5" aria-hidden />
         {unread > 0 ? (
@@ -88,7 +124,7 @@ export function NotificationBell({ inverse = false }: { inverse?: boolean }) {
             {(inbox.data?.items ?? []).map((n) => (
               <li key={n.id}>
                 <button type="button" className={cn('block w-full px-4 py-3 text-start text-sm hover:bg-stone-50', n.read ? 'text-stone-600' : 'font-medium')}
-                  onClick={() => { setOpen(false); void markRead([n.id]); if (n.link) router.push(n.link); }}>
+                  onClick={() => { close(); void markRead([n.id]); if (n.link) router.push(n.link); }}>
                   <span className="flex items-start gap-2">
                     {n.read ? null : <span className="mt-1.5 size-2 shrink-0 rounded-full bg-brand-600" aria-hidden />}
                     <span>{text(n)}<span className="mt-0.5 block text-xs font-normal text-stone-500">{format.dateTime(n.createdAt)}</span></span>

@@ -4,7 +4,10 @@ import en from '../src/messages/en.json' with { type: 'json' };
 import { aStoreByApi, aVehicle, anUpload, batchOf, checkIn, freshSeller, post, receiveStock, sessionPage } from './helpers';
 
 const headers = (origin: string) => ({ origin, 'idempotency-key': crypto.randomUUID() });
-const month = () => new Date().toISOString().slice(0, 7);
+// The Riyadh month the app sets targets in — not UTC's, which is still the old
+// month for 21:00–24:00 UTC on a month's last night. Saudi Arabia keeps UTC+3
+// all year, the same fixed offset core's businessDayStart relies on.
+const month = () => new Date(Date.now() + 3 * 3_600_000).toISOString().slice(0, 7);
 
 /**
  * Targets and commission (TGT-001..005, COM-001..007, ADR-0042), in English and

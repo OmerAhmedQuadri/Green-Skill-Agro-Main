@@ -9,7 +9,10 @@ import { buildRecommendations, listRecommendations, rebuildRollup, recordRecomme
 
 const admin = async (now?: Date) => ctxFor(await anAccount('ADMIN'), now ? { now } : {});
 const today = () => businessDate(new Date());
-const dayAfterToday = () => new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
+// The Riyadh date after today(). A UTC date here disagreed with today() for
+// 21:00–24:00 UTC every night, and the range rebuilt came out empty. Saudi
+// Arabia keeps UTC+3 all year, so a day on is always the next business date.
+const dayAfterToday = () => businessDate(new Date(Date.now() + 86_400_000));
 const setCover = (skuId: string, days: number | null) =>
   ownerQuery('update skus set safety_cover_days = $2 where id = $1', [skuId, days]);
 
