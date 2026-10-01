@@ -1905,6 +1905,29 @@
       "COLLECTED": "Collected"
     }
   },
+  "performance": {
+    "title": "My performance",
+    "subtitle": "Your sales, collections, cash and commission, month by month.",
+    "open": "See my performance",
+    "month": "Month",
+    "thisMonth": "This month — {month}",
+    "now": "Right now",
+    "nowHint": "The same whichever month you choose.",
+    "cashInHand": "Cash in hand",
+    "awaiting": "Banked or handed over, awaiting approval",
+    "sales": "Sales",
+    "salesCount": "{count, plural, one {# sale} other {# sales}}",
+    "sold": "Sold",
+    "returned": "Returned",
+    "net": "Net",
+    "collected": "Collected from stores",
+    "cash": "Cash",
+    "bank": "Bank transfer",
+    "total": "Total",
+    "settled": "Cash settled",
+    "settledApproved": "Banked or handed over, and approved",
+    "settledHint": "Counted in the month you banked it or handed it over."
+  },
   "reports": {
     "title": "Reports",
     "subtitle": "What sold, what is left, and what to order next.",

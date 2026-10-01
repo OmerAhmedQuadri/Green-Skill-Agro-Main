@@ -34,3 +34,19 @@ export function businessDayStart(date: string): Date {
 export function nextBusinessDate(date: string): string {
   return businessDate(new Date(businessDayStart(date).getTime() + 36 * 3_600_000));
 }
+
+/** A target period or report month, `YYYY-MM`. */
+export function isBusinessMonth(value: string): boolean {
+  return /^\d{4}-(0[1-9]|1[0-2])$/.test(value);
+}
+
+/**
+ * The first instant of a Riyadh month and of the month after it, so a monthly
+ * figure counts `from <= t < to`. One definition: a copy that drifted to UTC
+ * would disagree with the rest for three hours on a month's last night.
+ */
+export function businessMonthRange(month: string): { readonly from: Date; readonly to: Date } {
+  const [year, m] = month.split('-').map(Number) as [number, number];
+  const next = m === 12 ? `${year + 1}-01` : `${year}-${String(m + 1).padStart(2, '0')}`;
+  return { from: businessDayStart(`${month}-01`), to: businessDayStart(`${next}-01`) };
+}

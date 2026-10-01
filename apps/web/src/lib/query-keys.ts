@@ -18,6 +18,7 @@ export const keys = {
   targets: (period?: string) => (period ? ['targets', period] as const : ['targets'] as const),
   standings: (period?: string) => (period ? ['standings', period] as const : ['standings'] as const),
   myStanding: (period?: string) => (period ? ['my-standing', period] as const : ['my-standing'] as const),
+  myPerformance: (month: string) => ['my-performance', month] as const,
   trends: (filter: object) => ['trends', filter] as const,
   reorder: ['reorder'] as const,
   purchaseOrders: (filter?: object) => (filter ? ['purchase-orders', filter] as const : ['purchase-orders'] as const),

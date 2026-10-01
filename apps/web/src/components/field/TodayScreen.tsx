@@ -2,7 +2,7 @@
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { sumMoney } from '@gsa/core';
-import { AlertTriangle, Banknote, ChevronRight, Coffee, LogIn, LogOut, PackageCheck, Store, Target, Truck } from 'lucide-react';
+import { AlertTriangle, Banknote, ChevronRight, Coffee, LogIn, LogOut, PackageCheck, Store, Target, TrendingUp, Truck } from 'lucide-react';
 import Link from 'next/link';
 import { TargetProgressBars } from '@/components/targets/TargetProgressBars';
 import type { TargetStanding as MyStanding } from '@/components/targets/types';
@@ -28,6 +28,7 @@ export function TodayScreen({ name }: { name: string }) {
   const t = useTranslations('field');
   const tCash = useTranslations('cash');
   const tTargets = useTranslations('targets');
+  const tPerformance = useTranslations('performance');
   const format = useFormat();
   const duration = useDuration();
   const errorText = useErrorText();
@@ -171,6 +172,13 @@ export function TodayScreen({ name }: { name: string }) {
           <Link href="/field/cash" className="text-sm font-medium text-brand-800 underline" data-testid="to-cash">{tCash('settleTitle')}</Link>
         </Card>
       ) : null}
+
+      {/* RPT-010: every figure of their own, month by month, in one place. */}
+      <Card className="space-y-1 p-4" data-testid="performance-card">
+        <div className="flex items-center gap-2 text-sm font-medium text-stone-600"><TrendingUp className="size-4" aria-hidden />{tPerformance('title')}</div>
+        <p className="text-sm text-stone-600">{tPerformance('subtitle')}</p>
+        <Link href="/field/performance" className="text-sm font-medium text-brand-800 underline" data-testid="to-performance">{tPerformance('open')}</Link>
+      </Card>
     </div>
   );
 }
