@@ -28,7 +28,7 @@ export function TransfersToConfirm() {
     <Section title={t('transfersTitle')} description={t('transfersHint')}>
       {awaiting.error ? <Alert>{errorText(awaiting.error)}</Alert> : null}
       {awaiting.data?.items.length === 0 ? <p className="p-5 text-sm text-stone-500" data-testid="no-transfers">{t('noTransfers')}</p> : (
-        <Table head={[t('number'), t('store'), t('seller'), t('reference'), t('amount'), t('received'), t('decision')]}>
+        <Table head={[t('number'), t('store'), t('seller'), t('reference'), t('voucher'), t('amount'), t('received'), t('decision')]}>
           {awaiting.data?.items.map((transfer) => <TransferRow key={transfer.id} transfer={transfer} />)}
         </Table>
       )}
@@ -56,6 +56,11 @@ function TransferRow({ transfer }: { transfer: AwaitingTransfer }) {
       <Cell>{transfer.store.name}</Cell>
       <Cell>{transfer.seller.name}</Cell>
       <Cell className="whitespace-nowrap"><bdi dir="ltr">{transfer.reference}</bdi></Cell>
+      <Cell className="whitespace-nowrap">
+        {transfer.voucher ? (
+          <a href={`/api/v1/media/${transfer.voucher.photoId}`} target="_blank" rel="noreferrer" className="text-brand-800 hover:underline"><bdi dir="ltr">{transfer.voucher.number}</bdi></a>
+        ) : '—'}
+      </Cell>
       <Cell className="whitespace-nowrap">{format.money(transfer.amount)}</Cell>
       <Cell>{format.dateTime(transfer.receivedAt)}</Cell>
       <Cell>

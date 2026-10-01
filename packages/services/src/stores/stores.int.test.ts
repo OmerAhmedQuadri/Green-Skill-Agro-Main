@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { ownerQuery } from '../../test/db';
 import { anAccount, ctxFor } from '../../test/factories';
 import { aPhoto } from '../../test/media';
+import { paid } from '../../test/sales';
 import { aStore, basePriceListId, SHOP } from '../../test/stores';
 import { aSeller, checkInAs } from '../../test/vehicles';
 import { listMyNotifications } from '../notifications';
@@ -141,15 +142,15 @@ describe('credit (CRD-001..007, OQ-018)', () => {
     const status = await getCreditStatus(seller.ctx, store.id);
     expect(status).toMatchObject({ blocked: true, pastDue: '400.00', reasons: [{ code: 'PAST_DUE', amount: '400.00', oldestDueOn: '2026-10-01' }] });
     const working = await ctxFor(seller.account, { now: t('2026-10-06', '11:00') });
-    expect(await code(recordPayment(working, { storeId: store.id, amount: '100.00', method: 'CASH' }))).toBe('CHECK_IN_REQUIRED');
+    expect(await code(recordPayment(working, { storeId: store.id, ...(await paid(working, '100.00')) }))).toBe('CHECK_IN_REQUIRED');
     await checkInAs(working, { withoutVehicle: true });
-    const partial = await recordPayment(working, { storeId: store.id, amount: '150.00', method: 'CASH' });
+    const partial = await recordPayment(working, { storeId: store.id, ...(await paid(working, '150.00')) });
     expect(partial.number).toMatch(/^PM-2026-\d{4}$/);
     expect(partial.credit).toMatchObject({ blocked: true, pastDue: '250.00', outstanding: '250.00' }); // CRD-003: the rest carries forward
-    const full = await recordPayment(working, { storeId: store.id, amount: '250.00', method: 'BANK_TRANSFER', reference: 'TRX-991' });
+    const full = await recordPayment(working, { storeId: store.id, ...(await paid(working, '250.00', 'BANK_TRANSFER', 'TRX-991')) });
     expect(full.credit).toMatchObject({ blocked: false, outstanding: '0.00' });
-    expect(await code(recordPayment(working, { storeId: store.id, amount: '0.01', method: 'CASH' }))).toBe('PAYMENT_EXCEEDS_BALANCE');
-    expect(await code(recordPayment(working, { storeId: store.id, amount: '1.00', method: 'BANK_TRANSFER' }))).toBe('REASON_REQUIRED');
+    expect(await code(recordPayment(working, { storeId: store.id, ...(await paid(working, '0.01')) }))).toBe('PAYMENT_EXCEEDS_BALANCE');
+    expect(await code(recordPayment(working, { storeId: store.id, ...(await paid(working, '1.00', 'BANK_TRANSFER')) }))).toBe('REASON_REQUIRED');
   });
 
   it('CRD-003: payments settle the oldest due debts first, and the ledger keeps a running balance', async () => {
@@ -157,7 +158,7 @@ describe('credit (CRD-001..007, OQ-018)', () => {
     await adjustBalance(ctx, store.id, { amount: '100.00', reason: 'Later debt', dueOn: '2026-10-20' });
     await adjustBalance(ctx, store.id, { amount: '200.00', reason: 'Older debt', dueOn: '2026-10-10' });
     await checkInAs(seller.ctx, { withoutVehicle: true });
-    await recordPayment(seller.ctx, { storeId: store.id, amount: '250.00', method: 'CASH' });
+    await recordPayment(seller.ctx, { storeId: store.id, ...(await paid(seller.ctx, '250.00')) });
     const ledger = await listStoreLedger(seller.ctx, store.id);
     expect(ledger.map((e) => [e.entryType, e.amount, e.balance, e.open])).toEqual([
       ['ADJUSTMENT', '100.00', '100.00', '50.00'],

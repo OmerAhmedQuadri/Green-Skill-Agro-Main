@@ -10,11 +10,12 @@ import { Alert, Badge, Button, Card, Field, Input, Select } from '@gsa/ui';
 import { PageHeader } from '@/components/common/PageHeader';
 import { api } from '@/lib/api';
 import { useFormat } from '@/lib/format';
-import { decimalText, formText, wholeNumber } from '@/lib/forms';
+import { formText, wholeNumber } from '@/lib/forms';
 import { useCommand, useErrorText } from '@/lib/hooks';
 import { keys } from '@/lib/query-keys';
 import { CreditPanel } from './CreditPanel';
 import { LedgerTable } from './LedgerTable';
+import { NO_PAYMENT, PaymentFields, paymentBody, type PaymentDraft } from './PaymentFields';
 import { STATUS_TONE, type LedgerEntry, type Payment, type Store, type StoreOptions } from './types';
 
 /**
@@ -27,24 +28,23 @@ export function FieldStoreScreen({ id }: { id: string }) {
   const errorText = useErrorText();
   const queryClient = useQueryClient();
   const [paying, setPaying] = useState(false);
-  const [method, setMethod] = useState<'CASH' | 'BANK_TRANSFER'>('CASH');
+  const [draft, setDraft] = useState<PaymentDraft>(NO_PAYMENT);
   const [editingCycle, setEditingCycle] = useState(false);
   const store = useQuery({ queryKey: keys.store(id), queryFn: () => api<Store>(`/stores/${id}`) });
   const ledger = useQuery({ queryKey: keys.storeLedger(id), queryFn: () => api<LedgerEntry[]>(`/stores/${id}/ledger`) });
   const options = useQuery({ queryKey: keys.storeOptions, queryFn: () => api<StoreOptions>('/stores/options'), enabled: editingCycle });
   const refresh = () => { for (const k of [keys.store(id), keys.storeLedger(id), keys.stores()]) void queryClient.invalidateQueries({ queryKey: k }); };
-  const pay = useCommand((body: unknown, key) => api<Payment>('/payments', { method: 'POST', body, idempotencyKey: key }), { onSuccess: () => { setPaying(false); refresh(); } });
+  const pay = useCommand((body: unknown, key) => api<Payment>('/payments', { method: 'POST', body, idempotencyKey: key }), {
+    onSuccess: () => { setPaying(false); setDraft(NO_PAYMENT); refresh(); },
+  });
   const cycle = useCommand((body: unknown, key) => api<Store>(`/stores/${id}/credit-cycle`, { method: 'PATCH', body, idempotencyKey: key }), { onSuccess: () => { setEditingCycle(false); refresh(); } });
 
   if (store.isPending) return <p className="text-sm text-stone-500">{t('loading')}</p>;
   if (store.error) return <Alert>{errorText(store.error)}</Alert>;
   const s = store.data;
 
-  const submitPayment = (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const f = new FormData(e.currentTarget);
-    pay.run({ storeId: id, amount: decimalText(formText(f, 'amount')), method, reference: formText(f, 'reference') || null });
-  };
+  // CRD-003, ADR-0047: part or all of what the store owes, with the voucher handed over for it.
+  const payment = paymentBody(draft, s.credit.outstanding);
   const submitCycle = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const f = new FormData(e.currentTarget);
@@ -73,21 +73,14 @@ export function FieldStoreScreen({ id }: { id: string }) {
 
       {pay.error ? <Alert>{errorText(pay.error)}</Alert> : null}
       {paying ? (
-        <Card className="p-4">
-          <form className="space-y-3" noValidate onSubmit={submitPayment} aria-label={t('collect')}>
-            <Field id="pay-amount" label={t('amount')}><Input id="pay-amount" name="amount" inputMode="decimal" dir="ltr" required /></Field>
-            <Field id="pay-method" label={t('method')}>
-              <Select id="pay-method" value={method} onChange={(e) => setMethod(e.target.value === 'BANK_TRANSFER' ? 'BANK_TRANSFER' : 'CASH')}>
-                <option value="CASH">{t('methods.CASH')}</option>
-                <option value="BANK_TRANSFER">{t('methods.BANK_TRANSFER')}</option>
-              </Select>
-            </Field>
-            {method === 'BANK_TRANSFER' ? <Field id="pay-ref" label={t('reference')}><Input id="pay-ref" name="reference" dir="ltr" maxLength={100} /></Field> : null}
-            <div className="flex gap-2">
-              <Button type="submit" disabled={pay.isPending}>{pay.isPending ? t('saving') : t('recordPayment')}</Button>
-              <Button variant="ghost" onClick={() => setPaying(false)}>{t('cancel')}</Button>
-            </div>
-          </form>
+        <Card className="space-y-3 p-4" role="group" aria-label={t('collect')}>
+          <PaymentFields id="collect" owed={s.credit.outstanding} value={draft} onChange={setDraft} />
+          <div className="flex gap-2">
+            <Button disabled={pay.isPending || !payment} onClick={() => { if (payment) pay.run({ storeId: id, ...payment }); }}>
+              {pay.isPending ? t('saving') : t('recordPayment')}
+            </Button>
+            <Button variant="ghost" onClick={() => { setPaying(false); setDraft(NO_PAYMENT); }}>{t('cancel')}</Button>
+          </div>
         </Card>
       ) : s.status === 'ACTIVE' && s.credit.outstanding !== '0.00'
         ? <Button block variant="secondary" onClick={() => setPaying(true)}>{t('collect')}</Button> : null}

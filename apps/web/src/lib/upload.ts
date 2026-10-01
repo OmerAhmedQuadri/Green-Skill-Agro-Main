@@ -1,3 +1,4 @@
+import type { MediaKind } from '@gsa/core';
 import { ApiError, api } from './api';
 
 /**
@@ -5,12 +6,13 @@ import { ApiError, api } from './api';
  * upload straight to storage, confirm. Every step retries network failures,
  * reusing its idempotency key, so a flaky connection never creates duplicates.
  */
-export type MediaKind = 'SELFIE' | 'ODOMETER' | 'STOREFRONT' | 'WRITE_OFF_EVIDENCE' | 'DEPOSIT_SLIP' | 'TRANSPORT_SLIP';
+// One list of kinds, core's: a copy here once fell behind the policy.
+export type { MediaKind } from '@gsa/core';
 export type Capture = { capturedAt?: Date; location?: { lat: number; lng: number; accuracyM?: number } };
 type Ticket = { mediaId: string; upload: { url: string; headers: Record<string, string>; expiresAt: string } };
 
 /** Kinds stored only as JPEG photos; slips may also be a PNG screenshot or a PDF. */
-const PHOTO_ONLY: ReadonlySet<MediaKind> = new Set(['SELFIE', 'ODOMETER', 'STOREFRONT', 'WRITE_OFF_EVIDENCE']);
+const PHOTO_ONLY: ReadonlySet<MediaKind> = new Set(['SELFIE', 'ODOMETER', 'STOREFRONT', 'WRITE_OFF_EVIDENCE', 'PAYMENT_VOUCHER']);
 
 /**
  * Long edge ≤ 1600 px, JPEG quality 0.8. Re-encoding through a canvas also

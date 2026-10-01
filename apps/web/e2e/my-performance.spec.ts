@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import ar from '../src/messages/ar.json' with { type: 'json' };
 import en from '../src/messages/en.json' with { type: 'json' };
-import { aStoreByApi, aVehicle, anUpload, batchOf, checkIn, freshSeller, post, receiveStock, sessionPage, shot } from './helpers';
+import { aStoreByApi, aVehicle, anUpload, batchOf, checkIn, freshSeller, paidWith, post, receiveStock, sessionPage, shot } from './helpers';
 
 const headers = (origin: string) => ({ origin, 'idempotency-key': crypto.randomUUID() });
 // Riyadh's date and month, not UTC's — as in targets.spec.ts. Saudi Arabia keeps UTC+3 all year.
@@ -41,10 +41,12 @@ for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
 
     // Five bags at 90.00: three and then one paid in cash, one by bank transfer.
     const store = await aStoreByApi(phone, origin, `P Store ${locale} ${stamp}`, { creditMode: 'BILL_TO_BILL', creditLimit: '0.00' });
-    const sell = (packs: number, payment: Record<string, string>) => post(phone, origin, '/sales', { storeId: store.id, lines: [{ skuId, packs }], payment });
-    await sell(3, { method: 'CASH' });
-    await sell(1, { method: 'BANK_TRANSFER', reference: `TRX-${stamp}` });
-    await sell(1, { method: 'CASH' });
+    const sell = async (packs: number, method: 'CASH' | 'BANK_TRANSFER' = 'CASH', reference?: string) => post(phone, origin, '/sales', {
+      storeId: store.id, lines: [{ skuId, packs }], payment: await paidWith(phone, origin, (packs * 90).toFixed(2), method, reference),
+    });
+    await sell(3);
+    await sell(1, 'BANK_TRANSFER', `TRX-${stamp}`);
+    await sell(1);
 
     // 270.00 of the cash banked and approved; the other 90.00 banked and waiting.
     const bank = async (value: string) => post(phone, origin, '/cash/settlements', {

@@ -1,5 +1,5 @@
 import {
-  checkReceipt, dec, Dec, DomainError, lineAmounts, packCount, sumMoney, toBaseUnits, transfer, transitionDispatch, transitionSale,
+  checkReceipt, dec, Dec, DomainError, lineAmounts, money, packCount, sumMoney, toBaseUnits, transfer, transitionDispatch, transitionSale,
   type ConfirmationMode, type Leg, type Money, type Percent, type Quantity, type ShortfallResolution,
 } from '@gsa/core';
 import { schema } from '@gsa/db';
@@ -9,7 +9,7 @@ import { authorize, type Ctx } from '../context';
 import { batchRefs, postStockMovements } from '../inventory';
 import { audit, inTx } from '../platform';
 import { createDeliveryDocument, type SalePayment } from '../sales';
-import { loadStore, postStoreDebit, readingAsManager, takePayment } from '../stores';
+import { postStoreDebit, takePayment } from '../stores';
 import { loadOrder, type DispatchOrder } from './access';
 import { lockOrder } from './handle';
 import { skuUnits } from './stock';
@@ -19,7 +19,7 @@ const { dispatchOrders, dispatchOrderLines, dispatchLineBatches, dispatchOrderEv
 export type ReceiptInput = {
   readonly version: number; readonly mode: ConfirmationMode;
   readonly lines: readonly { readonly lineId: string; readonly received: number; readonly short: number; readonly damaged: number }[];
-  /** SAL-006: a bill-to-bill store pays for what arrived, now. */ readonly payment?: SalePayment | null | undefined;
+  /** ADR-0047: money taken at delivery, if any, with its voucher. */ readonly payment?: SalePayment | null | undefined;
 };
 
 /**
@@ -53,9 +53,6 @@ export async function confirmReceipt(ctx: Ctx, id: string, input: ReceiptInput):
     const [sale] = await tx.select().from(sales).where(eq(sales.id, row.saleId)).for('update');
     if (!sale) throw new Error('sale missing for its order');
     const saleStatus = transitionSale(sale.status, 'deliver');
-    // The store as it stands now — its seller may have changed since the order was raised.
-    const store = await loadStore(tx, readingAsManager(ctx), row.storeId);
-    if (store.creditMode === 'BILL_TO_BILL' && !input.payment) throw new DomainError('PAYMENT_REQUIRED');
 
     const released = await tx.select({ b: dispatchLineBatches, expiresOn: batches.expiresOn }).from(dispatchLineBatches)
       .innerJoin(batches, eq(batches.id, dispatchLineBatches.batchId)).innerJoin(dispatchOrderLines, eq(dispatchOrderLines.id, dispatchLineBatches.orderLineId))
@@ -96,9 +93,8 @@ export async function confirmReceipt(ctx: Ctx, id: string, input: ReceiptInput):
 
     const total = sumMoney(totals);
     const { entryId } = await postStoreDebit(tx, ctx, { storeId: row.storeId, entryType: 'SALE', amount: total, referenceType: 'SALE', referenceId: sale.id });
-    const payment = store.creditMode === 'BILL_TO_BILL' && input.payment
-      ? await takePayment(tx, ctx, { storeId: row.storeId, amount: total, method: input.payment.method, reference: input.payment.reference })
-      : null;
+    // ADR-0047: money taken at delivery is optional, and may settle older bills too.
+    const payment = input.payment ? await takePayment(tx, ctx, { ...input.payment, storeId: row.storeId, amount: money(input.payment.amount) }) : null;
     await tx.update(sales).set({
       status: saleStatus, gross: sumMoney(grosses), discount: sumMoney(discounts), total, ledgerEntryId: entryId, paymentId: payment?.id ?? null,
       completedAt: ctx.now, updatedAt: ctx.now, updatedBy: ctx.user.id, version: sale.version + 1,

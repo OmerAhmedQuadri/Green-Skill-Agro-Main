@@ -1,7 +1,8 @@
 import { z } from 'zod';
 
 /** Media API contracts (API.md — Reports and media; ARCHITECTURE §6.4). */
-export const MediaKind = z.enum(['SELFIE', 'ODOMETER', 'STOREFRONT', 'WRITE_OFF_EVIDENCE', 'DEPOSIT_SLIP', 'TRANSPORT_SLIP']);
+/** Mirror `MEDIA_KINDS` in packages/core/src/media — a services test holds the two together. */
+export const MediaKind = z.enum(['SELFIE', 'ODOMETER', 'STOREFRONT', 'WRITE_OFF_EVIDENCE', 'DEPOSIT_SLIP', 'TRANSPORT_SLIP', 'PAYMENT_VOUCHER']);
 
 export const RequestUpload = z.object({
   kind: MediaKind,

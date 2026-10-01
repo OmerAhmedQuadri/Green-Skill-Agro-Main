@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { MoneyString, OptionalText, Version } from './shared';
+import { MoneyString, OptionalText, PaymentTaken, Version } from './shared';
 
 const CreditMode = z.enum(['BILL_TO_BILL', 'WEEKLY', 'MONTHLY', 'CUSTOM']);
 const Days = z.number().int().min(1).max(365);
@@ -42,7 +42,5 @@ export const CreditOverrideRequest = z.object({ reason: z.string().trim().min(1)
 export const AdjustBalanceRequest = z.object({
   amount: z.string().trim().regex(/^[+-]?\d{1,12}(\.\d{1,2})?$/), reason: z.string().trim().min(1).max(500), dueOn: z.iso.date().nullable().optional(),
 });
-/** CRD-003 */
-export const PaymentRequest = z.object({
-  storeId: z.uuid(), amount: MoneyString, method: z.enum(['CASH', 'BANK_TRANSFER']), reference: OptionalText(100),
-});
+/** CRD-003, ADR-0047 */
+export const PaymentRequest = PaymentTaken.extend({ storeId: z.uuid() });

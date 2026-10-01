@@ -2,7 +2,7 @@ import { businessDate, businessMonth, type DomainError } from '@gsa/core';
 import { describe, expect, it } from 'vitest';
 import { anAccount, ctxFor } from '../../test/factories';
 import { aPhoto } from '../../test/media';
-import { aSellingSeller } from '../../test/sales';
+import { aSellingSeller, paid } from '../../test/sales';
 import { decideSettlement, submitSettlement } from '../cash';
 import { recordSale } from '../sales';
 import { myStanding } from '../targets';
@@ -24,11 +24,12 @@ const monthBefore = (month: string) => {
 async function aSellersMonth() {
   const ctx = await admin();
   const setup = await aSellingSeller(ctx, { creditMode: 'BILL_TO_BILL', creditLimit: '0.00' });
-  const sell = (packs: number, payment: { method: 'CASH' } | { method: 'BANK_TRANSFER'; reference: string }) =>
-    recordSale(setup.seller.ctx, { storeId: setup.store.id, lines: [{ skuId: setup.bag.id, packs }], payment });
-  await sell(3, { method: 'CASH' });                              // 270.00 cash
-  await sell(1, { method: 'BANK_TRANSFER', reference: 'TRX-1' }); //  90.00 bank
-  await sell(1, { method: 'CASH' });                              //  90.00 cash
+  const sell = async (packs: number, method: 'CASH' | 'BANK_TRANSFER' = 'CASH', reference?: string) => recordSale(setup.seller.ctx, {
+    storeId: setup.store.id, lines: [{ skuId: setup.bag.id, packs }], payment: await paid(setup.seller.ctx, (packs * 90).toFixed(2), method, reference),
+  });
+  await sell(3);                             // 270.00 cash
+  await sell(1, 'BANK_TRANSFER', 'TRX-1');   //  90.00 bank
+  await sell(1);                             //  90.00 cash
   const today = businessDate(new Date());
   const first = await submitSettlement(setup.seller.ctx, {
     route: 'BANK_DEPOSIT', amount: '270.00', depositedOn: today, photoId: await aPhoto(setup.seller.ctx, 'DEPOSIT_SLIP'),
@@ -73,7 +74,7 @@ describe("a seller's own performance (RPT-010, RPT-008)", () => {
   it('CSH-006: handed over counts what the manager approved, not what was declared', async () => {
     const ctx = await admin();
     const setup = await aSellingSeller(ctx, { creditMode: 'BILL_TO_BILL', creditLimit: '0.00' });
-    await recordSale(setup.seller.ctx, { storeId: setup.store.id, lines: [{ skuId: setup.bag.id, packs: 3 }], payment: { method: 'CASH' } });
+    await recordSale(setup.seller.ctx, { storeId: setup.store.id, lines: [{ skuId: setup.bag.id, packs: 3 }], payment: await paid(setup.seller.ctx, '270.00') });
     const declared = await submitSettlement(setup.seller.ctx, {
       route: 'BANK_DEPOSIT', amount: '270.00', depositedOn: businessDate(new Date()), photoId: await aPhoto(setup.seller.ctx, 'DEPOSIT_SLIP'),
     });

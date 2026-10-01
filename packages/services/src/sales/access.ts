@@ -48,7 +48,11 @@ export type Sale = {
   readonly lines: readonly SaleLine[];
   /** PRC-017: the request and its decision, if the sale needed one. */ readonly approval: DiscountRequest | null;
   /** SAL-006: bill to bill, settled at completion. */
-  readonly payment: { readonly id: string; readonly number: string; readonly method: 'CASH' | 'BANK_TRANSFER'; readonly amount: Money; readonly reference: string | null } | null;
+  /** ADR-0047: money taken with the sale, if any, and the voucher handed over for it. */
+  readonly payment: {
+    readonly id: string; readonly number: string; readonly method: 'CASH' | 'BANK_TRANSFER'; readonly amount: Money; readonly reference: string | null;
+    readonly voucher: { readonly number: string; readonly photoId: string } | null;
+  } | null;
   /** SAL-009, CRD-007 */ readonly creditOverride: { readonly reason: string; readonly grantedBy: string } | null;
   readonly document: DeliveryDocumentInfo | null;
   readonly createdAt: Date; readonly completedAt: Date | null; readonly cancelledAt: Date | null; readonly cancelReason: SaleCancelReason | null;
@@ -140,7 +144,10 @@ export async function loadSale(db: Executor, ctx: Ctx, id: string): Promise<Sale
       decidedAt: request.r.decidedAt, decidedBy: request.r.decidedBy && request.deciderName ? { id: request.r.decidedBy, name: request.deciderName } : null,
       comment: request.r.comment, closedAt: request.r.closedAt,
     } : null,
-    payment: payment ? { id: payment.id, number: payment.number, method: payment.method, amount: payment.amount as Money, reference: payment.reference } : null,
+    payment: payment ? {
+      id: payment.id, number: payment.number, method: payment.method, amount: payment.amount as Money, reference: payment.reference,
+      voucher: payment.voucherNumber && payment.voucherPhotoId ? { number: payment.voucherNumber, photoId: payment.voucherPhotoId } : null,
+    } : null,
     creditOverride: override ?? null,
     document: document ? { id: document.id, number: document.number, status: document.status, renderedAt: document.renderedAt, sends } : null,
     createdAt: s.createdAt, completedAt: s.completedAt, cancelledAt: s.cancelledAt, cancelReason: s.cancelReason, version: s.version,

@@ -3,7 +3,7 @@ import { sql } from 'drizzle-orm';
 import { describe, expect, it } from 'vitest';
 import { ownerQuery } from '../../test/db';
 import { anAccount, ctxFor } from '../../test/factories';
-import { aSellingSeller } from '../../test/sales';
+import { aSellingSeller, paid } from '../../test/sales';
 import { listMyNotifications } from '../notifications';
 import { myPerformance } from '../reports';
 import { getDb } from '../runtime';
@@ -29,7 +29,7 @@ async function aTransferredSale() {
   const approver = await admin();
   const setup = await aSellingSeller(approver, { creditMode: 'BILL_TO_BILL', creditLimit: '0.00' });
   const sale = await recordSale(setup.seller.ctx, {
-    storeId: setup.store.id, lines: [{ skuId: setup.bag.id, packs: 1 }], payment: { method: 'BANK_TRANSFER', reference: 'TRX-4471' },
+    storeId: setup.store.id, lines: [{ skuId: setup.bag.id, packs: 1 }], payment: await paid(setup.seller.ctx, '90.00', 'BANK_TRANSFER', 'TRX-4471'),
   });
   if (!sale.payment) throw new Error('the sale was not paid');
   return { ...setup, approver, sale, transfer: sale.payment };
@@ -93,14 +93,14 @@ describe("a store's bank transfer, confirmed before it counts (ADR-0046)", () =>
     const { store } = await aSellingSeller(recorder, { creditMode: 'WEEKLY', creditLimit: '1000.00' });
     await adjustBalance(recorder, store.id, { amount: '50.00', reason: 'Opening balance', dueOn: '2026-09-01' });
     await adjustBalance(recorder, store.id, { amount: '40.00', reason: 'Opening balance', dueOn: '2026-09-15' });
-    const paid = await recordPayment(recorder, { storeId: store.id, amount: '90.00', method: 'BANK_TRANSFER', reference: 'TRX-2' });
+    const transfer = await recordPayment(recorder, { storeId: store.id, ...(await paid(recorder, '90.00', 'BANK_TRANSFER', 'TRX-2')) });
 
     // Four eyes: whoever recorded it does not decide it.
-    expect(await code(decideTransfer(recorder, paid.id, { outcome: 'CONFIRMED' }))).toBe('FOUR_EYES');
+    expect(await code(decideTransfer(recorder, transfer.id, { outcome: 'CONFIRMED' }))).toBe('FOUR_EYES');
     const other = await admin();
-    expect(await code(decideTransfer(other, paid.id, { outcome: 'NOT_RECEIVED', reason: '  ' }))).toBe('REASON_REQUIRED');
-    await decideTransfer(other, paid.id, { outcome: 'NOT_RECEIVED', reason: 'Bounced' });
-    expect(await code(decideTransfer(other, paid.id, { outcome: 'CONFIRMED' }))).toBe('ALREADY_DECIDED');
+    expect(await code(decideTransfer(other, transfer.id, { outcome: 'NOT_RECEIVED', reason: '  ' }))).toBe('REASON_REQUIRED');
+    await decideTransfer(other, transfer.id, { outcome: 'NOT_RECEIVED', reason: 'Bounced' });
+    expect(await code(decideTransfer(other, transfer.id, { outcome: 'CONFIRMED' }))).toBe('ALREADY_DECIDED');
 
     const back = (await listStoreLedger(recorder, store.id)).filter((e) => e.reference.type === 'TRANSFER_NOT_RECEIVED');
     expect(back).toHaveLength(2);
@@ -113,7 +113,7 @@ describe("a store's bank transfer, confirmed before it counts (ADR-0046)", () =>
   it('ADR-0046: only a bank transfer is decided, and only by an approver', async () => {
     const approver = await admin();
     const setup = await aSellingSeller(approver, { creditMode: 'BILL_TO_BILL', creditLimit: '0.00' });
-    const cash = await recordSale(setup.seller.ctx, { storeId: setup.store.id, lines: [{ skuId: setup.bag.id, packs: 1 }], payment: { method: 'CASH' } });
+    const cash = await recordSale(setup.seller.ctx, { storeId: setup.store.id, lines: [{ skuId: setup.bag.id, packs: 1 }], payment: await paid(setup.seller.ctx, '90.00') });
     if (!cash.payment) throw new Error('the sale was not paid');
     // Cash is decided at its settlement, not here.
     expect(await code(decideTransfer(approver, cash.payment.id, { outcome: 'CONFIRMED' }))).toBe('NOT_FOUND');
@@ -134,7 +134,7 @@ describe("a store's bank transfer, confirmed before it counts (ADR-0046)", () =>
   it('ADR-0046: the database holds the rules too — only a bank transfer, and never not received without a reason', async () => {
     const approver = await admin();
     const setup = await aSellingSeller(approver, { creditMode: 'BILL_TO_BILL', creditLimit: '0.00' });
-    const cash = await recordSale(setup.seller.ctx, { storeId: setup.store.id, lines: [{ skuId: setup.bag.id, packs: 1 }], payment: { method: 'CASH' } });
+    const cash = await recordSale(setup.seller.ctx, { storeId: setup.store.id, lines: [{ skuId: setup.bag.id, packs: 1 }], payment: await paid(setup.seller.ctx, '90.00') });
     const { transfer } = await aTransferredSale();
     const insert = (paymentId: string, outcome: string, reason: string | null) => ownerQuery(
       `insert into transfer_decisions (id, payment_id, outcome, reason, decided_at, decided_by, branch_id)

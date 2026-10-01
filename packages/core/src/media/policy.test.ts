@@ -16,8 +16,8 @@ describe('media policy (SECURITY §5, DATA-MODEL §5.8)', () => {
     expect(warehouse.has(MEDIA_POLICY.SELFIE.upload)).toBe(false);
   });
 
-  it('ARCHITECTURE §6.4: selfies and odometer photos come from the live camera only', () => {
-    expect(MEDIA_KINDS.filter((k) => MEDIA_POLICY[k].liveCameraOnly)).toEqual(['SELFIE', 'ODOMETER']);
+  it('ARCHITECTURE §6.4, ADR-0047: selfies, odometer photos and vouchers come from the live camera only', () => {
+    expect(MEDIA_KINDS.filter((k) => MEDIA_POLICY[k].liveCameraOnly)).toEqual(['SELFIE', 'ODOMETER', 'PAYMENT_VOUCHER']);
   });
 
   it('ARCHITECTURE §6.4: slips may be a screenshot or a PDF; photos are JPEG only', () => {

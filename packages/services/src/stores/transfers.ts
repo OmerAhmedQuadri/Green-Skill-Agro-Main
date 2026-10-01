@@ -11,6 +11,7 @@ const { payments, paymentAllocations, storeLedgerEntries, stores, transferDecisi
 
 export type AwaitingTransfer = {
   readonly id: string; readonly number: string; readonly amount: Money; readonly reference: string; readonly receivedAt: Date;
+  /** ADR-0047: the voucher handed over for it, to check with the statement. */ readonly voucher: { readonly number: string; readonly photoId: string } | null;
   readonly store: { readonly id: string; readonly name: string };
   readonly seller: { readonly id: string; readonly name: string };
   /** False for a transfer the caller recorded themselves: someone else decides it (four eyes). */
@@ -31,6 +32,7 @@ export async function listAwaitingTransfers(ctx: Ctx, filter: { limit?: number |
   const limit = Math.min(Math.max(filter.limit ?? 50, 1), 100);
   const rows = await db.select({
     id: payments.id, number: payments.number, amount: payments.amount, reference: payments.reference, receivedAt: payments.receivedAt,
+    voucherNumber: payments.voucherNumber, voucherPhotoId: payments.voucherPhotoId,
     storeId: stores.id, storeName: stores.name, sellerId: users.id, sellerName: users.name,
   }).from(payments)
     .innerJoin(stores, eq(stores.id, payments.storeId))
@@ -44,6 +46,7 @@ export async function listAwaitingTransfers(ctx: Ctx, filter: { limit?: number |
   return {
     items: rows.map((r) => ({
       id: r.id, number: r.number, amount: r.amount as Money, reference: r.reference ?? '', receivedAt: r.receivedAt,
+      voucher: r.voucherNumber && r.voucherPhotoId ? { number: r.voucherNumber, photoId: r.voucherPhotoId } : null,
       store: { id: r.storeId, name: r.storeName }, seller: { id: r.sellerId, name: r.sellerName }, decidable: r.sellerId !== ctx.user.id,
     })),
     total: count?.n ?? 0,

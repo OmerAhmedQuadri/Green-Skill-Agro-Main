@@ -49,7 +49,8 @@ export function OrderForm({ options: o, prefill, onDone }: { options: DispatchOp
   const needsApproval = chosen.some((l) => l.above);
   const invalid = chosen.length === 0 || chosen.some((l) => l.discount === null || l.overMax);
   const available = dec(o.store.credit.available).minus(dec(o.committed));
-  const overLimit = o.store.creditMode !== 'BILL_TO_BILL' && !o.store.credit.overrideAvailable && dec(total).gt(available);
+  // ADR-0047: the limit binds bill to bill too — the goods arrive before the money.
+  const overLimit = !o.store.credit.overrideAvailable && dec(total).gt(available);
   const term = search.trim().toLowerCase();
   const shown = lines.filter((l) => l.packs > 0 || !term || l.item.code.toLowerCase().includes(term)
     || l.item.product.nameEn.toLowerCase().includes(term) || l.item.product.nameAr.includes(search.trim()));

@@ -6,9 +6,10 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useState } from 'react';
-import { Alert, Badge, Button, Card, Field, Input, Select } from '@gsa/ui';
+import { Alert, Badge, Button, Card, Checkbox, Field, Input } from '@gsa/ui';
 import { PageHeader } from '@/components/common/PageHeader';
 import { CreditPanel } from '@/components/stores/CreditPanel';
+import { NO_PAYMENT, PaymentFields, paymentBody, type PaymentDraft } from '@/components/stores/PaymentFields';
 import { api, ApiError } from '@/lib/api';
 import { useFormat } from '@/lib/format';
 import { decimalText, wholeNumber } from '@/lib/forms';
@@ -58,6 +59,12 @@ export function SellScreen({ storeId, fromSaleId, shortfallOf = null }: { storeI
         ) : null}
         <Card className="p-4"><CreditPanel credit={o.store.credit} /></Card>
         {blocked ? <p className="text-sm text-stone-600" data-testid="cannot-sell">{t('cannotSell')}</p> : null}
+        {/* ADR-0047: bill to bill — the way on is to collect the open bill first, from the store's page. */}
+        {o.store.credit.reasons.some((r) => r.code === 'UNPAID_BILL') ? (
+          <Link href={`/field/stores/${storeId}`} className="inline-flex h-11 w-full items-center justify-center rounded-md border border-stone-300 text-sm font-medium" data-testid="collect-first">
+            {t('collectFirst')}
+          </Link>
+        ) : null}
       </div>
     );
   }
@@ -70,7 +77,6 @@ function SellForm({ storeId, options: o, from, missing, back }: {
   storeId: string; options: SaleOptions; from: Sale | null; missing: Record<string, number> | null; back: { href: string; label: string };
 }) {
   const t = useTranslations('sales');
-  const ts = useTranslations('stores');
   const format = useFormat();
   const errorText = useErrorText();
   const router = useRouter();
@@ -85,8 +91,8 @@ function SellForm({ storeId, options: o, from, missing, back }: {
   })));
   const [every, setEvery] = useState('');
   const [reason, setReason] = useState('');
-  const [method, setMethod] = useState<'CASH' | 'BANK_TRANSFER'>('CASH');
-  const [reference, setReference] = useState('');
+  const [paying, setPaying] = useState(false);
+  const [draft, setDraft] = useState<PaymentDraft>(NO_PAYMENT);
   const record = useOnceCommand((body: unknown, key) => api<Sale>('/sales', { method: 'POST', body, idempotencyKey: key }), {
     onSuccess: (sale) => {
       for (const k of [keys.sales(), keys.saleOptions(storeId), keys.store(storeId), keys.myVehicle, keys.cashInHand]) void queryClient.invalidateQueries({ queryKey: k });
@@ -109,12 +115,18 @@ function SellForm({ storeId, options: o, from, missing, back }: {
   const needsApproval = chosen.some((l) => l.above);
   const invalid = chosen.length === 0 || chosen.some((l) => l.discount === null || l.overMax || l.tooMany || !l.item.unitPrice);
   const billToBill = o.store.creditMode === 'BILL_TO_BILL';
-  const overLimit = !billToBill && !o.store.credit.overrideAvailable && dec(o.store.credit.outstanding).plus(dec(total)).gt(dec(o.store.credit.limit));
+  // ADR-0047: money taken with the sale may settle older bills too, so it is held against all that is owed.
+  const owed = sumMoney([o.store.credit.outstanding, total]);
+  const payment = paying && !needsApproval ? paymentBody(draft, owed) : null;
+  // ADR-0047: every store's limit, counting orders on their way and what is paid now. A sale
+  // waiting for approval meets it when it completes, with what is paid then.
+  const overLimit = !needsApproval && !o.store.credit.overrideAvailable && dec(o.store.credit.outstanding).plus(dec(o.store.credit.committed))
+    .plus(dec(total)).minus(dec(payment?.amount ?? '0')).gt(dec(o.store.credit.limit));
 
   const submit = () => record.run({
     storeId,
     lines: chosen.map((l) => ({ skuId: l.item.skuId, packs: l.packs, discount: l.discount ?? '0' })),
-    payment: billToBill && !needsApproval ? { method, reference: method === 'BANK_TRANSFER' ? reference.trim() || null : null } : null,
+    payment,
     approvalReason: needsApproval ? reason.trim() : null,
   });
 
@@ -172,7 +184,7 @@ function SellForm({ storeId, options: o, from, missing, back }: {
           <div className="flex justify-between text-sm"><span>{t('subtotal')}</span><span>{format.money(gross)}</span></div>
           <div className="flex justify-between text-sm"><span>{t('discount')}</span><span>{discount === '0.00' ? '—' : `−${format.money(discount)}`}</span></div>
           <div className="flex justify-between text-lg font-semibold"><span>{t('total')}</span><span data-testid="total">{format.money(total)}</span></div>
-          {!billToBill ? <p className="text-sm text-stone-600">{t('onAccountNote', { amount: format.money(o.store.credit.available) })}</p> : null}
+          <p className="text-sm text-stone-600">{t(billToBill ? 'billToBillNote' : 'onAccountNote', { amount: format.money(o.store.credit.available) })}</p>
           {overLimit ? <Alert data-testid="over-limit">{t('overLimit', { amount: format.money(o.store.credit.available) })}</Alert> : null}
 
           {needsApproval ? (
@@ -181,20 +193,19 @@ function SellForm({ storeId, options: o, from, missing, back }: {
               <p className="text-sm text-amber-900">{t('requestHint')}</p>
               <Field id="reason" label={t('requestReason')}><Input id="reason" value={reason} maxLength={500} onChange={(e) => setReason(e.target.value)} /></Field>
             </div>
-          ) : billToBill ? (
+          ) : (
+            // ADR-0047: selling and collecting are two things; the money may come now, in part or in full, or later.
             <div className="space-y-3">
-              <p className="text-sm text-stone-600">{t('billToBillNote')}</p>
-              <Field id="method" label={ts('method')}>
-                <Select id="method" value={method} onChange={(e) => setMethod(e.target.value === 'BANK_TRANSFER' ? 'BANK_TRANSFER' : 'CASH')}>
-                  <option value="CASH">{ts('methods.CASH')}</option><option value="BANK_TRANSFER">{ts('methods.BANK_TRANSFER')}</option>
-                </Select>
-              </Field>
-              {method === 'BANK_TRANSFER' ? <Field id="reference" label={ts('reference')}><Input id="reference" dir="ltr" maxLength={100} value={reference} onChange={(e) => setReference(e.target.value)} /></Field> : null}
+              <label htmlFor="take-payment" className="flex items-center gap-2 text-sm font-medium">
+                <Checkbox id="take-payment" checked={paying} onChange={(e) => setPaying(e.target.checked)} />
+                {t('takePayment')}
+              </label>
+              {paying ? <PaymentFields id="sale" owed={owed} value={draft} onChange={setDraft} /> : null}
             </div>
-          ) : null}
+          )}
 
           {record.error ? <Alert>{errorText(record.error)}</Alert> : null}
-          <Button block onClick={submit} disabled={invalid || overLimit || record.isPending || (needsApproval && !reason.trim())}>
+          <Button block onClick={submit} disabled={invalid || overLimit || record.isPending || (needsApproval && !reason.trim()) || (paying && !needsApproval && !payment)}>
             {record.isPending ? t('saving') : needsApproval ? t('requestApproval') : t('complete')}
           </Button>
         </Card>

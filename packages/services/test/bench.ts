@@ -15,7 +15,7 @@ import { blobs } from './blobs';
 import { closeOwner, ownerQuery, resetDatabase } from './db';
 import { mailer } from './mailer';
 import { anAccount, ctxFor } from './factories';
-import { aSellingSeller } from './sales';
+import { aSellingSeller, paid } from './sales';
 import { aStore } from './stores';
 import { moreBags } from './stock';
 import { recordSale } from '../src/sales';
@@ -114,18 +114,13 @@ async function trade(sellers: Awaited<ReturnType<typeof build>>['sellers'], star
       for (let i = 0; i < SALES_PER_DAY; i += 1) {
         const store = seller.stores[(day * SALES_PER_DAY + i) % seller.stores.length];
         if (!store) continue;
-        const sale = await recordSale(ctx, {
-          storeId: store.id, lines: [{ skuId: batch.skuId, packs: 1 + ((day + i) % 3) }],
-          ...(store.cash ? { payment: { method: 'CASH' as const, reference: null } } : {}),
-        });
+        const sale = await recordSale(ctx, { storeId: store.id, lines: [{ skuId: batch.skuId, packs: 1 + ((day + i) % 3) }] });
         sales += 1;
-        // A credit store that never pays goes past due and is refused the next
-        // sale (CRD-005) — correctly. Collecting is part of the round anyway,
-        // and it is what fills the cash ledger for a weekly store.
-        if (!store.cash) {
-          await recordPayment(ctx, { storeId: store.id, amount: sale.total, method: 'CASH' });
-          collections += 1;
-        }
+        // Collected at once, with its voucher: a bill-to-bill store takes no
+        // new bill until the last is paid (ADR-0047), and a weekly store that
+        // never pays goes past due (CRD-005). It is what fills the cash ledger.
+        await recordPayment(ctx, { storeId: store.id, ...(await paid(ctx, sale.total)) });
+        collections += 1;
       }
     }
     if (day % 25 === 0) process.stdout.write(`  day ${day}/${DAYS} (${sales} sales, ${collections} collections)\n`);

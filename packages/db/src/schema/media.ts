@@ -4,7 +4,7 @@ import { users } from './identity';
 import { branches } from './organisation';
 
 export const mediaKind = pgEnum('media_kind', [
-  'SELFIE', 'ODOMETER', 'STOREFRONT', 'WRITE_OFF_EVIDENCE', 'DEPOSIT_SLIP', 'TRANSPORT_SLIP',
+  'SELFIE', 'ODOMETER', 'STOREFRONT', 'WRITE_OFF_EVIDENCE', 'DEPOSIT_SLIP', 'TRANSPORT_SLIP', 'PAYMENT_VOUCHER',
 ]);
 
 /**

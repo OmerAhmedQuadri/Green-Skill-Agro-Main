@@ -1,12 +1,15 @@
 'use client';
 
+import { lineAmounts, sumMoney, type Money } from '@gsa/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useState } from 'react';
-import { Alert, Badge, Button, Card, Field, Input, Select } from '@gsa/ui';
+import { Alert, Badge, Button, Card, Checkbox, Field, Input, Select } from '@gsa/ui';
 import { PageHeader } from '@/components/common/PageHeader';
+import { NO_PAYMENT, PaymentFields, paymentBody, type PaymentDraft } from '@/components/stores/PaymentFields';
+import type { Store } from '@/components/stores/types';
 import { api } from '@/lib/api';
 import { useFormat } from '@/lib/format';
 import { wholeNumber } from '@/lib/forms';
@@ -33,8 +36,8 @@ export function FieldOrderScreen({ id }: { id: string }) {
   const queryClient = useQueryClient();
   const [counts, setCounts] = useState<Record<string, Counts>>({});
   const [mode, setMode] = useState<'IN_PERSON' | 'OWNER_WORD'>('IN_PERSON');
-  const [method, setMethod] = useState<'CASH' | 'BANK_TRANSFER'>('CASH');
-  const [reference, setReference] = useState('');
+  const [paying, setPaying] = useState(false);
+  const [draft, setDraft] = useState<PaymentDraft>(NO_PAYMENT);
   const [claiming, setClaiming] = useState(false);
   const [claimReason, setClaimReason] = useState('');
   const [cancelling, setCancelling] = useState(false);
@@ -43,6 +46,9 @@ export function FieldOrderScreen({ id }: { id: string }) {
     queryKey: keys.dispatchOrder(id), queryFn: () => api<DispatchOrder>(`/dispatch-orders/${id}`),
     refetchInterval: (q) => (q.state.data && q.state.data.status !== 'CLOSED' && q.state.data.status !== 'DELIVERED' ? 15_000 : false),
   });
+  // ADR-0047: what the store owes besides, for money taken at the door.
+  const storeId = order.data?.store.id ?? '';
+  const store = useQuery({ queryKey: keys.store(storeId), queryFn: () => api<Store>(`/stores/${storeId}`), enabled: order.data?.status === 'RELEASED' });
   const refresh = (o: DispatchOrder) => {
     queryClient.setQueryData(keys.dispatchOrder(id), o);
     for (const k of [keys.sales(), keys.dispatchOrders(), keys.cashInHand, keys.store(o.store.id)]) void queryClient.invalidateQueries({ queryKey: k });
@@ -64,7 +70,10 @@ export function FieldOrderScreen({ id }: { id: string }) {
   const pendingClaim = o.claims.find((c) => c.status === 'PENDING');
   const countOf = (lineId: string, packs: number): Counts => counts[lineId] ?? { received: String(packs), short: '0', damaged: '0' };
   const set = (lineId: string, packs: number, field: keyof Counts, value: string) => setCounts({ ...counts, [lineId]: { ...countOf(lineId, packs), [field]: value } });
-  const billToBill = o.store.creditMode === 'BILL_TO_BILL';
+  // What this delivery adds to the store's balance — the packs that arrived — and so what it may pay now.
+  const delivered = sumMoney(o.lines.map((l) => lineAmounts(l.unitPrice, wholeNumber(countOf(l.id, l.packs).received) ?? 0, l.discount).total));
+  const owed = sumMoney([store.data?.credit.outstanding ?? ('0.00' as Money), delivered]);
+  const payment = paying ? paymentBody(draft, owed) : null;
 
   return (
     <div className="space-y-4 pb-6">
@@ -105,24 +114,19 @@ export function FieldOrderScreen({ id }: { id: string }) {
             </Select>
           </Field>
           {mode === 'OWNER_WORD' ? <p className="text-sm text-stone-600">{t('ownerWordNote')}</p> : null}
-          {billToBill ? (
-            <>
-              <Field id="method" label={ts('method')}>
-                <Select id="method" value={method} onChange={(e) => setMethod(e.target.value === 'BANK_TRANSFER' ? 'BANK_TRANSFER' : 'CASH')}>
-                  <option value="CASH">{ts('methods.CASH')}</option><option value="BANK_TRANSFER">{ts('methods.BANK_TRANSFER')}</option>
-                </Select>
-              </Field>
-              {method === 'BANK_TRANSFER' ? <Field id="reference" label={ts('reference')}><Input id="reference" dir="ltr" value={reference} onChange={(e) => setReference(e.target.value)} /></Field> : null}
-            </>
-          ) : null}
-          <Button block disabled={act.isPending} onClick={() => act.run({
+          <label htmlFor="take-payment" className="flex items-center gap-2 text-sm font-medium">
+            <Checkbox id="take-payment" checked={paying} onChange={(e) => setPaying(e.target.checked)} />
+            {ts('takePaymentAtDelivery')}
+          </label>
+          {paying ? <PaymentFields id="delivery" owed={owed} value={draft} onChange={setDraft} /> : null}
+          <Button block disabled={act.isPending || (paying && !payment)} onClick={() => act.run({
             action: 'confirm-receipt', data: {
               version: o.version, mode,
               lines: o.lines.map((l) => {
                 const c = countOf(l.id, l.packs);
                 return { lineId: l.id, received: wholeNumber(c.received) ?? -1, short: wholeNumber(c.short) ?? -1, damaged: wholeNumber(c.damaged) ?? -1 };
               }),
-              payment: billToBill ? { method, reference: method === 'BANK_TRANSFER' ? reference.trim() || null : null } : null,
+              payment,
             },
           })}>{t('confirmReceipt')}</Button>
           {claiming ? (

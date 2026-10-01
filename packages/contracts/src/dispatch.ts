@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { Limit, OptionalText, PercentString, QueryBoolean, Version } from './shared';
+import { Limit, OptionalText, PaymentTaken, PercentString, QueryBoolean, Version } from './shared';
 
 /** Workflow J, K (DSP-001..003, DSP-015): the same lines as a sale; above the ceiling, a reason. */
 export const RaiseDispatchRequest = z.object({
@@ -22,7 +22,8 @@ export const CancelDispatchRequest = z.object({ version: Version, reason: z.stri
 export const ReceiptRequest = z.object({
   version: Version, mode: z.enum(['IN_PERSON', 'OWNER_WORD']),
   lines: z.array(z.object({ lineId: z.uuid(), received: z.number().int().min(0), short: z.number().int().min(0), damaged: z.number().int().min(0) })).min(1).max(100),
-  payment: z.object({ method: z.enum(['CASH', 'BANK_TRANSFER']), reference: OptionalText(100) }).nullable().optional(),
+  /** ADR-0047: optional — part or all of what the store owes, with its voucher. */
+  payment: PaymentTaken.nullable().optional(),
 });
 /** DSP-012 */
 export const ResolveShortfallRequest = z.object({ version: Version, resolution: z.enum(['FROM_VEHICLE', 'FURTHER_ORDER', 'NOT_NEEDED']) });

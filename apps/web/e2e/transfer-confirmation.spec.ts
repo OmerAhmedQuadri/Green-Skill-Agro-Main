@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import ar from '../src/messages/ar.json' with { type: 'json' };
 import en from '../src/messages/en.json' with { type: 'json' };
-import { aStoreByApi, aVehicle, batchOf, checkIn, freshSeller, post, receiveStock, sessionPage, shot } from './helpers';
+import { aStoreByApi, aVehicle, batchOf, checkIn, freshSeller, paidWith, post, receiveStock, sessionPage, shot } from './helpers';
 
 const headers = (origin: string) => ({ origin, 'idempotency-key': crypto.randomUUID() });
 // The Riyadh month, not UTC's — as in targets.spec.ts. Saudi Arabia keeps UTC+3 all year.
@@ -54,7 +54,7 @@ for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
     const store = await aStoreByApi(phone, origin, `BT Store ${locale} ${stamp}`, { creditMode: 'BILL_TO_BILL', creditLimit: '0.00' });
     const paidBy = async (reference: string) => {
       const sale = (await post(phone, origin, '/sales', {
-        storeId: store.id, lines: [{ skuId, packs: 1 }], payment: { method: 'BANK_TRANSFER', reference },
+        storeId: store.id, lines: [{ skuId, packs: 1 }], payment: await paidWith(phone, origin, '90.00', 'BANK_TRANSFER', reference),
       })) as unknown as { payment: { number: string } };
       return sale.payment.number;
     };

@@ -119,11 +119,21 @@ export const payments = pgTable(
     receivedAt: timestamptz('received_at').notNull(),
     receivedBy: uuid('received_by').notNull().references(() => users.id),
     ledgerEntryId: uuid('ledger_entry_id').notNull().references(() => storeLedgerEntries.id),
+    /**
+     * ADR-0047: the voucher handed to the store — the number printed on it,
+     * as `core/stores` keeps it, and its photo. Required from 0022 on; a
+     * payment recorded before then has none.
+     */
+    voucherNumber: text('voucher_number'),
+    voucherPhotoId: uuid('voucher_photo_id').references(() => mediaAssets.id),
     branchId: uuid('branch_id').notNull().references(() => branches.id),
     createdAt: createdAt(),
   },
   (t) => [
     index('payments_store_id_idx').on(t.storeId),
+    // A voucher number is used once in the whole business (ADR-0047).
+    uniqueIndex('payments_voucher_number_unique').on(t.voucherNumber).where(sql`${t.voucherNumber} is not null`),
+    index('payments_voucher_photo_id_idx').on(t.voucherPhotoId),
     index('payments_received_by_idx').on(t.receivedBy, t.receivedAt),
     index('payments_ledger_entry_id_idx').on(t.ledgerEntryId),
     check('payments_amount_positive', sql`${t.amount} > 0`),

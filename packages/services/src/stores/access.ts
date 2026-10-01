@@ -7,7 +7,7 @@ import type { Ctx } from '../context';
 import type { Executor } from '../platform';
 import { readSettings } from '../system';
 
-const { stores, storeAssignments, storeLedgerEntries, paymentAllocations, creditOverrides, priceLists, users } = schema;
+const { stores, storeAssignments, storeLedgerEntries, paymentAllocations, creditOverrides, priceLists, sales, users } = schema;
 
 /** A seller sees the stores they manage; `stores.view_all` sees every store. */
 export const seesAllStores = (ctx: Ctx) => ctx.permissions.has('stores.view_all');
@@ -51,21 +51,38 @@ export async function openDebits(db: Executor, storeIds: readonly string[]): Pro
   return rows.map((r) => ({ storeId: r.storeId, id: r.id, dueOn: r.dueOn ?? '', occurredAt: r.occurredAt, open: r.open as Money }));
 }
 
+/**
+ * ADR-0038: each store's dispatch orders not yet delivered — promised against
+ * its credit, though not owed yet. For bill to bill, each is a bill on its way
+ * (ADR-0047).
+ */
+async function committedByStore(db: Executor, storeIds: readonly string[]): Promise<Map<string, Money>> {
+  const rows = await db.select({ storeId: sales.storeId, total: sql<string>`coalesce(sum(${sales.total}), 0)::numeric(14,2)` }).from(sales)
+    .where(and(
+      inArray(sales.storeId, [...storeIds]), eq(sales.channel, 'DISPATCH'),
+      inArray(sales.status, ['PENDING_DISCOUNT_APPROVAL', 'DISCOUNT_APPROVED', 'PENDING_DELIVERY']),
+    ))
+    .groupBy(sales.storeId);
+  return new Map(rows.map((r) => [r.storeId, r.total as Money]));
+}
+
 /** CRD-004..006: every store's credit status, derived now. */
 export async function creditStatuses(
-  db: Executor, rows: readonly { id: string; status: StoreStatus; creditLimit: string }[], now: Date,
+  db: Executor, rows: readonly { id: string; status: StoreStatus; creditMode: CreditMode; creditLimit: string }[], now: Date,
 ): Promise<Map<string, CreditStatus>> {
   if (rows.length === 0) return new Map();
   const ids = rows.map((r) => r.id);
   const today = businessDate(now);
   const debits = await openDebits(db, ids);
+  const committed = await committedByStore(db, ids);
   const settings = await readSettings(db);
   const overrides = await db.select({ storeId: creditOverrides.storeId }).from(creditOverrides)
     .where(and(inArray(creditOverrides.storeId, ids), eq(creditOverrides.businessDate, today), isNull(creditOverrides.usedAt)));
   const overridden = new Set(overrides.map((o) => o.storeId));
   return new Map(rows.map((r) => [r.id, creditStatus({
-    status: r.status, limit: r.creditLimit as Money, graceDays: settings['credit.grace_days'], today, overrideActive: overridden.has(r.id),
-    openDebits: debits.filter((d) => d.storeId === r.id),
+    status: r.status, mode: r.creditMode, limit: r.creditLimit as Money, graceDays: settings['credit.grace_days'], today,
+    overrideActive: overridden.has(r.id), openDebits: debits.filter((d) => d.storeId === r.id),
+    committed: committed.get(r.id) ?? ('0.00' as Money),
   })]));
 }
 

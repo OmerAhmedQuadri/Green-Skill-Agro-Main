@@ -78,10 +78,15 @@ export function allocateCredit(amount: Money, debits: readonly OpenDebit[], firs
 export type BlockReason =
   | { readonly code: 'NOT_APPROVED' } | { readonly code: 'REJECTED' } | { readonly code: 'INACTIVE' }
   | { readonly code: 'PAST_DUE'; readonly amount: Money; readonly oldestDueOn: string }
-  | { readonly code: 'OVER_LIMIT'; readonly outstanding: Money; readonly limit: Money };
+  | { readonly code: 'OVER_LIMIT'; readonly outstanding: Money; readonly limit: Money }
+  /** ADR-0047: bill to bill — an earlier bill is not cleared yet. */
+  | { readonly code: 'UNPAID_BILL'; readonly amount: Money }
+  /** ADR-0047: bill to bill — a dispatch order to the store is still on its way, and will be a bill of its own. */
+  | { readonly code: 'DISPATCH_PENDING'; readonly amount: Money };
 
 export type CreditStatus = {
   readonly outstanding: Money; readonly pastDue: Money; readonly limit: Money; readonly available: Money;
+  /** ADR-0038: dispatch orders to the store not yet delivered — not owed yet, but already promised. */ readonly committed: Money;
   readonly blocked: boolean; readonly reasons: readonly BlockReason[]; readonly overridden: boolean;
   /** An unused same-day override: it releases the next sale from a credit block or the limit (OQ-018). */
   readonly overrideAvailable: boolean;
@@ -93,10 +98,15 @@ export type CreditStatus = {
  * today; over the limit — owing more than the limit (0 means no credit). A
  * same-day override lifts a credit block for one sale; it never lifts a store
  * that is not approved, rejected or inactive.
+ *
+ * ADR-0047: a bill-to-bill store holds one open bill at a time, so anything
+ * unpaid — or an order still on its way — blocks the next. That says all
+ * "past due" would, so it is the reason given instead.
  */
 export function creditStatus(input: {
-  status: 'PENDING_APPROVAL' | 'ACTIVE' | 'REJECTED' | 'INACTIVE';
+  status: 'PENDING_APPROVAL' | 'ACTIVE' | 'REJECTED' | 'INACTIVE'; mode: CreditMode;
   limit: Money; openDebits: readonly { dueOn: string; open: Money }[]; graceDays: number; today: string; overrideActive: boolean;
+  /** Dispatch orders to the store still waiting for delivery (ADR-0038). */ committed: Money;
 }): CreditStatus {
   const outstanding = input.openDebits.reduce((sum, d) => sum.plus(dec(d.open)), new Dec(0));
   const pastDueDebits = input.openDebits.filter((d) => dec(d.open).gt(0) && addDays(d.dueOn, input.graceDays) < input.today);
@@ -106,7 +116,10 @@ export function creditStatus(input: {
   if (input.status === 'REJECTED') reasons.push({ code: 'REJECTED' });
   if (input.status === 'INACTIVE') reasons.push({ code: 'INACTIVE' });
   const creditReasons: BlockReason[] = [];
-  if (pastDue.gt(0)) {
+  if (input.mode === 'BILL_TO_BILL') {
+    if (outstanding.gt(0)) creditReasons.push({ code: 'UNPAID_BILL', amount: toMoney(outstanding) });
+    if (dec(input.committed).gt(0)) creditReasons.push({ code: 'DISPATCH_PENDING', amount: input.committed });
+  } else if (pastDue.gt(0)) {
     const oldest = pastDueDebits.map((d) => d.dueOn).sort()[0] ?? input.today;
     creditReasons.push({ code: 'PAST_DUE', amount: toMoney(pastDue), oldestDueOn: oldest });
   }
@@ -116,6 +129,7 @@ export function creditStatus(input: {
   const available = dec(input.limit).minus(outstanding);
   return {
     outstanding: toMoney(outstanding), pastDue: toMoney(pastDue), limit: input.limit, available: toMoney(available.gt(0) ? available : new Dec(0)),
+    committed: input.committed,
     blocked: all.length > 0, reasons: [...reasons, ...creditReasons], overridden, overrideAvailable: input.overrideActive && reasons.length === 0,
   };
 }
