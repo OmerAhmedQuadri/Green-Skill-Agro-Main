@@ -44,3 +44,5 @@ export type Reorder = { builtAt: string | null; items: Recommendation[] };
 export type SalesAnalytics = reports.SalesAnalytics;
 export type AnalyticsOptions = reports.AnalyticsOptions;
 export type BreakdownRow = reports.BreakdownRow;
+export type Collections = reports.Collections;
+export type SellerPerformance = reports.SellerPerformance;

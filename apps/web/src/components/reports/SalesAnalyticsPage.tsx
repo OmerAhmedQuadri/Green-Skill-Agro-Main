@@ -12,11 +12,12 @@ import { Section } from '@/components/common/Section';
 import { Cell, Table } from '@/components/common/Table';
 import type { SaleSummary } from '@/components/sales/types';
 import { api } from '@/lib/api';
+import { useDuration } from '@/lib/duration';
 import { useFormat } from '@/lib/format';
 import { useErrorText } from '@/lib/hooks';
 import { keys } from '@/lib/query-keys';
 import { BarList, ColumnChart, type BarRow } from './charts';
-import type { AnalyticsOptions, BreakdownRow, SalesAnalytics } from './types';
+import type { AnalyticsOptions, BreakdownRow, Collections, SalesAnalytics, SellerPerformance } from './types';
 
 const DIMENSIONS = ['sellerId', 'storeId', 'vehicleId', 'categoryId', 'productId', 'channel'] as const;
 type Dimension = (typeof DIMENSIONS)[number];
@@ -54,7 +55,7 @@ const queryOf = (filter: Filter) => new URLSearchParams(Object.entries(filter).f
  * live in the address, so a view can be bookmarked and sent; everything on the
  * page answers to the same filters, so the figures always agree.
  */
-export function SalesAnalyticsPage({ canListSales }: { canListSales: boolean }) {
+export function SalesAnalyticsPage({ canListSales, canSeeCollections }: { canListSales: boolean; canSeeCollections: boolean }) {
   const t = useTranslations('analytics');
   const format = useFormat();
   const errorText = useErrorText();
@@ -141,6 +142,8 @@ export function SalesAnalyticsPage({ canListSales }: { canListSales: boolean }) 
             <Breakdown title={t('byProduct')} rows={view.data.byProduct} name={(r) => format.name(r.label)} onPick={(id) => set({ productId: id })} testId="by-product" />
             <Breakdown title={t('byCategory')} rows={view.data.byCategory} name={(r) => format.name(r.label)} onPick={(id) => set({ categoryId: id })} testId="by-category" />
           </div>
+          <SellersSection filter={filter} />
+          {canSeeCollections ? <CollectionsSection filter={filter} /> : null}
           {canListSales ? <SalesList query={query} /> : null}
         </div>
       ) : view.isPending ? <p className="text-sm text-stone-500">{t('loading')}</p> : null}
@@ -296,6 +299,130 @@ function SalesList({ query }: { query: string }) {
           <Button variant="secondary" onClick={() => void list.fetchNextPage()} disabled={list.isFetchingNextPage}>{t('more')}</Button>
         </div>
       ) : null}
+    </Section>
+  );
+}
+
+/** The period and the filters a section answers to, as a query. */
+const subset = (filter: Filter, fields: readonly Dimension[]) => new URLSearchParams([
+  ['from', filter.from], ['to', filter.to], ...fields.filter((f) => filter[f]).map((f) => [f, filter[f]] as [string, string]),
+]).toString();
+
+/**
+ * RPT-010: each seller over the period. Distance and hours, and the month's
+ * target and commission, appear only where the reader may see them — the
+ * service says which — and the month's only for a whole calendar month.
+ */
+function SellersSection({ filter }: { filter: Filter }) {
+  const t = useTranslations('analytics');
+  const format = useFormat();
+  const duration = useDuration();
+  const qs = subset(filter, ['sellerId']);
+  const view = useQuery({
+    queryKey: keys.sellerPerformance({ qs }), queryFn: () => api<SellerPerformance>(`/reports/seller-performance?${qs}`), placeholderData: keepPreviousData,
+  });
+  const d = view.data;
+  if (!d) return null;
+  const head = [
+    t('sellers.seller'), t('tiles.net'), t('sellers.collected'), t('sellers.newStores'),
+    ...(d.shows.attendance ? [t('sellers.distance'), t('sellers.hours')] : []),
+    ...(d.month ? [t('sellers.target'), t('sellers.commission')] : []),
+  ];
+  return (
+    <Section id="sellers" title={t('sellers.title')} description={d.month ? t('sellers.monthHint', { month: format.month(d.month) }) : t('sellers.rangeHint')}>
+      <Table head={head}>
+        {d.sellers.map((r) => (
+          <tr key={r.seller.id} data-testid={`seller-row-${r.seller.id}`}>
+            <Cell>{r.seller.name}</Cell>
+            <Cell className="whitespace-nowrap">
+              {format.money(r.net)}
+              <div className="text-xs text-stone-500">{t('salesCount', { count: r.sales })}</div>
+            </Cell>
+            <Cell className="whitespace-nowrap">{format.money(r.collected)}</Cell>
+            <Cell>{format.number(r.newStores)}</Cell>
+            {d.shows.attendance ? (
+              <>
+                <Cell className="whitespace-nowrap">{r.distanceKm === null ? '—' : t('sellers.km', { km: format.number(r.distanceKm) })}</Cell>
+                <Cell className="whitespace-nowrap">{r.activeMs === null ? '—' : duration(r.activeMs)}</Cell>
+              </>
+            ) : null}
+            {d.month ? (
+              <>
+                <Cell className="whitespace-nowrap">
+                  {!r.month?.hasTarget ? t('sellers.noTarget') : r.month.met ? t('sellers.met') : t('sellers.notMet', { achievement: format.percent(r.month.lowestAchievement ?? '0') })}
+                </Cell>
+                <Cell className="whitespace-nowrap">{r.month?.commission ? format.money(r.month.commission) : t('sellers.noRate')}</Cell>
+              </>
+            ) : null}
+          </tr>
+        ))}
+      </Table>
+    </Section>
+  );
+}
+
+const BANDS = ['NOT_DUE', 'DAYS_1_30', 'DAYS_31_60', 'DAYS_61_90', 'OVER_90'] as const;
+
+/**
+ * RPT-008: what was collected in the period, by seller and method, and what
+ * every store owes now, aged. Money comes from a store, so only the seller and
+ * store filters apply — said so when any other filter is set.
+ */
+function CollectionsSection({ filter }: { filter: Filter }) {
+  const t = useTranslations('analytics');
+  const format = useFormat();
+  const qs = subset(filter, ['sellerId', 'storeId']);
+  const view = useQuery({ queryKey: keys.collections({ qs }), queryFn: () => api<Collections>(`/reports/collections?${qs}`), placeholderData: keepPreviousData });
+  const d = view.data;
+  if (!d) return null;
+  const narrowed = Boolean(filter.vehicleId || filter.categoryId || filter.productId || filter.channel);
+  return (
+    <Section id="collections" title={t('collections.title')} description={t('collections.hint')}>
+      <div className="space-y-6 p-5">
+        {narrowed ? <Alert tone="info" data-testid="collections-scope">{t('collections.onlySellerAndStore')}</Alert> : null}
+        <div className="grid gap-3 sm:grid-cols-3">
+          <Tile label={t('collections.collected')} value={format.money(d.collected.total)} hint={t('collections.paymentsCount', { count: d.collected.payments })} testId="collected-total" />
+          <Tile label={t('collections.cash')} value={format.money(d.collected.cash)} testId="collected-cash" />
+          <Tile label={t('collections.bank')} value={format.money(d.collected.bank)} testId="collected-bank" />
+        </div>
+        <div className="space-y-2">
+          <h3 className="text-sm font-semibold text-stone-900">{t('collections.bySeller')}</h3>
+          {d.collected.bySeller.length === 0 ? <p className="text-sm text-stone-500">{t('collections.nothingCollected')}</p> : (
+            <Table head={[t('sellers.seller'), t('collections.cash'), t('collections.bank'), t('total'), t('collections.payments')]}>
+              {d.collected.bySeller.map((r) => (
+                <tr key={r.seller.id} data-testid={`collected-${r.seller.id}`}>
+                  <Cell>{r.seller.name}</Cell>
+                  <Cell className="whitespace-nowrap">{format.money(r.cash)}</Cell>
+                  <Cell className="whitespace-nowrap">{format.money(r.bank)}</Cell>
+                  <Cell className="whitespace-nowrap">{format.money(r.total)}</Cell>
+                  <Cell>{format.number(r.payments)}</Cell>
+                </tr>
+              ))}
+            </Table>
+          )}
+        </div>
+        <div className="space-y-2">
+          <h3 className="text-sm font-semibold text-stone-900">{t('collections.owedTitle')}</h3>
+          {d.owed.byStore.length === 0 ? <p className="text-sm text-stone-500">{t('collections.owedNothing')}</p> : (
+            <Table head={[t('filters.store'), t('sellers.seller'), ...BANDS.map((b) => t(`collections.bands.${b}`)), t('total')]}>
+              {d.owed.byStore.map((r) => (
+                <tr key={r.store.id} data-testid={`owed-${r.store.id}`}>
+                  <Cell>{r.store.name}</Cell>
+                  <Cell>{r.seller?.name ?? '—'}</Cell>
+                  {BANDS.map((b) => <Cell key={b} className="whitespace-nowrap">{r.aged[b] === '0.00' ? '—' : format.money(r.aged[b])}</Cell>)}
+                  <Cell className="whitespace-nowrap font-semibold">{format.money(r.aged.total)}</Cell>
+                </tr>
+              ))}
+              <tr className="bg-stone-50" data-testid="owed-total">
+                <Cell className="font-semibold">{t('collections.allStores')}</Cell>
+                <Cell>{null}</Cell>
+                {BANDS.map((b) => <Cell key={b} className="whitespace-nowrap font-semibold">{format.money(d.owed.aged[b])}</Cell>)}
+                <Cell className="whitespace-nowrap font-semibold">{format.money(d.owed.aged.total)}</Cell>
+              </tr>
+            </Table>
+          )}
+        </div>
+      </div>
     </Section>
   );
 }

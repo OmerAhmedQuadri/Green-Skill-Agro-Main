@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import ar from '../src/messages/ar.json' with { type: 'json' };
 import en from '../src/messages/en.json' with { type: 'json' };
-import { aStoreByApi, aVehicle, batchOf, checkIn, freshSeller, post, receiveStock, sessionPage, shot } from './helpers';
+import { aStoreByApi, aVehicle, batchOf, checkIn, freshSeller, paidWith, post, receiveStock, sessionPage, shot } from './helpers';
 
 const headers = (origin: string) => ({ origin, 'idempotency-key': crypto.randomUUID() });
 // Riyadh's date, not UTC's — as in targets.spec.ts. Saudi Arabia keeps UTC+3 all year.
@@ -39,6 +39,8 @@ for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
     const store = await aStoreByApi(phone, origin, `SA Store ${locale} ${stamp}`, { creditMode: 'WEEKLY', creditLimit: '5000.00' });
     await post(phone, origin, '/sales', { storeId: store.id, lines: [{ skuId, packs: 3 }] });
     await post(phone, origin, '/sales', { storeId: store.id, lines: [{ skuId, packs: 2 }] });
+    // RPT-008: 100.00 of it collected in cash, with its voucher.
+    await post(phone, origin, '/payments', { storeId: store.id, ...(await paidWith(phone, origin, '100.00')) });
 
     // Found from Reports.
     await admin.goto('/console/reports');
@@ -61,6 +63,13 @@ for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
     await expect(admin.getByRole('tooltip')).toContainText('450.00');
     await expect(admin.getByTestId(`by-seller-${seller.id}`)).toContainText('450.00');
     await expect(admin.getByTestId(`by-store-${store.id}`)).toContainText('450.00');
+    // RPT-010: the seller's row — what they sold and collected.
+    const row = admin.getByTestId(`seller-row-${seller.id}`);
+    await expect(row).toContainText('450.00');
+    await expect(row).toContainText('100.00');
+    // RPT-008: collected by seller, and what the store still owes, not yet due.
+    await expect(admin.getByTestId(`collected-${seller.id}`)).toContainText('100.00');
+    await expect(admin.getByTestId(`owed-${store.id}`)).toContainText('350.00');
     // The sales behind the figures, both of them.
     await expect(admin.locator('[data-testid^="sale-"]')).toHaveCount(2);
     await admin.screenshot({ path: shot(`sales-analytics-${locale}`), fullPage: true });
@@ -70,6 +79,9 @@ for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
     await expect(admin).toHaveURL(/channel=DISPATCH/);
     await expect(admin.getByTestId('tile-net')).toHaveText(amount('0.00'));
     await expect(admin.getByTestId('by-seller')).toHaveCount(0);
+    // Collections cannot follow the channel, and say so.
+    await expect(admin.getByTestId('collections-scope')).toHaveText(m.analytics.collections.onlySellerAndStore);
+    await expect(admin.getByTestId(`collected-${seller.id}`)).toContainText('100.00');
     await admin.getByRole('button', { name: m.analytics.filters.clear }).click();
     await expect(admin).not.toHaveURL(/sellerId=/);
 

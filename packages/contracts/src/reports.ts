@@ -28,3 +28,9 @@ export const SalesAnalyticsQuery = z.object({
   sellerId: z.uuid().optional(), storeId: z.uuid().optional(), vehicleId: z.uuid().optional(),
   productId: z.uuid().optional(), categoryId: z.uuid().optional(), channel: z.enum(['VEHICLE', 'DISPATCH']).optional(),
 });
+
+/** RPT-008 (ADR-0048): collections answer to the period and the seller and store filters only. */
+export const CollectionsQuery = z.object({ from: z.iso.date(), to: z.iso.date(), sellerId: z.uuid().optional(), storeId: z.uuid().optional() });
+
+/** RPT-010 (ADR-0048) */
+export const SellerPerformanceQuery = z.object({ from: z.iso.date(), to: z.iso.date(), sellerId: z.uuid().optional() });

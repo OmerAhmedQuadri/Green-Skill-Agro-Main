@@ -170,6 +170,11 @@ export async function salesAnalytics(ctx: Ctx, filter: AnalyticsFilter): Promise
   };
 }
 
+/** RPT-010: each seller's figures for a range, net of returns — what the seller performance table reads. */
+export async function salesBySeller(db: Executor, range: AnalyticsRange, sellerId?: string): Promise<Map<string, Figures>> {
+  return figuresBy(db, range, { from: range.from, to: range.to, sellerId }, CUTS.seller);
+}
+
 export type AnalyticsOptions = {
   readonly sellers: readonly { readonly id: string; readonly name: string }[];
   readonly stores: readonly { readonly id: string; readonly name: string }[];

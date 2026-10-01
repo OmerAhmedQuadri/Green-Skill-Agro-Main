@@ -1963,7 +1963,7 @@
     "title": "Reports",
     "subtitle": "What sold, what is left, and what to order next.",
     "loading": "Loading…",
-    "linksHint": "Five of these read the same figures as the screens you work on, so they open there rather than showing a second copy.",
+    "linksHint": "Three of these read the same figures as the screens you work on, so they open there rather than showing a second copy.",
     "guideNotice": "There is less than a year of trading behind these figures. Treat them as a guide rather than a projection.",
     "trendsTitle": "Sales trends",
     "trendsSubtitle": "Month on month, and against the same month last season.",
@@ -2035,7 +2035,7 @@
       },
       "collections": {
         "title": "Collections",
-        "hint": "Outstanding balances by store, with ageing — on the stores screen."
+        "hint": "Collected by seller and period, and what each store owes, aged — in sales analytics."
       },
       "dispatch": {
         "title": "Dispatch orders",
@@ -2043,7 +2043,7 @@
       },
       "performance": {
         "title": "Seller performance",
-        "hint": "Sales, collections, targets and commission — on the targets screen."
+        "hint": "Sales, collections, new stores, distance, hours, target and commission — in sales analytics."
       }
     }
   },
@@ -2102,6 +2102,45 @@
     "completed": "Completed",
     "document": "Document",
     "total": "Total",
-    "more": "Show more"
+    "more": "Show more",
+    "sellers": {
+      "title": "Sellers",
+      "rangeHint": "Each seller over the period. Target and commission show when the period is one whole month.",
+      "monthHint": "Each seller over {month}, with the month's target and commission.",
+      "seller": "Seller",
+      "collected": "Collected",
+      "newStores": "New stores",
+      "distance": "Distance",
+      "hours": "Active hours",
+      "target": "Target",
+      "commission": "Commission",
+      "km": "{km} km",
+      "noTarget": "No target",
+      "met": "Met",
+      "notMet": "Not met — {achievement}",
+      "noRate": "No rate set"
+    },
+    "collections": {
+      "title": "Collections",
+      "hint": "Collected from stores in the period, and what each store owes now, by how late.",
+      "onlySellerAndStore": "Collections follow the period, seller and store only — money is collected from a store, not for a product or on a vehicle.",
+      "collected": "Collected",
+      "cash": "In cash",
+      "bank": "By bank transfer",
+      "payments": "Payments",
+      "paymentsCount": "{count, plural, one {# payment} other {# payments}}",
+      "bySeller": "Collected by seller",
+      "owedTitle": "What stores owe now",
+      "owedNothing": "No store owes anything.",
+      "nothingCollected": "Nothing collected in this period.",
+      "allStores": "All stores",
+      "bands": {
+        "NOT_DUE": "Not yet due",
+        "DAYS_1_30": "1–30 days late",
+        "DAYS_31_60": "31–60 days",
+        "DAYS_61_90": "61–90 days",
+        "OVER_90": "Over 90 days"
+      }
+    }
   }
 }

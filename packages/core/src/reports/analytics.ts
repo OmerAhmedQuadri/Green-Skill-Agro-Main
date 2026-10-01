@@ -57,6 +57,17 @@ export function rangePeriods(range: AnalyticsRange): string[] {
   return out;
 }
 
+/**
+ * ADR-0048: the calendar month a range covers exactly — its first day to its
+ * last — or null. Targets and commission are monthly, so they are shown only
+ * for a range that is one whole month.
+ */
+export function wholeMonthOf(range: AnalyticsRange): string | null {
+  const month = range.from.slice(0, 7);
+  if (range.from !== `${month}-01` || range.to.slice(0, 7) !== month) return null;
+  return dateOf(dayNumber(range.to) + 1).slice(0, 7) === month ? null : month;
+}
+
 /** RPT-008: how far past its due date a debt is, in the usual bands. */
 export const AGEING_BANDS = ['NOT_DUE', 'DAYS_1_30', 'DAYS_31_60', 'DAYS_61_90', 'OVER_90'] as const;
 export type AgeingBand = (typeof AGEING_BANDS)[number];

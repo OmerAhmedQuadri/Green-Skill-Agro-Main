@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { DomainError } from '../errors';
 import type { Money } from '../numeric';
-import { ageDebts, ageingBand, analyticsRange, rangePeriods } from './analytics';
+import { ageDebts, ageingBand, analyticsRange, rangePeriods, wholeMonthOf } from './analytics';
 
 const code = (fn: () => unknown) => { try { fn(); return 'NO_ERROR'; } catch (e) { return (e as DomainError).code; } };
 const m = (v: string) => v as Money;
@@ -31,6 +31,16 @@ describe('the range a sales view covers (ADR-0048)', () => {
   it('ADR-0048: every period is there, so a day or month with no sales still shows, at nothing', () => {
     expect(rangePeriods(analyticsRange('2026-02-27', '2026-03-02'))).toEqual(['2026-02-27', '2026-02-28', '2026-03-01', '2026-03-02']);
     expect(rangePeriods(analyticsRange('2025-11-15', '2026-02-10'))).toEqual(['2025-11', '2025-12', '2026-01', '2026-02']);
+  });
+});
+
+describe('a whole month (ADR-0048, RPT-010)', () => {
+  it('RPT-010: targets and commission are monthly — a range shows them only when it is one whole month', () => {
+    expect(wholeMonthOf(analyticsRange('2026-09-01', '2026-09-30'))).toBe('2026-09');
+    expect(wholeMonthOf(analyticsRange('2028-02-01', '2028-02-29'))).toBe('2028-02');
+    expect(wholeMonthOf(analyticsRange('2026-09-01', '2026-09-29'))).toBeNull();
+    expect(wholeMonthOf(analyticsRange('2026-09-02', '2026-09-30'))).toBeNull();
+    expect(wholeMonthOf(analyticsRange('2026-09-01', '2026-10-31'))).toBeNull();
   });
 });
 
