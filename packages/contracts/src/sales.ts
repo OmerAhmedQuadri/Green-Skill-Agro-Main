@@ -1,13 +1,12 @@
 import { z } from 'zod';
-import { Limit, OptionalText, PercentString, QueryBoolean, Version } from './shared';
-
-const Payment = z.object({ method: z.enum(['CASH', 'BANK_TRANSFER']), reference: OptionalText(100) });
+import { Limit, OptionalText, PaymentTaken, PercentString, QueryBoolean, Version } from './shared';
 
 /** Workflow I (SAL-001..011, PRC-009): completes within the ceilings, or — with a reason — asks for approval. */
 export const RecordSaleRequest = z.object({
   storeId: z.uuid(),
   lines: z.array(z.object({ skuId: z.uuid(), packs: z.number().int().min(1).max(100_000), discount: PercentString.optional() })).min(1).max(100),
-  payment: Payment.nullable().optional(),
+  /** ADR-0047: optional — part or all of what the store owes, with its voucher. */
+  payment: PaymentTaken.nullable().optional(),
   approvalReason: OptionalText(500),
 });
 
@@ -20,7 +19,7 @@ export const ListSalesQuery = z.object({
 });
 
 /** PRC-014 */
-export const CompleteSaleRequest = z.object({ version: Version, payment: Payment.nullable().optional() });
+export const CompleteSaleRequest = z.object({ version: Version, payment: PaymentTaken.nullable().optional() });
 /** PRC-015 */
 export const WithdrawSaleRequest = z.object({ version: Version });
 

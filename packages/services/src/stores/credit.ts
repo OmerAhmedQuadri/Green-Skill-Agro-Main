@@ -1,13 +1,14 @@
 import {
-  allocateCredit, businessDate, dec, DomainError, dueDateFor, isoDate, money, toMoney, type CreditStatus, type Money,
+  allocateCredit, businessDate, dec, DomainError, dueDateFor, isoDate, money, toMoney, voucherNumber, type CreditStatus, type Money,
 } from '@gsa/core';
 import { newId, schema } from '@gsa/db';
 import { aliasedTable, and, asc, eq, isNull, sql } from 'drizzle-orm';
 import { assertSellerWorking } from '../attendance';
 import { postCashCollection } from '../cash';
 import { authorize, authorizeAny, type Ctx } from '../context';
+import { assertOwnEvidence } from '../media';
 import { notify } from '../notifications';
-import { audit, inTx, nextDocumentNumber, type Executor, type Tx } from '../platform';
+import { audit, inTx, mapUniqueViolations, nextDocumentNumber, type Executor, type Tx } from '../platform';
 import { getDb } from '../runtime';
 import { readSettings } from '../system';
 import { loadStore, openDebits, readingAsManager } from './access';
@@ -74,50 +75,67 @@ export async function debtsAround(tx: Executor, storeId: string, debitId: string
 
 export type Payment = {
   readonly id: string; readonly number: string; readonly storeId: string; readonly amount: Money; readonly method: PaymentMethod;
-  readonly reference: string | null; readonly receivedAt: Date; readonly receivedBy: string; readonly credit: CreditStatus;
+  readonly reference: string | null; readonly voucher: VoucherRef; readonly receivedAt: Date; readonly receivedBy: string; readonly credit: CreditStatus;
 };
 
 export type PaymentMethod = 'CASH' | 'BANK_TRANSFER';
 
+/** ADR-0047: the voucher handed to the store for a payment — its number as kept, and its photo. */
+export type VoucherRef = { readonly number: string; readonly photoId: string };
+
+/** What a payment is given: the money, how it came, and the voucher that evidences it. */
+export type PaymentInput = {
+  readonly amount: Money; readonly method: PaymentMethod; readonly reference?: string | null | undefined;
+  readonly voucher: { readonly number: string; readonly photoId: string };
+};
+
 /**
  * A payment taken from a store, in the caller's transaction: the ledger
- * credit settling the oldest debts (CRD-003), the payment record and — for
- * cash — the collector's cash in hand (CSH-001, ADR-0037). A bill-to-bill
- * sale settles through here too (SAL-006).
+ * credit settling the oldest debts (CRD-003), the payment record with its
+ * voucher (ADR-0047) and — for cash — the collector's cash in hand (CSH-001,
+ * ADR-0037); for a bank transfer, word to whoever confirms transfers
+ * (ADR-0046). Money taken with a sale or a delivery comes through here too.
  */
-export async function takePayment(
-  tx: Tx, ctx: Ctx, input: { storeId: string; amount: Money; method: PaymentMethod; reference?: string | null | undefined },
-): Promise<{ id: string; number: string; reference: string | null }> {
+export async function takePayment(tx: Tx, ctx: Ctx, input: PaymentInput & { storeId: string }): Promise<{ id: string; number: string; reference: string | null; voucher: VoucherRef }> {
   const reference = input.reference?.trim() || null;
   if (input.method === 'BANK_TRANSFER' && !reference) throw new DomainError('REASON_REQUIRED', { field: 'reference' });
+  const voucher = { number: voucherNumber(input.voucher.number), photoId: input.voucher.photoId };
+  await assertOwnEvidence(tx, ctx, voucher.photoId, 'PAYMENT_VOUCHER');
   const id = newId();
   const { entryId } = await postStoreCredit(tx, ctx, { storeId: input.storeId, entryType: 'PAYMENT', amount: input.amount, referenceType: 'PAYMENT', referenceId: id });
   const number = await nextDocumentNumber(tx, 'PM', ctx.now);
-  await tx.insert(payments).values({
+  // A voucher number is used once in the whole business; the index is the real guarantee.
+  await mapUniqueViolations(tx.insert(payments).values({
     id, number, storeId: input.storeId, amount: input.amount, method: input.method, reference, receivedAt: ctx.now, receivedBy: ctx.user.id,
-    ledgerEntryId: entryId, branchId: ctx.branchId,
-  });
+    ledgerEntryId: entryId, voucherNumber: voucher.number, voucherPhotoId: voucher.photoId, branchId: ctx.branchId,
+  }), { payments_voucher_number_unique: new DomainError('DUPLICATE_VOUCHER', { number: voucher.number }) });
   if (input.method === 'CASH') await postCashCollection(tx, ctx, { sellerId: ctx.user.id, amount: input.amount, referenceType: 'PAYMENT', referenceId: id });
-  await audit(tx, ctx, { action: 'stores.payment_recorded', entityType: 'payment', entityId: id, after: { number, storeId: input.storeId, amount: input.amount, method: input.method } });
-  return { id, number, reference };
+  // ADR-0046: a transfer earns nothing until someone checks it arrived, so whoever can is told.
+  if (input.method === 'BANK_TRANSFER') await notify(tx, ctx, { permission: 'cash.approve_settlement' }, 'TRANSFER_RECORDED', { number, amount: input.amount }, '/console/cash');
+  await audit(tx, ctx, {
+    action: 'stores.payment_recorded', entityType: 'payment', entityId: id,
+    after: { number, storeId: input.storeId, amount: input.amount, method: input.method, voucher: voucher.number },
+  });
+  return { id, number, reference, voucher };
 }
 
 /**
  * CRD-003: a payment collected from a store — partial or in full, oldest
- * debts first, the rest carrying forward. A seller collects during an open
- * day (ATT-010), from the stores they manage.
+ * debts first, the rest carrying forward — with the voucher handed over for it
+ * (ADR-0047). A seller collects during an open day (ATT-010), from the stores
+ * they manage.
  */
 export async function recordPayment(
-  ctx: Ctx, input: { storeId: string; amount: string; method: PaymentMethod; reference?: string | null | undefined },
+  ctx: Ctx, input: Omit<PaymentInput, 'amount'> & { storeId: string; amount: string },
 ): Promise<Payment> {
   authorize(ctx, 'sales.record');
   const amount = money(input.amount);
   return inTx(ctx, async (tx) => {
     await assertSellerWorking(tx, ctx);
     await loadStore(tx, ctx, input.storeId); // the seller's own store, or view_all
-    const { id, number, reference } = await takePayment(tx, ctx, { storeId: input.storeId, amount, method: input.method, reference: input.reference });
+    const { id, number, reference, voucher } = await takePayment(tx, ctx, { ...input, amount });
     const store = await loadStore(tx, ctx, input.storeId);
-    return { id, number, storeId: input.storeId, amount, method: input.method, reference, receivedAt: ctx.now, receivedBy: ctx.user.id, credit: store.credit };
+    return { id, number, storeId: input.storeId, amount, method: input.method, reference, voucher, receivedAt: ctx.now, receivedBy: ctx.user.id, credit: store.credit };
   });
 }
 
@@ -190,6 +208,7 @@ export type LedgerEntry = {
   readonly id: string; readonly occurredAt: Date; readonly entryType: 'SALE' | 'PAYMENT' | 'CREDIT_NOTE' | 'ADJUSTMENT';
   readonly amount: Money; readonly balance: Money; readonly dueOn: string | null; readonly open: Money | null;
   readonly note: string | null; readonly paymentNumber: string | null; readonly by: string;
+  /** ADR-0047: the voucher behind a payment, where one was taken. */ readonly voucher: VoucherRef | null;
   /**
    * What the entry came from, so the ledger can be read back to it. A credit
    * note is always a return (the only place one is posted), and until this was
@@ -205,12 +224,16 @@ export async function listStoreLedger(ctx: Ctx, storeId: string): Promise<Ledger
   const db = getDb();
   await loadStore(db, ctx, storeId);
   const by = aliasedTable(users, 'by');
+  // ADR-0046: debt put back by a transfer that never arrived names that transfer.
+  const reinstated = aliasedTable(payments, 'reinstated');
   const rows = await db.select({
-    e: storeLedgerEntries, byName: by.name, paymentNumber: payments.number,
+    e: storeLedgerEntries, byName: by.name, paymentNumber: sql<string | null>`coalesce(${payments.number}, ${reinstated.number})`,
+    voucherNumber: payments.voucherNumber, voucherPhotoId: payments.voucherPhotoId,
     settled: sql<string>`coalesce((select sum(${paymentAllocations.amount}) from ${paymentAllocations} where ${paymentAllocations.debitEntryId} = ${storeLedgerEntries.id}), 0)`,
   }).from(storeLedgerEntries)
     .innerJoin(by, eq(by.id, storeLedgerEntries.createdBy))
     .leftJoin(payments, eq(payments.ledgerEntryId, storeLedgerEntries.id))
+    .leftJoin(reinstated, and(eq(storeLedgerEntries.referenceType, 'TRANSFER_NOT_RECEIVED'), eq(reinstated.id, storeLedgerEntries.referenceId)))
     .where(eq(storeLedgerEntries.storeId, storeId))
     .orderBy(asc(storeLedgerEntries.occurredAt), asc(storeLedgerEntries.id));
   let running = dec('0');
@@ -221,6 +244,7 @@ export async function listStoreLedger(ctx: Ctx, storeId: string): Promise<Ledger
       id: r.e.id, occurredAt: r.e.occurredAt, entryType: r.e.entryType, amount: r.e.amount as Money, balance: toMoney(running),
       dueOn: r.e.dueOn, open: debit ? toMoney(dec(r.e.amount).minus(dec(r.settled))) : null, note: r.e.note,
       paymentNumber: r.paymentNumber, by: r.byName,
+      voucher: r.voucherNumber && r.voucherPhotoId ? { number: r.voucherNumber, photoId: r.voucherPhotoId } : null,
       reference: { type: r.e.referenceType, id: r.e.referenceId },
     };
   });

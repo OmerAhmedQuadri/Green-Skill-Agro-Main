@@ -7,7 +7,7 @@ import { businessMonth } from '../time';
  * which file types are accepted, and how long it is kept.
  */
 export const MEDIA_KINDS = [
-  'SELFIE', 'ODOMETER', 'STOREFRONT', 'WRITE_OFF_EVIDENCE', 'DEPOSIT_SLIP', 'TRANSPORT_SLIP',
+  'SELFIE', 'ODOMETER', 'STOREFRONT', 'WRITE_OFF_EVIDENCE', 'DEPOSIT_SLIP', 'TRANSPORT_SLIP', 'PAYMENT_VOUCHER',
 ] as const;
 export type MediaKind = (typeof MEDIA_KINDS)[number];
 
@@ -44,6 +44,8 @@ export const MEDIA_POLICY: Readonly<Record<MediaKind, Policy>> = {
   // A bank confirmation is often a screenshot or a PDF (ARCHITECTURE §6.4).
   DEPOSIT_SLIP:       { upload: 'cash.submit_settlement', read: ['cash.approve_settlement', 'cash.view_cash_in_hand'], contentTypes: PHOTO_OR_DOCUMENT, liveCameraOnly: false, purged: false, prefix: 'deposit-slip' },
   TRANSPORT_SLIP:     { upload: 'sales.fulfil_dispatch', read: ['sales.fulfil_dispatch', 'sales.view_all'], contentTypes: PHOTO_OR_DOCUMENT, liveCameraOnly: false, purged: false, prefix: 'transport-slip' },
+  // ADR-0047: the voucher handed to the store, photographed as it is issued — never an old picture from the gallery.
+  PAYMENT_VOUCHER:    { upload: 'sales.record', read: ['stores.view_all', 'cash.approve_settlement', 'cash.view_cash_in_hand'], contentTypes: PHOTO, liveCameraOnly: true, purged: false, prefix: 'payment-voucher' },
 };
 
 export function isMediaKind(value: string): value is MediaKind {

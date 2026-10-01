@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import ar from '../src/messages/ar.json' with { type: 'json' };
 import en from '../src/messages/en.json' with { type: 'json' };
-import { aStoreByApi, aVehicle, batchOf, checkIn, freshSeller, positionsOf, post, receiveStock, sessionPage } from './helpers';
+import { aStoreByApi, aVehicle, batchOf, checkIn, freshSeller, paidWith, positionsOf, post, receiveStock, sessionPage } from './helpers';
 
 const headers = (origin: string) => ({ origin, 'idempotency-key': crypto.randomUUID() });
 const fill = (template: string, values: Record<string, string | number>) =>
@@ -97,7 +97,7 @@ for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
     expect(await owed(phone, credit.id)).toBe('180.00');
 
     // RET-003, RET-008, OQ-020: paid for in cash, defective — the credit comes back as cash from the seller.
-    const paid = await post(phone, origin, '/sales', { storeId: cash.id, lines: [{ skuId, packs: 2 }], payment: { method: 'CASH' } });
+    const paid = await post(phone, origin, '/sales', { storeId: cash.id, lines: [{ skuId, packs: 2 }], payment: await paidWith(phone, origin, '180.00') });
     expect(await cashInHand(phone)).toBe('180.00');
     await phone.goto(`/field/sales/${paid.id}`);
     await phone.getByTestId('start-return').click();

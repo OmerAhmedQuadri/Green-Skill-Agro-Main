@@ -18,3 +18,6 @@ export const ConvertToDraftRequest = z.object({
     packs: z.coerce.number().int().min(1).max(1_000_000),
   })).min(1).max(200),
 });
+
+/** RPT-010: a seller's own month. Absent means the current one. */
+export const MyPerformanceQuery = z.object({ month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/).optional() });

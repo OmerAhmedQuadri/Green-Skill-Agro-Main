@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import ar from '../src/messages/ar.json' with { type: 'json' };
 import en from '../src/messages/en.json' with { type: 'json' };
-import { aStoreByApi, aVehicle, anUpload, batchOf, checkIn, freshSeller, post, receiveStock, sessionPage } from './helpers';
+import { aStoreByApi, aVehicle, anUpload, batchOf, checkIn, freshSeller, paidWith, post, receiveStock, sessionPage } from './helpers';
 
 const headers = (origin: string) => ({ origin, 'idempotency-key': crypto.randomUUID() });
 // The Riyadh month the app sets targets in — not UTC's, which is still the old
@@ -38,7 +38,7 @@ for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
 
     // Three bags at 90.00, paid in cash: 270.00 in the seller's hands.
     const store = await aStoreByApi(phone, origin, `T Store ${locale} ${stamp}`, { creditMode: 'BILL_TO_BILL', creditLimit: '0.00' });
-    await post(phone, origin, '/sales', { storeId: store.id, lines: [{ skuId, packs: 3 }], payment: { method: 'CASH' } });
+    await post(phone, origin, '/sales', { storeId: store.id, lines: [{ skuId, packs: 3 }], payment: await paidWith(phone, origin, '270.00') });
 
     // COM-001: still in the seller's hands, so nothing has been earned on it yet.
     await phone.goto('/field/targets');

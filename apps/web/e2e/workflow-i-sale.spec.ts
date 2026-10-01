@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import ar from '../src/messages/ar.json' with { type: 'json' };
 import en from '../src/messages/en.json' with { type: 'json' };
-import { aStoreByApi, aVehicle, batchOf, checkIn, freshSeller, post, receiveStock, sessionPage } from './helpers';
+import { aStoreByApi, aVehicle, batchOf, checkIn, freshSeller, post, receiveStock, sessionPage, takePhoto } from './helpers';
 
 const headers = (origin: string) => ({ origin, 'idempotency-key': crypto.randomUUID() });
 const fill = (template: string, values: Record<string, string | number>) =>
@@ -154,15 +154,23 @@ for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
     // retried with backoff — recovery is the point of the test, and CI takes longer than 10 s.
     await expect(phone.getByTestId('sale-status')).toHaveText(m.sales.statuses.COMPLETED, { timeout: 30_000 });
 
-    // SAL-006: bill to bill settles at once — in cash, which becomes cash in hand (SAL-007).
+    // ADR-0047: money comes with the sale if the store pays now — with the voucher handed over,
+    // its number typed and its photo taken. This store has no credit, so nothing may be left owing.
     await phone.goto(`/field/sell/${cash.id}`);
     await phone.getByLabel(fill(m.sales.packsFor, { code: 'OKRA-PK-5KG' })).fill(n('1'));
-    await expect(phone.getByText(m.sales.billToBillNote)).toBeVisible();
+    await expect(phone.getByTestId('over-limit')).toBeVisible();
+    await expect(phone.getByRole('button', { name: m.sales.complete })).toBeDisabled();
+    await phone.getByLabel(m.sales.takePayment).check();
+    await phone.getByLabel(m.stores.amount).fill(n('90'));
+    await phone.getByLabel(m.stores.voucherNumber).fill(`I-${locale}-${stamp}`);
+    await takePhoto(phone, 'sale-voucher-photo', m);
+    await expect(phone.getByTestId('over-limit')).toHaveCount(0);
     await phone.getByRole('button', { name: m.sales.complete }).click();
     // The dropped response reset the connection, so the sale page's first read can fail and be
     // retried with backoff — recovery is the point of the test, and CI takes longer than 10 s.
     await expect(phone.getByTestId('sale-status')).toHaveText(m.sales.statuses.COMPLETED, { timeout: 30_000 });
     await expect(phone.getByTestId('paid')).toContainText(m.stores.methods.CASH);
+    await expect(phone.getByTestId('paid-voucher')).toContainText(`I-${locale.toUpperCase()}-${stamp}`);
 
     // SAL-009, CRD-007: a manager releases the blocked store for one sale, with a reason; the next is blocked again.
     await post(admin, origin, `/stores/${blocked.id}/credit-overrides`, { reason: 'Owner pays on Thursday' });

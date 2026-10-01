@@ -88,6 +88,9 @@ for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
     await phone.goto(`/field/stores/${storeId}`);
     await phone.getByRole('button', { name: m.stores.collect }).click();
     await phone.getByLabel(m.stores.amount).fill('300');
+    // ADR-0047: the voucher handed to the owner — its number, and its photo.
+    await phone.getByLabel(m.stores.voucherNumber).fill(`H-${locale}-${stamp}`);
+    await takePhoto(phone, 'collect-voucher-photo', m);
     await phone.getByRole('button', { name: m.stores.recordPayment }).click();
     await expect(phone.getByTestId('credit-clear')).toBeVisible();
     await expect(phone.getByTestId('ledger-PAYMENT')).toBeVisible();

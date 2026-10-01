@@ -160,8 +160,12 @@ export async function checkIn(phone: Page, m: Messages, opts: { odometer?: strin
 }
 
 /** A file uploaded through the API as the page's user, to storage and confirmed — as the app does (ARCHITECTURE §6.4). */
-/** The media kinds that are uploaded rather than taken live (SELFIE and ODOMETER are camera-only). */
-type UploadableKind = 'STOREFRONT' | 'TRANSPORT_SLIP' | 'DEPOSIT_SLIP' | 'WRITE_OFF_EVIDENCE';
+/**
+ * The media kinds a spec uploads through the API (SELFIE and ODOMETER are only
+ * ever taken live). A voucher is live-camera in the app; a spec that pays
+ * through the API sends its photo this way instead.
+ */
+type UploadableKind = 'STOREFRONT' | 'TRANSPORT_SLIP' | 'DEPOSIT_SLIP' | 'WRITE_OFF_EVIDENCE' | 'PAYMENT_VOUCHER';
 
 export async function anUpload(page: Page, origin: string, kind: UploadableKind) {
   if (page.url() === 'about:blank') await page.goto('/');
@@ -171,6 +175,16 @@ export async function anUpload(page: Page, origin: string, kind: UploadableKind)
   expect((await page.request.put(ticket.upload.url, { headers: ticket.upload.headers, data: jpeg })).ok()).toBe(true);
   await post(page, origin, `/media/${ticket.mediaId}/confirm`, {});
   return ticket.mediaId;
+}
+
+/**
+ * ADR-0047: money taken from a store through the API, with its voucher — a
+ * number used nowhere else (random, because a local database keeps every
+ * earlier run's vouchers) and its photo.
+ */
+export async function paidWith(page: Page, origin: string, amount: string, method: 'CASH' | 'BANK_TRANSFER' = 'CASH', reference?: string) {
+  const photoId = await anUpload(page, origin, 'PAYMENT_VOUCHER');
+  return { amount, method, ...(reference ? { reference } : {}), voucher: { number: `E2E-${crypto.randomUUID().slice(0, 8)}`, photoId } };
 }
 
 /** A store the seller onboards through the API, somewhere no earlier run put one (workflow H). */

@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { money } from '../numeric';
 import {
-  assertGoals, attributedPeriod, commissionFor, daysInPeriod, elapsedInPeriod, freezesAt, isBehindPace, isFrozen, settledByPeriod, targetProgress,
+  assertGoals, attributedPeriod, commissionFor, confirmedTransfersByPeriod, daysInPeriod, elapsedInPeriod, freezesAt, isBehindPace, isFrozen,
+  settledByPeriod, targetProgress,
   type TargetActuals, type TargetGoals,
 } from './targets';
 
@@ -144,5 +145,29 @@ describe('matching approved settlements to the cash they covered (COM-001, COM-0
       [approval('2026-09-01T11:00:00', '4000.00'), approval('2026-09-28T11:00:00', '6000.00')], 3,
     );
     expect(plain(settled)).toEqual({ '2026-08': '4000.00', '2026-09': '6000.00' });
+  });
+});
+
+describe('confirmed bank transfers (COM-001, COM-005, ADR-0046)', () => {
+  const at = (iso: string) => new Date(`${iso}+03:00`);
+  const transfer = (period: string, confirmed: string, amount: string) => ({ period, confirmedAt: at(confirmed), amount: money(amount) });
+  const plain = (m: ReadonlyMap<string, string>) => Object.fromEntries(m);
+
+  it('ADR-0046: a confirmed transfer counts in the month it was received, as approved cash does', () => {
+    // Received in August, confirmed on 2 September — before August froze on the 4th.
+    expect(plain(confirmedTransfersByPeriod([transfer('2026-08', '2026-09-02T10:00:00', '750.00')], 3))).toEqual({ '2026-08': '750.00' });
+  });
+
+  it('ADR-0046, COM-008: confirmed after its month froze, it lands in the month it was confirmed', () => {
+    expect(plain(confirmedTransfersByPeriod([transfer('2026-08', '2026-09-15T10:00:00', '750.00')], 3))).toEqual({ '2026-09': '750.00' });
+  });
+
+  it('ADR-0046: transfers landing in the same month add up', () => {
+    const byMonth = confirmedTransfersByPeriod([
+      transfer('2026-09', '2026-09-10T10:00:00', '100.00'),
+      transfer('2026-09', '2026-09-28T10:00:00', '250.50'),
+      transfer('2026-08', '2026-08-31T23:30:00', '40.00'), // still August in Riyadh
+    ], 3);
+    expect(plain(byMonth)).toEqual({ '2026-09': '350.50', '2026-08': '40.00' });
   });
 });

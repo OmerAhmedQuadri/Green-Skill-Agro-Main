@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import ar from '../src/messages/ar.json' with { type: 'json' };
 import en from '../src/messages/en.json' with { type: 'json' };
-import { aJpeg, aStoreByApi, aVehicle, batchOf, checkIn, freshSeller, post, receiveStock, sessionPage } from './helpers';
+import { aJpeg, aStoreByApi, aVehicle, batchOf, checkIn, freshSeller, paidWith, post, receiveStock, sessionPage } from './helpers';
 
 const headers = (origin: string) => ({ origin, 'idempotency-key': crypto.randomUUID() });
 /** Money renders with its currency, and Arabic wraps it in direction marks: match the amount inside. */
@@ -37,7 +37,7 @@ for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
     // LIM-002, LIM-004: this seller may hold 200.00 in cash; a 450.00 sale takes them over it.
     await admin.request.put('/api/v1/ceilings', { headers: headers(origin), data: { kind: 'CASH_IN_HAND', sellerId: seller.id, amount: '200.00' } });
     const store = await aStoreByApi(phone, origin, `M Cash ${locale} ${stamp}`, { creditMode: 'BILL_TO_BILL', creditLimit: '0.00' });
-    await post(phone, origin, '/sales', { storeId: store.id, lines: [{ skuId, packs: 5 }], payment: { method: 'CASH' } });
+    await post(phone, origin, '/sales', { storeId: store.id, lines: [{ skuId, packs: 5 }], payment: await paidWith(phone, origin, '450.00') });
     expect(await cashInHand(phone)).toBe('450.00');
 
     // LIM-004: the dashboard carries the breach; LIM-002: the seller is told.
@@ -49,7 +49,7 @@ for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
     expect(told.items.map((x) => x.kind)).toContain('CEILING_BREACHED');
 
     // LIM-005: a warning only — the seller keeps working and sells again.
-    await post(phone, origin, '/sales', { storeId: store.id, lines: [{ skuId, packs: 1 }], payment: { method: 'CASH' } });
+    await post(phone, origin, '/sales', { storeId: store.id, lines: [{ skuId, packs: 1 }], payment: await paidWith(phone, origin, '90.00') });
     expect(await cashInHand(phone)).toBe('540.00');
 
     // CSH-002, CSH-005: the seller banks it with the slip; nothing moves yet.

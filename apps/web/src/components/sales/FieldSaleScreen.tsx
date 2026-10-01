@@ -1,12 +1,15 @@
 'use client';
 
+import { sumMoney, type Money } from '@gsa/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useState } from 'react';
-import { Alert, Badge, Button, Card, Field, Input, Select } from '@gsa/ui';
+import { Alert, Badge, Button, Card, Checkbox } from '@gsa/ui';
 import { PageHeader } from '@/components/common/PageHeader';
+import { NO_PAYMENT, PaymentFields, paymentBody, type PaymentDraft } from '@/components/stores/PaymentFields';
+import type { Store } from '@/components/stores/types';
 import { api } from '@/lib/api';
 import { useFormat } from '@/lib/format';
 import { useErrorText, useOnceCommand } from '@/lib/hooks';
@@ -29,8 +32,8 @@ export function FieldSaleScreen({ id, canReturn = false }: { id: string; canRetu
   const errorText = useErrorText();
   const queryClient = useQueryClient();
   const router = useRouter();
-  const [method, setMethod] = useState<'CASH' | 'BANK_TRANSFER'>('CASH');
-  const [reference, setReference] = useState('');
+  const [paying, setPaying] = useState(false);
+  const [draft, setDraft] = useState<PaymentDraft>(NO_PAYMENT);
   const [confirmWithdraw, setConfirmWithdraw] = useState(false);
   const sale = useQuery({
     queryKey: keys.sale(id), queryFn: () => api<Sale>(`/sales/${id}`),
@@ -40,6 +43,10 @@ export function FieldSaleScreen({ id, canReturn = false }: { id: string; canRetu
       return s && (s.status === 'PENDING_DISCOUNT_APPROVAL' || s.document?.status === 'PENDING') ? 4_000 : false;
     },
   });
+  // ADR-0047: what the store owes besides, for money taken as an approved sale completes.
+  const completing = sale.data?.status === 'DISCOUNT_APPROVED' && sale.data.channel === 'VEHICLE';
+  const storeId = sale.data?.store.id ?? '';
+  const store = useQuery({ queryKey: keys.store(storeId), queryFn: () => api<Store>(`/stores/${storeId}`), enabled: completing });
   const refresh = (s: Sale) => {
     queryClient.setQueryData(keys.sale(id), s);
     for (const k of [keys.sales(), keys.myVehicle, keys.cashInHand, keys.store(s.store.id), keys.saleOptions(s.store.id)]) void queryClient.invalidateQueries({ queryKey: k });
@@ -55,6 +62,8 @@ export function FieldSaleScreen({ id, canReturn = false }: { id: string; canRetu
   if (sale.error) return <Alert>{errorText(sale.error)}</Alert>;
   const s = sale.data;
   const billToBill = s.store.creditMode === 'BILL_TO_BILL';
+  const owed = sumMoney([store.data?.credit.outstanding ?? ('0.00' as Money), s.total]);
+  const payment = paying ? paymentBody(draft, owed) : null;
   const a = s.approval;
   const mustSend = s.sendingMode === 'COMPULSORY' && (s.document?.sends.length ?? 0) === 0 && s.document?.status !== 'FAILED';
 
@@ -91,7 +100,12 @@ export function FieldSaleScreen({ id, canReturn = false }: { id: string; canRetu
       ) : null}
 
       <Card><SaleLinesTable sale={s} /></Card>
-      {s.payment ? <p className="text-sm text-stone-600" data-testid="paid">{t('paidWith', { method: ts(`methods.${s.payment.method}`), amount: format.money(s.payment.amount) })}</p> : null}
+      {s.payment ? (
+        <p className="text-sm text-stone-600" data-testid="paid">
+          {t('paidWith', { method: ts(`methods.${s.payment.method}`), amount: format.money(s.payment.amount) })}
+          {s.payment.voucher ? <span className="block" data-testid="paid-voucher">{ts('voucherIs', { number: s.payment.voucher.number })}</span> : null}
+        </p>
+      ) : null}
       {s.creditOverride ? <p className="text-sm text-stone-600">{t('overrideUsed', { name: s.creditOverride.grantedBy, reason: s.creditOverride.reason })}</p> : null}
 
       {act.error ? <Alert>{errorText(act.error)}</Alert> : null}
@@ -102,21 +116,15 @@ export function FieldSaleScreen({ id, canReturn = false }: { id: string; canRetu
       ) : null}
       {s.status === 'DISCOUNT_APPROVED' && s.channel === 'VEHICLE' ? (
         <Card className="space-y-3 p-4">
-          {billToBill ? (
-            <>
-              <p className="text-sm text-stone-600">{t('billToBillNote')}</p>
-              <Field id="method" label={ts('method')}>
-                <Select id="method" value={method} onChange={(e) => setMethod(e.target.value === 'BANK_TRANSFER' ? 'BANK_TRANSFER' : 'CASH')}>
-                  <option value="CASH">{ts('methods.CASH')}</option><option value="BANK_TRANSFER">{ts('methods.BANK_TRANSFER')}</option>
-                </Select>
-              </Field>
-              {method === 'BANK_TRANSFER' ? <Field id="reference" label={ts('reference')}><Input id="reference" dir="ltr" value={reference} onChange={(e) => setReference(e.target.value)} /></Field> : null}
-            </>
-          ) : null}
-          <Button block disabled={act.isPending} onClick={() => act.run({
-            action: 'complete', version: s.version,
-            payment: billToBill ? { method, reference: method === 'BANK_TRANSFER' ? reference.trim() || null : null } : undefined,
-          })}>{act.isPending ? t('saving') : t('complete')}</Button>
+          {billToBill && store.data ? <p className="text-sm text-stone-600">{t('billToBillNote', { amount: format.money(store.data.credit.available) })}</p> : null}
+          <label htmlFor="take-payment" className="flex items-center gap-2 text-sm font-medium">
+            <Checkbox id="take-payment" checked={paying} onChange={(e) => setPaying(e.target.checked)} />
+            {t('takePayment')}
+          </label>
+          {paying ? <PaymentFields id="complete" owed={owed} value={draft} onChange={setDraft} /> : null}
+          <Button block disabled={act.isPending || (paying && !payment)} onClick={() => act.run({ action: 'complete', version: s.version, payment: payment ?? undefined })}>
+            {act.isPending ? t('saving') : t('complete')}
+          </Button>
         </Card>
       ) : null}
       {s.status === 'PENDING_DISCOUNT_APPROVAL' || s.status === 'DISCOUNT_APPROVED' ? (

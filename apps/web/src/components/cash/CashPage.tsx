@@ -11,15 +11,17 @@ import { api } from '@/lib/api';
 import { useFormat } from '@/lib/format';
 import { useErrorText } from '@/lib/hooks';
 import { keys } from '@/lib/query-keys';
+import { TransfersToConfirm } from './TransfersToConfirm';
 import { type Exposure, type Settlement } from './types';
 
 type Page<T> = { items: T[]; nextCursor: string | null };
 
 /**
  * Cash in the console (CSH-004, LIM-001): what every seller is carrying
- * against their ceilings, and the settlements waiting for a decision.
+ * against their ceilings, the settlements waiting for a decision, and — for
+ * whoever decides them — the stores' bank transfers to confirm (ADR-0046).
  */
-export function CashPage() {
+export function CashPage({ canConfirm = false }: { canConfirm?: boolean }) {
   const t = useTranslations('cash');
   const format = useFormat();
   const errorText = useErrorText();
@@ -45,6 +47,8 @@ export function CashPage() {
           </Table>
         )}
       </Section>
+
+      {canConfirm ? <TransfersToConfirm /> : null}
 
       <Section title={t('sellersTitle')}>
         <Table head={[t('seller'), t('inHand'), t('cashCeiling'), t('stockValue'), t('stockCeiling'), t('state')]}>

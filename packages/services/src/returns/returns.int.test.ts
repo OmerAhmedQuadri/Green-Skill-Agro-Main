@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { ownerQuery } from '../../test/db';
 import { anAccount, ctxFor } from '../../test/factories';
 import { aPhoto } from '../../test/media';
-import { aSellingSeller } from '../../test/sales';
+import { aSellingSeller, paid } from '../../test/sales';
 import { basePriceListId } from '../../test/stores';
 import { aLoadedVehicle } from '../../test/vehicles';
 import { cashInHand } from '../cash';
@@ -25,11 +25,13 @@ const vehiclePacks = async (ctx: Parameters<typeof getMyVehicle>[0]) => (await g
 const movements = (referenceId: string) => ownerQuery<{ batch_id: string; account_kind: string; quantity: string }>(
   'select batch_id, account_kind, quantity from stock_movements where reference_id = $1 order by account_kind::text, quantity', [referenceId]);
 
-/** A completed sale of `packs` Okra bags at 90.00 — the line and the batch it came from. */
-async function aSale(opts: Parameters<typeof aSellingSeller>[1] & { sold?: number; payment?: { method: 'CASH' | 'BANK_TRANSFER'; reference?: string } } = {}) {
+/** A completed sale of `packs` Okra bags at 90.00 — the line and the batch it came from — paid in full at the sale if `paidBy` says how. */
+async function aSale(opts: Parameters<typeof aSellingSeller>[1] & { sold?: number; paidBy?: { method: 'CASH' | 'BANK_TRANSFER'; reference?: string } } = {}) {
   const ctx = await admin();
   const setup = await aSellingSeller(ctx, opts);
-  const sale = await recordSale(setup.seller.ctx, { storeId: setup.store.id, lines: [{ skuId: setup.bag.id, packs: opts.sold ?? 4 }], ...(opts.payment ? { payment: opts.payment } : {}) });
+  const packs = opts.sold ?? 4;
+  const payment = opts.paidBy ? await paid(setup.seller.ctx, (packs * 90).toFixed(2), opts.paidBy.method, opts.paidBy.reference) : null;
+  const sale = await recordSale(setup.seller.ctx, { storeId: setup.store.id, lines: [{ skuId: setup.bag.id, packs }], payment });
   const line = sale.lines[0];
   const batchId = line?.batches[0]?.batchId;
   if (!line || !batchId) throw new Error('sale line missing');
@@ -81,11 +83,11 @@ describe('from the sale (workflow L, RET-001..006)', () => {
 
   it('RET-002, OQ-020: part-paid — no more than the unpaid part comes back unpaid; a paid sale is not "not yet cleared"', async () => {
     const { seller, sale, line, batchId } = await aSale();
-    await recordPayment(seller.ctx, { storeId: sale.store.id, amount: '300.00', method: 'CASH' });
+    await recordPayment(seller.ctx, { storeId: sale.store.id, ...(await paid(seller.ctx, '300.00')) });
     const input = (packs: number) => ({ saleId: sale.id, kind: 'CREDIT_NOTE' as const, condition: 'UNCLEARED_PAYMENT' as const, lines: [{ saleLineId: line.id, batchId, packs }] });
     expect((await getReturnable(seller.ctx, sale.id)).unpaid).toBe('60.00');
     expect(await code(recordReturn(seller.ctx, input(1)))).toBe('RETURN_EXCEEDS_UNPAID');
-    await recordPayment(seller.ctx, { storeId: sale.store.id, amount: '60.00', method: 'CASH' });
+    await recordPayment(seller.ctx, { storeId: sale.store.id, ...(await paid(seller.ctx, '60.00')) });
     expect(await code(recordReturn(seller.ctx, input(1)))).toBe('SALE_ALREADY_PAID');
   });
 });
@@ -123,7 +125,7 @@ describe('the credit note (RET-007, RET-008, OQ-020)', () => {
 
   it('RET-003, RET-008, OQ-020: defective and paid for — the credit settles the store\'s other debts first; the rest is cash back from the seller', async () => {
     const { seller, sale, line, batchId, bag, store } = await aSale({ sold: 2 });
-    await recordPayment(seller.ctx, { storeId: store.id, amount: '180.00', method: 'CASH' });
+    await recordPayment(seller.ctx, { storeId: store.id, ...(await paid(seller.ctx, '180.00')) });
     await recordSale(seller.ctx, { storeId: store.id, lines: [{ skuId: bag.id, packs: 1 }] });     // another sale, still owed: 90.00
     expect(await cashInHand(getDb(), seller.account.id)).toBe('180.00');
     const credit = await recordReturn(seller.ctx, { saleId: sale.id, kind: 'CREDIT_NOTE', condition: 'DEFECTIVE', lines: [{ saleLineId: line.id, batchId, packs: 2 }] });
@@ -135,7 +137,7 @@ describe('the credit note (RET-007, RET-008, OQ-020)', () => {
   });
 
   it('OQ-020: a refund beyond the seller\'s cash in hand is refused — nothing moves', async () => {
-    const { seller, sale, line, batchId } = await aSale({ sold: 1, creditMode: 'BILL_TO_BILL', creditLimit: '0.00', payment: { method: 'BANK_TRANSFER', reference: 'TRX-1' } });
+    const { seller, sale, line, batchId } = await aSale({ sold: 1, creditMode: 'BILL_TO_BILL', creditLimit: '0.00', paidBy: { method: 'BANK_TRANSFER', reference: 'TRX-1' } });
     const before = await vehiclePacks(seller.ctx);
     expect(await code(recordReturn(seller.ctx, { saleId: sale.id, kind: 'CREDIT_NOTE', condition: 'DEFECTIVE', lines: [{ saleLineId: line.id, batchId, packs: 1 }] })))
       .toBe('REFUND_EXCEEDS_CASH_IN_HAND');
@@ -207,7 +209,7 @@ describe('recorded sales and the console (RET-009, workflow L)', () => {
     ]);
     expect(await code(recordReturn(ctx, { saleId: sale.id, kind: 'REPLACEMENT', condition: 'DEFECTIVE', lines: [{ saleLineId: line.id, batchId, packs: 1 }] })))
       .toBe('REPLACEMENT_NEEDS_VEHICLE');
-    await recordPayment(seller.ctx, { storeId: sale.store.id, amount: '90.00', method: 'CASH' });
+    await recordPayment(seller.ctx, { storeId: sale.store.id, ...(await paid(seller.ctx, '90.00')) });
     expect(await code(recordReturn(ctx, { saleId: sale.id, kind: 'CREDIT_NOTE', condition: 'DEFECTIVE', lines: [{ saleLineId: line.id, batchId, packs: 1 }] })))
       .toBe('REFUND_NEEDS_SELLER');
     // The seller sees the return on their sale.
@@ -218,12 +220,13 @@ describe('recorded sales and the console (RET-009, workflow L)', () => {
 describe('a dispatch disputed after a remote confirmation (OQ-012)', () => {
   it('OQ-012: a manager credits the store, the goods are written off, and the seller hands the money over later', async () => {
     const ctx = await admin();
-    const { seller, store, bag } = await aSellingSeller(ctx, { creditMode: 'BILL_TO_BILL', creditLimit: '0.00' });
+    // ADR-0047: goods from the warehouse arrive before the money, so the store needs the credit for them.
+    const { seller, store, bag } = await aSellingSeller(ctx, { creditMode: 'BILL_TO_BILL', creditLimit: '1000.00' });
     // The store paid on receipt, confirmed on its owner's word — then says nothing arrived.
     const { orderId } = await raiseDispatchOrder(seller.ctx, { storeId: store.id, lines: [{ skuId: bag.id, packs: 2 }] });
     const released = await releaseOrder(ctx, orderId ?? '', { version: 1, transportSlipPhotoId: await aPhoto(ctx, 'TRANSPORT_SLIP') });
     const confirmed = await confirmReceipt(seller.ctx, released.id, {
-      version: released.version, mode: 'OWNER_WORD', payment: { method: 'CASH' },
+      version: released.version, mode: 'OWNER_WORD', payment: await paid(seller.ctx, '180.00'),
       lines: released.lines.map((l) => ({ lineId: l.id, received: l.packs, short: 0, damaged: 0 })),
     });
     const saleId = confirmed.sale.id;

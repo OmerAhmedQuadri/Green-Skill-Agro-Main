@@ -4,7 +4,7 @@ import { ownerQuery } from '../../test/db';
 import { anAccount, ctxFor } from '../../test/factories';
 import { mailer } from '../../test/mailer';
 import { aPhoto } from '../../test/media';
-import { aSellingSeller } from '../../test/sales';
+import { aSellingSeller, paid } from '../../test/sales';
 import { deliverPendingEmails, listMyNotifications } from '../notifications';
 import { getDb } from '../runtime';
 import { recordSale } from '../sales';
@@ -22,7 +22,7 @@ const ledgerOf = (sellerId: string) => ownerQuery<{ entry_type: string; amount: 
 async function aSellerWithCash(packs = 2) {
   const ctx = await admin();
   const setup = await aSellingSeller(ctx, { creditMode: 'BILL_TO_BILL', creditLimit: '0.00' });
-  await recordSale(setup.seller.ctx, { storeId: setup.store.id, lines: [{ skuId: setup.bag.id, packs }], payment: { method: 'CASH' } });
+  await recordSale(setup.seller.ctx, { storeId: setup.store.id, lines: [{ skuId: setup.bag.id, packs }], payment: await paid(setup.seller.ctx, (packs * 90).toFixed(2)) });
   return { ...setup, admin: ctx };
 }
 

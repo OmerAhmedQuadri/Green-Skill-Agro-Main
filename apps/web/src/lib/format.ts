@@ -29,6 +29,7 @@ export function useFormat() {
     // Calendar dates (expiry, arrival) are dates, not instants: format them as UTC so no zone shifts the day.
     const dateFormat = new Intl.DateTimeFormat(tag, { dateStyle: 'medium', timeZone: 'UTC' });
     const dateTimeFormat = new Intl.DateTimeFormat(tag, { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Riyadh' });
+    const monthFormat = new Intl.DateTimeFormat(tag, { month: 'long', year: 'numeric', timeZone: 'UTC' });
     return {
       locale,
       /** I18N-003: product, variety and category names are data, shown in the reader's language. */
@@ -42,6 +43,8 @@ export function useFormat() {
       country: (code: string) => regions.of(code) ?? code,
       /** A calendar date, `YYYY-MM-DD`. */
       date: (iso: string) => dateFormat.format(new Date(`${iso}T00:00:00Z`)),
+      /** A month, `YYYY-MM` — a calendar month, so formatted as UTC like a date. */
+      month: (period: string) => monthFormat.format(new Date(`${period}-01T00:00:00Z`)),
       /** An instant, shown on Riyadh time (CONVENTIONS §4). */
       dateTime: (instant: string | Date) => dateTimeFormat.format(new Date(instant)),
       /** ADR-0015: grams are stored; a whole number of kilograms reads as kilograms. */

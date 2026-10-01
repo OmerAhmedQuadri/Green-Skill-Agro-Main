@@ -6,6 +6,7 @@ import { mediaAssets } from './media';
 import { mutable } from './mutable';
 import { branches } from './organisation';
 import { cashLedgerEntries } from './sales';
+import { payments } from './stores';
 
 const money = (name: string) => numeric(name, { precision: 14, scale: 2 });
 
@@ -13,6 +14,8 @@ const money = (name: string) => numeric(name, { precision: 14, scale: 2 });
 export const settlementRoute = pgEnum('settlement_route', ['BANK_DEPOSIT', 'MANAGER_HANDOVER']);
 export const settlementStatus = pgEnum('settlement_status', ['SUBMITTED', 'APPROVED', 'REJECTED']);
 export const ceilingKindFlag = pgEnum('ceiling_flag_kind', ['CASH_IN_HAND', 'VEHICLE_STOCK_VALUE']);
+// Mirror packages/core/src/cash/transfers.
+export const transferOutcome = pgEnum('transfer_outcome', ['CONFIRMED', 'NOT_RECEIVED']);
 
 /**
  * CSH-002..006, STATE-MACHINES §6, ADR-0040: cash leaving a seller's hands —
@@ -55,6 +58,29 @@ export const cashSettlements = pgTable(
     check('cash_settlements_handover', sql`(${t.route} = 'MANAGER_HANDOVER') = (${t.receivedBy} is not null)`),
     check('cash_settlements_decided', sql`(${t.status} = 'SUBMITTED') = (${t.decidedAt} is null and ${t.decidedBy} is null)`),
     check('cash_settlements_approved', sql`(${t.status} = 'APPROVED') = (${t.approvedAmount} is not null and ${t.cashLedgerEntryId} is not null)`),
+  ],
+);
+
+/**
+ * ADR-0046: a manager's finding on a store's bank transfer — the money arrived,
+ * or it never did. One per transfer and final, so the payment itself stays as
+ * it was recorded. Append-only.
+ */
+export const transferDecisions = pgTable(
+  'transfer_decisions',
+  {
+    id: id(),
+    paymentId: uuid('payment_id').notNull().unique().references(() => payments.id),
+    outcome: transferOutcome('outcome').notNull(),
+    /** Why it was not received; required then. */ reason: text('reason'),
+    decidedAt: timestamptz('decided_at').notNull(),
+    decidedBy: uuid('decided_by').notNull().references(() => users.id),
+    branchId: uuid('branch_id').notNull().references(() => branches.id),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index('transfer_decisions_decided_by_idx').on(t.decidedBy),
+    check('transfer_decisions_reason', sql`${t.outcome} = 'CONFIRMED' or btrim(coalesce(${t.reason}, '')) <> ''`),
   ],
 );
 

@@ -3,6 +3,7 @@ import type { DomainError } from '../errors';
 import type { Money } from '../numeric';
 import { allocateCredit, assertCreditTerms, creditStatus, dueDateFor } from './credit';
 import { findDuplicates, initialStoreStatus, nameSimilarity, normaliseContactNumber, normaliseStoreName, transitionStore } from './stores';
+import { voucherNumber } from './vouchers';
 
 const code = (fn: () => unknown) => { try { fn(); return 'NO_ERROR'; } catch (e) { return (e as DomainError).code; } };
 const m = (v: string) => v as Money;
@@ -104,7 +105,7 @@ describe('credit cycles (CRD-001..007, OQ-018)', () => {
   });
 
   it('CRD-004, CRD-005: past due or over the limit blocks, each with its reason; grace delays past due', () => {
-    const base = { status: 'ACTIVE' as const, limit: m('1000.00'), graceDays: 0, today: '2026-10-12', overrideActive: false };
+    const base = { status: 'ACTIVE' as const, mode: 'WEEKLY' as const, committed: m('0.00'), limit: m('1000.00'), graceDays: 0, today: '2026-10-12', overrideActive: false };
     expect(creditStatus({ ...base, openDebits: [{ dueOn: '2026-10-17', open: m('400.00') }] }))
       .toMatchObject({ blocked: false, outstanding: '400.00', available: '600.00', reasons: [] });
     expect(creditStatus({ ...base, openDebits: [{ dueOn: '2026-10-10', open: m('400.00') }] }))
@@ -116,9 +117,33 @@ describe('credit cycles (CRD-001..007, OQ-018)', () => {
   });
 
   it('CRD-006, STO-009: an override lifts a credit block for the day, never an unapproved store', () => {
-    const owed = { limit: m('100.00'), graceDays: 0, today: '2026-10-12', openDebits: [{ dueOn: '2026-10-01', open: m('50.00') }] };
+    const owed = { mode: 'WEEKLY' as const, committed: m('0.00'), limit: m('100.00'), graceDays: 0, today: '2026-10-12', openDebits: [{ dueOn: '2026-10-01', open: m('50.00') }] };
     expect(creditStatus({ ...owed, status: 'ACTIVE', overrideActive: true })).toMatchObject({ blocked: false, overridden: true });
     expect(creditStatus({ ...owed, status: 'PENDING_APPROVAL', overrideActive: true })).toMatchObject({ blocked: true, overridden: false });
     expect(creditStatus({ ...owed, openDebits: [], status: 'PENDING_APPROVAL', overrideActive: false }).reasons).toEqual([{ code: 'NOT_APPROVED' }]);
+  });
+
+  it('ADR-0047: bill to bill is blocked by anything unpaid, or an order on its way — said as such, not as "past due"', () => {
+    const base = { status: 'ACTIVE' as const, mode: 'BILL_TO_BILL' as const, committed: m('0.00'), limit: m('1000.00'), graceDays: 0, today: '2026-10-12', overrideActive: false };
+    expect(creditStatus({ ...base, openDebits: [] })).toMatchObject({ blocked: false, reasons: [] });
+    // Bought last week and still unpaid: one reason, whatever its due date.
+    expect(creditStatus({ ...base, openDebits: [{ dueOn: '2026-10-05', open: m('400.00') }] }))
+      .toMatchObject({ blocked: true, pastDue: '400.00', reasons: [{ code: 'UNPAID_BILL', amount: '400.00' }] });
+    expect(creditStatus({ ...base, committed: m('300.00'), openDebits: [] }))
+      .toMatchObject({ blocked: true, committed: '300.00', reasons: [{ code: 'DISPATCH_PENDING', amount: '300.00' }] });
+  });
+});
+
+describe('a voucher number (ADR-0047)', () => {
+  it('ADR-0047: the same slip reads the same however it was typed, so a repeat is caught', () => {
+    expect(voucherNumber(' 004512 ')).toBe('4512');
+    expect(voucherNumber('٠٠٤٥١٢')).toBe('4512');
+    expect(voucherNumber('gsa-0451 2')).toBe('GSA-04512');
+    expect(voucherNumber('A/17')).toBe('A/17');
+    expect(voucherNumber('0')).toBe('0');
+  });
+
+  it('ADR-0047: letters and digits only, with - or / between them', () => {
+    for (const bad of ['', '   ', '-12', '12-', 'رقم12', '12#4', 'X'.repeat(41)]) expect(code(() => voucherNumber(bad))).toBe('INVALID_VOUCHER_NUMBER');
   });
 });

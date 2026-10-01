@@ -28,14 +28,19 @@ export function LedgerTable({ entries, compact = false, area = 'console' }: { en
     <Table head={compact ? [t('when'), t('entry'), t('amount'), t('balance')] : [t('when'), t('entry'), t('amount'), t('balance'), t('dueOn'), t('stillOwed'), t('by')]}>
       {rows.map((e) => {
         const href = LINKS[e.reference.type]?.(e.reference.id, area) ?? null;
+        // ADR-0046: debt put back because a bank transfer never arrived says so, not just "Adjustment".
+        const label = e.reference.type === 'TRANSFER_NOT_RECEIVED' ? t('transferNotReceived') : t(`entries.${e.entryType}`);
         return (
           <tr key={e.id} data-testid={`ledger-${e.entryType}`}>
             <Cell>{format.dateTime(e.occurredAt)}</Cell>
             <Cell>
-              {href
-                ? <Link href={href} className="font-medium text-brand-800 hover:underline">{t(`entries.${e.entryType}`)}</Link>
-                : t(`entries.${e.entryType}`)}
+              {href ? <Link href={href} className="font-medium text-brand-800 hover:underline">{label}</Link> : label}
               {e.paymentNumber ? <div className="text-xs text-stone-500"><bdi dir="ltr">{e.paymentNumber}</bdi></div> : null}
+              {e.voucher ? (
+                <div className="text-xs">
+                  <a href={`/api/v1/media/${e.voucher.photoId}`} target="_blank" rel="noreferrer" className="text-brand-800 hover:underline">{t('voucherIs', { number: e.voucher.number })}</a>
+                </div>
+              ) : null}
               {e.note ? <div className="text-xs text-stone-500">{e.note}</div> : null}
               {compact && e.dueOn ? <div className="text-xs text-stone-500">{t('dueBy', { date: format.date(e.dueOn) })}</div> : null}
             </Cell>

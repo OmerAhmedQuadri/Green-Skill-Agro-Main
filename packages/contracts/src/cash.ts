@@ -20,3 +20,10 @@ export const ListSettlementsQuery = z.object({
   status: z.enum(['SUBMITTED', 'APPROVED', 'REJECTED']).optional(), sellerId: z.uuid().optional(),
   cursor: z.string().max(500).optional(), limit: Limit.optional(),
 });
+
+/** ADR-0046: an approver's finding on a store's bank transfer — not received needs a reason. */
+export const DecideTransferRequest = z.object({
+  outcome: z.enum(['CONFIRMED', 'NOT_RECEIVED']), reason: OptionalText(500),
+});
+
+export const ListTransfersQuery = z.object({ limit: Limit.optional() });

@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { ownerQuery } from '../../test/db';
 import { anAccount, ctxFor } from '../../test/factories';
 import { aPhoto } from '../../test/media';
-import { aSellingSeller } from '../../test/sales';
+import { aSellingSeller, paid } from '../../test/sales';
 import { decideSettlement, submitSettlement } from '../cash';
 import { listMyNotifications } from '../notifications';
 import { recordReturn } from '../returns';
@@ -35,7 +35,7 @@ const monthsOn = (n: number) => midday(new Date(Date.UTC(periodYear, periodMonth
  */
 async function aSellerWhoSettled(ctx: Awaited<ReturnType<typeof admin>>, approved?: string) {
   const setup = await aSellingSeller(ctx, { creditMode: 'BILL_TO_BILL', creditLimit: '0.00' });
-  await recordSale(setup.seller.ctx, { storeId: setup.store.id, lines: [{ skuId: setup.bag.id, packs: 3 }], payment: { method: 'CASH' } });
+  await recordSale(setup.seller.ctx, { storeId: setup.store.id, lines: [{ skuId: setup.bag.id, packs: 3 }], payment: await paid(setup.seller.ctx, '270.00') });
   const declared = await submitSettlement(setup.seller.ctx, {
     route: 'BANK_DEPOSIT', amount: '270.00', depositedOn: '2026-09-20', photoId: await aPhoto(setup.seller.ctx, 'DEPOSIT_SLIP'),
   });
@@ -82,7 +82,7 @@ describe('monthly targets and commission (workflow O, TGT-001..006, COM-001..009
   it('COM-001: cash the seller is still holding earns nothing — only what a manager approved', async () => {
     const ctx = await admin();
     const setup = await aSellingSeller(ctx, { creditMode: 'BILL_TO_BILL', creditLimit: '0.00' });
-    await recordSale(setup.seller.ctx, { storeId: setup.store.id, lines: [{ skuId: setup.bag.id, packs: 3 }], payment: { method: 'CASH' } });
+    await recordSale(setup.seller.ctx, { storeId: setup.store.id, lines: [{ skuId: setup.bag.id, packs: 3 }], payment: await paid(setup.seller.ctx, '270.00') });
     // Collected, never settled: the sale counts towards revenue, the cash counts towards nothing.
     const standing = await myStanding(setup.seller.ctx);
     expect(standing.base).toBe('0.00');
@@ -185,11 +185,11 @@ describe('monthly targets and commission (workflow O, TGT-001..006, COM-001..009
     const ctx = await admin();
     const setup = await aSellingSeller(ctx, { packs: 12, creditMode: 'WEEKLY', creditLimit: '20000.00' });
     // One sale paid for, one left unpaid: the store owes for the second.
-    const paid = await recordSale(setup.seller.ctx, { storeId: setup.store.id, lines: [{ skuId: setup.bag.id, packs: 3 }] });
+    const settledSale = await recordSale(setup.seller.ctx, { storeId: setup.store.id, lines: [{ skuId: setup.bag.id, packs: 3 }] });
     await recordSale(setup.seller.ctx, { storeId: setup.store.id, lines: [{ skuId: setup.bag.id, packs: 2 }] });
-    await recordPayment(setup.seller.ctx, { storeId: setup.store.id, amount: paid.total, method: 'CASH' });
+    await recordPayment(setup.seller.ctx, { storeId: setup.store.id, ...(await paid(setup.seller.ctx, settledSale.total)) });
     const declared = await submitSettlement(setup.seller.ctx, {
-      route: 'BANK_DEPOSIT', amount: paid.total, depositedOn: '2026-09-20', photoId: await aPhoto(setup.seller.ctx, 'DEPOSIT_SLIP'),
+      route: 'BANK_DEPOSIT', amount: settledSale.total, depositedOn: '2026-09-20', photoId: await aPhoto(setup.seller.ctx, 'DEPOSIT_SLIP'),
     });
     await decideSettlement(ctx, declared.id, { version: declared.version, approve: true });
     const before = await myStanding(setup.seller.ctx);
@@ -197,12 +197,12 @@ describe('monthly targets and commission (workflow O, TGT-001..006, COM-001..009
 
     // Goods back from the sale that was paid for: the money stays with the
     // business, a receivable is cancelled instead, so the commission reverses.
-    const line = paid.lines[0];
+    const line = settledSale.lines[0];
     if (!line) throw new Error('the sale has no lines');
     // RET-002: "uncleared payment" is for a sale still unpaid, so a sale that has
     // been paid for comes back as defective — the system refuses the other way round.
     await recordReturn(setup.seller.ctx, {
-      saleId: paid.id, kind: 'CREDIT_NOTE', condition: 'DEFECTIVE',
+      saleId: settledSale.id, kind: 'CREDIT_NOTE', condition: 'DEFECTIVE',
       lines: [{ saleLineId: line.id, batchId: setup.bagBatch.batchId, packs: 1, saleable: false }],
     });
     const after = await myStanding(setup.seller.ctx);

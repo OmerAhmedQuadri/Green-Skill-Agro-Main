@@ -3,13 +3,13 @@ import { describe, expect, it } from 'vitest';
 import { ownerQuery } from '../../test/db';
 import { anAccount, ctxFor } from '../../test/factories';
 import { aPhoto } from '../../test/media';
-import { aSellingSeller } from '../../test/sales';
+import { aSellingSeller, paid } from '../../test/sales';
 import { getMyCashInHand } from '../cash';
 import { listMyNotifications } from '../notifications';
 import { setPriceListItems } from '../pricing';
-import { decideDiscountRequest, getSale, listSales } from '../sales';
+import { decideDiscountRequest, getSale, listSales, recordSale } from '../sales';
 import { getDb } from '../runtime';
-import { adjustBalance, listStoreLedger } from '../stores';
+import { adjustBalance, getCreditStatus, listStoreLedger, recordPayment } from '../stores';
 import { actualsFor } from '../targets';
 import { basePriceListId } from '../../test/stores';
 import {
@@ -162,13 +162,27 @@ describe('receipt (DSP-009..012, OQ-019)', () => {
     expect(closed).toMatchObject({ status: 'CLOSED', closeReason: 'DELIVERED', resolution: 'FURTHER_ORDER' });
   });
 
-  it('SAL-006, CSH-001: a bill-to-bill store pays for what arrived when it arrives', async () => {
-    const s = await aDispatchSetup({ creditMode: 'BILL_TO_BILL', creditLimit: '0.00' });
+  it('ADR-0047, CSH-001: delivered to a bill-to-bill store, the money may come now — part or all, with a voucher — or later', async () => {
+    const s = await aDispatchSetup({ creditMode: 'BILL_TO_BILL', creditLimit: '1000.00' });
     const { order } = await released(s);
     const all = [{ lineId: line(order, s.bag.code), received: 3, short: 0, damaged: 0 }, { lineId: line(order, s.pouch.code), received: 2, short: 0, damaged: 0 }];
-    expect(await code(confirmReceipt(s.seller.ctx, order.id, { version: order.version, mode: 'IN_PERSON', lines: all }))).toBe('PAYMENT_REQUIRED');
-    await confirmReceipt(s.seller.ctx, order.id, { version: order.version, mode: 'IN_PERSON', lines: all, payment: { method: 'CASH' } });
-    expect(await getMyCashInHand(s.seller.ctx)).toEqual({ cashInHand: '310.00' });
+    await confirmReceipt(s.seller.ctx, order.id, { version: order.version, mode: 'IN_PERSON', lines: all, payment: await paid(s.seller.ctx, '200.00') });
+    expect(await getMyCashInHand(s.seller.ctx)).toEqual({ cashInHand: '200.00' });
+    // The rest is the store's open bill: nothing more until it is cleared.
+    expect((await getCreditStatus(s.seller.ctx, s.store.id)).reasons).toEqual([{ code: 'UNPAID_BILL', amount: '110.00' }]);
+  });
+
+  it('ADR-0047: a split order is two bills — the warehouse part waits for the vehicle part to be paid, and the other way round', async () => {
+    const s = await aDispatchSetup({ creditMode: 'BILL_TO_BILL', creditLimit: '1000.00' });
+    await recordSale(s.seller.ctx, { storeId: s.store.id, lines: [{ skuId: s.bag.id, packs: 1 }] }); // 90.00, unpaid
+    const behind = await raiseDispatchOrder(s.seller.ctx, { storeId: s.store.id, lines: lines(s) }).catch((e: DomainError) => e);
+    expect(behind).toMatchObject({ code: 'CREDIT_BLOCKED', details: { reasons: [{ code: 'UNPAID_BILL', amount: '90.00' }] } });
+    await recordPayment(s.seller.ctx, { storeId: s.store.id, ...(await paid(s.seller.ctx, '90.00')) });
+    await raiseDispatchOrder(s.seller.ctx, { storeId: s.store.id, lines: lines(s) }); // 310.00 on its way
+    // On its way, it is a bill already: neither a vehicle sale nor another order until it arrives and is paid.
+    const waiting = await recordSale(s.seller.ctx, { storeId: s.store.id, lines: [{ skuId: s.bag.id, packs: 1 }] }).catch((e: DomainError) => e);
+    expect(waiting).toMatchObject({ code: 'CREDIT_BLOCKED', details: { reasons: [{ code: 'DISPATCH_PENDING', amount: '310.00' }] } });
+    expect(await code(raiseDispatchOrder(s.seller.ctx, { storeId: s.store.id, lines: [{ skuId: s.bag.id, packs: 1 }] }))).toBe('CREDIT_BLOCKED');
   });
 });
 

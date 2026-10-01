@@ -2,6 +2,7 @@ import type { CreditMode } from '@gsa/core';
 import type { Ctx } from '../src/context';
 import { setPriceListItems } from '../src/pricing';
 import { decideStore } from '../src/stores';
+import { aPhoto } from './media';
 import { aStore, basePriceListId } from './stores';
 import { aLoadedVehicle } from './vehicles';
 
@@ -32,4 +33,17 @@ export function aPdfRenderer(opts: { fail?: boolean } = {}) {
       return Promise.resolve(new TextEncoder().encode(`%PDF-1.7 ${html.length}`));
     },
   };
+}
+
+let vouchers = 0;
+
+/** ADR-0047: the voucher a seller hands over — a number used nowhere else, and its photo. */
+export async function aVoucher(ctx: Ctx): Promise<{ number: string; photoId: string }> {
+  vouchers += 1;
+  return { number: `T-${crypto.randomUUID().slice(0, 8)}-${vouchers}`, photoId: await aPhoto(ctx, 'PAYMENT_VOUCHER') };
+}
+
+/** CRD-003, ADR-0047: money taken from a store, with its voucher. */
+export async function paid(ctx: Ctx, amount: string, method: 'CASH' | 'BANK_TRANSFER' = 'CASH', reference?: string) {
+  return { amount, method, ...(reference ? { reference } : {}), voucher: await aVoucher(ctx) };
 }

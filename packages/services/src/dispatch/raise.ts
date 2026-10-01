@@ -134,7 +134,7 @@ async function raise(tx: Tx, ctx: Ctx, store: Store, sellerId: string, input: Ra
   if (priced.needsApproval && !reason) {
     throw new DomainError('DISCOUNT_ABOVE_CEILING', { lines: priced.lines.filter((l) => l.aboveCeiling).map((l) => ({ skuId: l.skuId, discount: l.discount, ceiling: l.ceiling })) });
   }
-  const { usesOverride } = assertSaleCredit(store.credit, store.creditMode, priced.total, await committedToDispatch(tx, store.id));
+  const { usesOverride } = assertSaleCredit(store.credit, store.creditMode, priced.total, { committed: await committedToDispatch(tx, store.id) });
   const units = await skuUnits(tx, lines.map((l) => l.skuId));
   const id = newId();
   const creditOverrideId = usesOverride ? await consumeCreditOverride(tx, ctx, store.id, id) : null;
@@ -192,7 +192,7 @@ export async function dispatchApprovedSale(ctx: Ctx, saleId: string, input: { ve
     if (row.channel !== 'DISPATCH') throw new DomainError('INVALID_TRANSITION', { from: row.status, action: 'dispatch' });
     const status = transitionSale(row.status, 'dispatch');
     const store = await loadStore(tx, readingAsManager(ctx), row.storeId);
-    const { usesOverride } = assertSaleCredit(store.credit, store.creditMode, row.total as Money, await committedToDispatch(tx, store.id, saleId));
+    const { usesOverride } = assertSaleCredit(store.credit, store.creditMode, row.total as Money, { committed: await committedToDispatch(tx, store.id, saleId) });
     const creditOverrideId = usesOverride && !row.creditOverrideId ? await consumeCreditOverride(tx, ctx, store.id, saleId) : row.creditOverrideId;
     await tx.update(sales).set({ status, creditOverrideId, updatedAt: ctx.now, updatedBy: ctx.user.id, version: row.version + 1 }).where(eq(sales.id, saleId));
     return { saleId, orderId: await openOrder(tx, ctx, saleId) };

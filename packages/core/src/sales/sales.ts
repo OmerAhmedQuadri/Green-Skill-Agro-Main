@@ -2,7 +2,7 @@ import { DomainError } from '../errors';
 import { allocateFefo, type Allocation, type BatchPosition } from '../inventory';
 import { Dec, dec, toMoney, type Money, type Percent, type Quantity } from '../numeric';
 import { applicableItemCeiling } from '../pricing';
-import type { CreditMode, CreditStatus } from '../stores';
+import type { BlockReason, CreditMode, CreditStatus } from '../stores';
 import { packCount, type PackCount } from '../units';
 
 /** STATE-MACHINES §2. PENDING_DELIVERY arrives with warehouse dispatch (M7). */
@@ -156,22 +156,33 @@ export function decideDiscount(
 /**
  * SAL-001, SAL-002, SAL-009, CRD-004..007, OQ-018: whether this store can take
  * this sale. A store not approved, rejected or inactive — never. Blocked on
- * credit, or a sale on credit above what is available — only with a manager's
- * same-day override, which the sale then uses up. Bill to bill settles in
- * full at once, so the limit does not apply to it (SAL-006).
+ * credit, or a sale that would leave the store owing more than its limit —
+ * only with a manager's same-day override, which the sale then uses up.
+ *
+ * ADR-0047: the limit binds every store, bill to bill included, and counts
+ * what is paid with the sale — a limit of 0 means paying in full. Orders on
+ * their way count against it, whichever channel the new sale comes by.
  */
 export function assertSaleCredit(
   credit: CreditStatus, mode: CreditMode, total: Money,
-  /** ADR-0038: dispatch orders waiting for delivery — not yet owed, but already committed. */ committed: Money = '0.00' as Money,
+  opts: {
+    /** ADR-0038: orders waiting for delivery, less any being confirmed now. All of them unless said. */ readonly committed?: Money | undefined;
+    /** ADR-0047: what the store pays with this sale. */ readonly paidNow?: Money | undefined;
+  } = {},
 ): { readonly usesOverride: boolean } {
   const store = credit.reasons.filter((r) => r.code === 'NOT_APPROVED' || r.code === 'REJECTED' || r.code === 'INACTIVE');
   if (store.length > 0) throw new DomainError('STORE_NOT_ACTIVE', { reasons: store });
-  const blocked = credit.reasons.length > 0;
-  const overLimit = mode !== 'BILL_TO_BILL' && dec(credit.outstanding).plus(dec(committed)).plus(dec(total)).gt(dec(credit.limit));
+  const committed = opts.committed ?? credit.committed;
+  const paidNow = dec(opts.paidNow ?? '0');
+  // The status counts every order on its way, for the screen; an order being confirmed is not in its own way.
+  const reasons: BlockReason[] = credit.reasons.filter((r) => r.code !== 'DISPATCH_PENDING');
+  if (mode === 'BILL_TO_BILL' && dec(committed).gt(0)) reasons.push({ code: 'DISPATCH_PENDING', amount: committed });
+  const blocked = reasons.length > 0;
+  const overLimit = dec(credit.outstanding).plus(dec(committed)).plus(dec(total)).minus(paidNow).gt(dec(credit.limit));
   if (!blocked && !overLimit) return { usesOverride: false };
   if (!credit.overrideAvailable) {
-    if (blocked) throw new DomainError('CREDIT_BLOCKED', { reasons: credit.reasons });
-    const available = dec(credit.available).minus(dec(committed));
+    if (blocked) throw new DomainError('CREDIT_BLOCKED', { reasons });
+    const available = dec(credit.limit).minus(dec(credit.outstanding)).minus(dec(committed)).plus(paidNow);
     throw new DomainError('CREDIT_LIMIT_EXCEEDED', { available: toMoney(available.gt(0) ? available : new Dec(0)), total });
   }
   return { usesOverride: true };

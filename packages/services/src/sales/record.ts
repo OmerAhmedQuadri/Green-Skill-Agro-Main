@@ -1,5 +1,5 @@
 import {
-  allocateSale, assertSaleCredit, businessDate, dec, DomainError, percent, priceSale, toBaseUnits, transfer, transitionSale,
+  allocateSale, assertSaleCredit, businessDate, dec, DomainError, money, percent, priceSale, toBaseUnits, transfer, transitionSale,
   type Money, type PricedSale, type Quantity, type SkuUnits,
 } from '@gsa/core';
 import { newId, schema } from '@gsa/db';
@@ -10,7 +10,7 @@ import { batchRefs, postStockMovements } from '../inventory';
 import { notify } from '../notifications';
 import { audit, inTx, type Tx } from '../platform';
 import { getDb } from '../runtime';
-import { consumeCreditOverride, loadStore, postStoreDebit, takePayment, type PaymentMethod, type Store } from '../stores';
+import { consumeCreditOverride, loadStore, postStoreDebit, takePayment, type PaymentInput, type Store } from '../stores';
 import { unitsOf } from '../vehicles';
 import { loadSale, type Sale } from './access';
 import { createDeliveryDocument } from './documents';
@@ -19,12 +19,13 @@ import { saleLimits, saleTerms, sellableBatches, type SaleLimits } from './optio
 const { sales, saleLines, saleLineAllocations, discountApprovalRequests } = schema;
 
 export type SaleView = Sale & { readonly sendingMode: SaleLimits['sendingMode'] };
-export type SalePayment = { readonly method: PaymentMethod; readonly reference?: string | null | undefined };
+/** ADR-0047: money taken with a sale or a delivery — part or all of what the store owes, with its voucher. */
+export type SalePayment = Omit<PaymentInput, 'amount'> & { readonly amount: string };
 
 export type RecordSaleInput = {
   readonly storeId: string;
   readonly lines: readonly { readonly skuId: string; readonly packs: number; readonly discount?: string | undefined }[];
-  /** SAL-006: how a bill-to-bill store pays, at completion. */ readonly payment?: SalePayment | null | undefined;
+  /** ADR-0047: money taken with the sale, if any — this sale's or older bills'. */ readonly payment?: SalePayment | null | undefined;
   /** PRC-009: the reason, when a discount above the ceiling is to be requested. */ readonly approvalReason?: string | null | undefined;
 };
 
@@ -44,16 +45,16 @@ export async function getSale(ctx: Ctx, id: string): Promise<SaleView> {
 
 /**
  * STATE-MACHINES §2, → COMPLETED: the stock leaves the vehicle batch by
- * batch, the store owes the total — or pays it at once, bill to bill — an
- * override this sale needed is used up, and the delivery document is numbered
- * (SAL-006..008, ADR-0019). One transaction: it all happens or none of it.
+ * batch, the store owes the total, any money taken with it is recorded with
+ * its voucher (ADR-0047), an override this sale needed is used up, and the
+ * delivery document is numbered (SAL-006..008, ADR-0019). One transaction:
+ * it all happens or none of it.
  */
 async function settle(
   tx: Tx, ctx: Ctx,
   sale: { id: string; store: Store; vehicleId: string; total: Money },
   allocations: readonly { batchId: string; quantity: Quantity }[], opts: { usesOverride: boolean; payment: SalePayment | null | undefined },
 ): Promise<{ ledgerEntryId: string; paymentId: string | null; creditOverrideId: string | null }> {
-  if (sale.store.creditMode === 'BILL_TO_BILL' && !opts.payment) throw new DomainError('PAYMENT_REQUIRED');
   const refs = await batchRefs(tx, allocations.map((a) => a.batchId));
   const legs = allocations.flatMap((a) => {
     const batch = refs.get(a.batchId);
@@ -62,9 +63,8 @@ async function settle(
   });
   await postStockMovements(tx, ctx, { referenceType: 'SALE', referenceId: sale.id, legs });
   const { entryId } = await postStoreDebit(tx, ctx, { storeId: sale.store.id, entryType: 'SALE', amount: sale.total, referenceType: 'SALE', referenceId: sale.id });
-  const payment = sale.store.creditMode === 'BILL_TO_BILL' && opts.payment
-    ? await takePayment(tx, ctx, { storeId: sale.store.id, amount: sale.total, method: opts.payment.method, reference: opts.payment.reference })
-    : null;
+  // After the debit, so the money may settle this sale as well as older ones (CRD-003).
+  const payment = opts.payment ? await takePayment(tx, ctx, { ...opts.payment, storeId: sale.store.id, amount: money(opts.payment.amount) }) : null;
   const creditOverrideId = opts.usesOverride ? await consumeCreditOverride(tx, ctx, sale.store.id, sale.id) : null;
   return { ledgerEntryId: entryId, paymentId: payment?.id ?? null, creditOverrideId };
 }
@@ -93,7 +93,11 @@ export async function recordSale(ctx: Ctx, input: RecordSaleInput): Promise<Sale
     if (priced.needsApproval && !reason) {
       throw new DomainError('DISCOUNT_ABOVE_CEILING', { lines: priced.lines.filter((l) => l.aboveCeiling).map((l) => ({ skuId: l.skuId, discount: l.discount, ceiling: l.ceiling })) });
     }
-    const { usesOverride } = assertSaleCredit(store.credit, store.creditMode, priced.total); // OQ-018: the limit, with the total
+    const pending = priced.needsApproval;
+    // ADR-0047: a sale waiting for approval takes its money when it completes, and meets the limit then.
+    if (pending && input.payment) throw new DomainError('INVALID_TRANSITION', { from: 'PENDING_DISCOUNT_APPROVAL', action: 'pay' });
+    const { usesOverride } = pending ? { usesOverride: false } // OQ-018: the limit, with the total and what is paid now
+      : assertSaleCredit(store.credit, store.creditMode, priced.total, { paidNow: input.payment ? money(input.payment.amount) : undefined });
 
     const batches = await sellableBatches(tx, account.vehicleId, ctx.now); // 5. sellable vehicle stock, FEFO
     const units = new Map<string, SkuUnits>(batches.map((b) => [b.skuId, unitsOf(b.size)]));
@@ -104,8 +108,6 @@ export async function recordSale(ctx: Ctx, input: RecordSaleInput): Promise<Sale
     }), batches);
 
     const id = newId();
-    const pending = priced.needsApproval;
-    if (!pending && store.creditMode === 'BILL_TO_BILL' && !input.payment) throw new DomainError('PAYMENT_REQUIRED');
     const posted = pending ? null : await settle(tx, ctx, { id, store, vehicleId: account.vehicleId, total: priced.total },
       allocated.flatMap((a) => a.allocations), { usesOverride, payment: input.payment });
 
@@ -189,7 +191,7 @@ export async function completeSale(ctx: Ctx, id: string, input: { version: numbe
     if (row.vehicleId !== account.vehicleId) throw new DomainError('VEHICLE_NOT_ASSIGNED', { vehicleId: row.vehicleId });
     const vehicleId = row.vehicleId;
     const store = await loadStore(tx, ctx, row.storeId);
-    const { usesOverride } = assertSaleCredit(store.credit, store.creditMode, row.total as Money);
+    const { usesOverride } = assertSaleCredit(store.credit, store.creditMode, row.total as Money, { paidNow: input.payment ? money(input.payment.amount) : undefined });
     const allocations = await tx.select({ batchId: saleLineAllocations.batchId, quantity: saleLineAllocations.quantity })
       .from(saleLineAllocations).innerJoin(saleLines, eq(saleLines.id, saleLineAllocations.saleLineId)).where(eq(saleLines.saleId, id));
     const posted = await settle(tx, ctx, { id, store, vehicleId, total: row.total as Money },

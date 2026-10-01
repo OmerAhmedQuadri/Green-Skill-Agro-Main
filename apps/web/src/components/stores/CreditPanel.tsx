@@ -23,7 +23,8 @@ export function CreditPanel({ credit }: { credit: CreditStatus }) {
               <li key={i}>
                 {r.code === 'PAST_DUE' ? t('reasons.PAST_DUE', { amount: format.money(r.amount), date: format.date(r.oldestDueOn) })
                   : r.code === 'OVER_LIMIT' ? t('reasons.OVER_LIMIT', { outstanding: format.money(r.outstanding), limit: format.money(r.limit) })
-                    : t(`reasons.${r.code}`)}
+                    : r.code === 'UNPAID_BILL' || r.code === 'DISPATCH_PENDING' ? t(`reasons.${r.code}`, { amount: format.money(r.amount) })
+                      : t(`reasons.${r.code}`)}
               </li>
             ))}
           </ul>

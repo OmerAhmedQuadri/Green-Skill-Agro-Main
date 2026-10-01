@@ -4,7 +4,8 @@ import { blobs } from '../../test/blobs';
 import { ownerQuery } from '../../test/db';
 import { anAccount, ctxFor } from '../../test/factories';
 import { mailer } from '../../test/mailer';
-import { aPdfRenderer, aSellingSeller } from '../../test/sales';
+import { aPhoto } from '../../test/media';
+import { aPdfRenderer, aSellingSeller, paid } from '../../test/sales';
 import { captureFor } from '../../test/vehicles';
 import { checkOut } from '../attendance';
 import { cashInHand, getMyCashInHand } from '../cash';
@@ -56,26 +57,83 @@ describe('a sale within the ceilings (workflow I, SAL-001..008)', () => {
     expect((await getCreditStatus(seller.ctx, store.id)).outstanding).toBe('256.50');
   });
 
-  it('SAL-006, CSH-001: bill to bill settles at once — in cash it becomes the seller’s cash in hand; by transfer it needs a reference', async () => {
+  it('ADR-0047, CSH-001: bill to bill holds one open bill — part-paid is not cleared; money comes with a voucher', async () => {
+    const ctx = await admin();
+    const { seller, store, bag } = await aSellingSeller(ctx, { creditMode: 'BILL_TO_BILL', creditLimit: '1000.00' });
+    const line = [{ skuId: bag.id, packs: 2 }];
+    // The bill may be left to pay later…
+    expect((await recordSale(seller.ctx, { storeId: store.id, lines: line })).payment).toBeNull();
+    // …but the next waits until it is cleared, and the seller is told why before adding anything.
+    expect((await getCreditStatus(seller.ctx, store.id)).reasons).toEqual([{ code: 'UNPAID_BILL', amount: '180.00' }]);
+    expect(await code(recordSale(seller.ctx, { storeId: store.id, lines: line }))).toBe('CREDIT_BLOCKED');
+    await recordPayment(seller.ctx, { storeId: store.id, ...(await paid(seller.ctx, '100.00')) });
+    expect(await code(recordSale(seller.ctx, { storeId: store.id, lines: line }))).toBe('CREDIT_BLOCKED');
+    expect(await code(recordPayment(seller.ctx, { storeId: store.id, ...(await paid(seller.ctx, '80.00', 'BANK_TRANSFER')) }))).toBe('REASON_REQUIRED');
+    await recordPayment(seller.ctx, { storeId: store.id, ...(await paid(seller.ctx, '80.00', 'BANK_TRANSFER', 'TRX-991')) });
+    expect(await getCreditStatus(seller.ctx, store.id)).toMatchObject({ outstanding: '0.00', blocked: false });
+
+    // Paid at the sale: the money is the sale's own record, with its voucher, and cash becomes cash in hand.
+    const cash = await recordSale(seller.ctx, { storeId: store.id, lines: line, payment: await paid(seller.ctx, '180.00') });
+    expect(cash.payment).toMatchObject({ method: 'CASH', amount: '180.00' });
+    expect(cash.payment?.voucher?.number).toMatch(/^T-/);
+    expect(await getMyCashInHand(seller.ctx)).toEqual({ cashInHand: '280.00' });
+    expect(await getCreditStatus(seller.ctx, store.id)).toMatchObject({ outstanding: '0.00', blocked: false });
+  });
+
+  it('ADR-0047: the limit binds bill to bill too, counting what is paid at the sale — at 0, it pays in full', async () => {
     const ctx = await admin();
     const { seller, store, bag } = await aSellingSeller(ctx, { creditMode: 'BILL_TO_BILL', creditLimit: '0.00' });
     const line = [{ skuId: bag.id, packs: 2 }];
-    expect(await code(recordSale(seller.ctx, { storeId: store.id, lines: line }))).toBe('PAYMENT_REQUIRED');
-    expect(await code(recordSale(seller.ctx, { storeId: store.id, lines: line, payment: { method: 'BANK_TRANSFER' } }))).toBe('REASON_REQUIRED');
-    const cash = await recordSale(seller.ctx, { storeId: store.id, lines: line, payment: { method: 'CASH' } });
-    expect(cash.payment).toMatchObject({ method: 'CASH', amount: '180.00' });
-    expect(await getMyCashInHand(seller.ctx)).toEqual({ cashInHand: '180.00' });
-    const transfer = await recordSale(seller.ctx, { storeId: store.id, lines: line, payment: { method: 'BANK_TRANSFER', reference: 'TRX-991' } });
-    expect(transfer.payment).toMatchObject({ method: 'BANK_TRANSFER', reference: 'TRX-991' });
-    expect(await getMyCashInHand(seller.ctx)).toEqual({ cashInHand: '180.00' });
-    expect(await getCreditStatus(seller.ctx, store.id)).toMatchObject({ outstanding: '0.00', blocked: false });
+    expect(await code(recordSale(seller.ctx, { storeId: store.id, lines: line }))).toBe('CREDIT_LIMIT_EXCEEDED');
+    expect(await code(recordSale(seller.ctx, { storeId: store.id, lines: line, payment: await paid(seller.ctx, '179.99') }))).toBe('CREDIT_LIMIT_EXCEEDED');
+    expect((await recordSale(seller.ctx, { storeId: store.id, lines: line, payment: await paid(seller.ctx, '180.00') })).status).toBe('COMPLETED');
+    // Money beyond what is owed has nowhere to go (ADR-0036: no credit balances).
+    expect(await code(recordSale(seller.ctx, { storeId: store.id, lines: line, payment: await paid(seller.ctx, '180.01') }))).toBe('PAYMENT_EXCEEDS_BALANCE');
+  });
+
+  it('ADR-0047: a voucher number is used once in the whole business, however it is typed, with its own photo', async () => {
+    const ctx = await admin();
+    const { seller, store, bag } = await aSellingSeller(ctx);
+    await recordSale(seller.ctx, { storeId: store.id, lines: [{ skuId: bag.id, packs: 2 }] });
+    const voucher = await paid(seller.ctx, '50.00');
+    const first = await recordPayment(seller.ctx, { storeId: store.id, ...voucher, voucher: { ...voucher.voucher, number: '000777' } });
+    expect(first.voucher.number).toBe('777');
+    const again = await paid(seller.ctx, '50.00');
+    expect(await code(recordPayment(seller.ctx, { storeId: store.id, ...again, voucher: { ...again.voucher, number: ' 777 ' } }))).toBe('DUPLICATE_VOUCHER');
+    // Refused whole: the second payment left nothing behind.
+    expect((await getCreditStatus(seller.ctx, store.id)).outstanding).toBe('130.00');
+    expect(await code(recordPayment(seller.ctx, { storeId: store.id, ...again, voucher: { ...again.voucher, number: '#12' } }))).toBe('INVALID_VOUCHER_NUMBER');
+    // The photo is of a voucher, and the seller's own.
+    const slip = await aPhoto(seller.ctx, 'DEPOSIT_SLIP');
+    expect(await code(recordPayment(seller.ctx, { storeId: store.id, ...again, voucher: { ...again.voucher, photoId: slip } }))).toBe('EVIDENCE_REQUIRED');
+    // And the database refuses a payment without one, whoever writes it.
+    await expect(ownerQuery(
+      `insert into payments (id, number, store_id, amount, method, received_at, received_by, ledger_entry_id, branch_id)
+       select gen_random_uuid(), number || '-COPY', store_id, amount, method, received_at, received_by, ledger_entry_id, branch_id from payments where id = $1`,
+      [first.id],
+    )).rejects.toMatchObject({ constraint: 'payments_voucher_required' });
+  });
+
+  it('ADR-0047: a sale waiting for discount approval takes its money when it completes, not before', async () => {
+    const ctx = await admin();
+    const { seller, store, bag } = await aSellingSeller(ctx, { creditMode: 'BILL_TO_BILL', creditLimit: '0.00' });
+    const line = [{ skuId: bag.id, packs: 2, discount: '12' }]; // above the ceiling: 158.40
+    expect(await code(recordSale(seller.ctx, { storeId: store.id, lines: line, approvalReason: 'Old customer', payment: await paid(seller.ctx, '158.40') })))
+      .toBe('INVALID_TRANSITION');
+    // Asked without the money: the limit is met when it completes, with what is paid then.
+    const pending = await recordSale(seller.ctx, { storeId: store.id, lines: line, approvalReason: 'Old customer' });
+    expect(pending.status).toBe('PENDING_DISCOUNT_APPROVAL');
+    const approved = await decideDiscountRequest(ctx, pending.id, { version: pending.version, approve: true });
+    expect(await code(completeSale(seller.ctx, pending.id, { version: approved.version }))).toBe('CREDIT_LIMIT_EXCEEDED');
+    const done = await completeSale(seller.ctx, pending.id, { version: approved.version, payment: await paid(seller.ctx, pending.total) });
+    expect(done).toMatchObject({ status: 'COMPLETED', payment: { amount: pending.total } });
   });
 
   it('CSH-001: cash collected later against a store’s balance is cash in hand too', async () => {
     const ctx = await admin();
     const { seller, store, bag } = await aSellingSeller(ctx);
     await recordSale(seller.ctx, { storeId: store.id, lines: [{ skuId: bag.id, packs: 2 }] });
-    await recordPayment(seller.ctx, { storeId: store.id, amount: '100.00', method: 'CASH' });
+    await recordPayment(seller.ctx, { storeId: store.id, ...(await paid(seller.ctx, '100.00')) });
     expect(await cashInHand(getDb(), seller.account.id)).toBe('100.00');
   });
 

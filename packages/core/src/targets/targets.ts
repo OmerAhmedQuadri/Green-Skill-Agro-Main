@@ -1,6 +1,6 @@
 import { DomainError } from '../errors';
 import { Dec, dec, type Money } from '../numeric';
-import { businessDate, businessDayStart } from '../time';
+import { businessDate, businessDayStart, businessMonth } from '../time';
 
 /**
  * TGT-003: the four figures a monthly target may set, in any combination.
@@ -211,6 +211,24 @@ export function settledByPeriod(
       const landed = attributedPeriod(period, approval.period, closeAfterDays, approval.at);
       totals.set(landed, (totals.get(landed) ?? new Dec(0)).plus(amount));
     });
+  }
+  return new Map([...totals].map(([period, total]) => [period, total.toFixed(2) as Money]));
+}
+
+/** ADR-0046: a store's bank transfer a manager confirmed — received in one month, confirmed at an instant. */
+export type ConfirmedTransfer = { readonly period: string; readonly confirmedAt: Date; readonly amount: Money };
+
+/**
+ * COM-001, COM-005 (ADR-0046): confirmed bank transfers by the month they
+ * count in — the month received, or the month confirmed where that came after
+ * the month received had frozen. The rule an approved settlement follows, so
+ * cash and transfers land the same way.
+ */
+export function confirmedTransfersByPeriod(transfers: readonly ConfirmedTransfer[], closeAfterDays: number): ReadonlyMap<string, Money> {
+  const totals = new Map<string, Dec>();
+  for (const transfer of transfers) {
+    const landed = attributedPeriod(transfer.period, businessMonth(transfer.confirmedAt), closeAfterDays, transfer.confirmedAt);
+    totals.set(landed, (totals.get(landed) ?? new Dec(0)).plus(dec(transfer.amount)));
   }
   return new Map([...totals].map(([period, total]) => [period, total.toFixed(2) as Money]));
 }

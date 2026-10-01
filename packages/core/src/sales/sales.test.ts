@@ -110,8 +110,11 @@ describe('deciding a discount request (PRC-013)', () => {
 });
 
 describe('credit at the point of sale (SAL-001, SAL-002, SAL-009, CRD-004..007, OQ-018)', () => {
-  const status = (over: { open?: string; dueOn?: string; limit?: string; override?: boolean; store?: 'ACTIVE' | 'INACTIVE' } = {}) => creditStatus({
-    status: over.store ?? 'ACTIVE', limit: m(over.limit ?? '5000.00'), graceDays: 0, today: '2026-09-19', overrideActive: over.override ?? false,
+  const status = (over: {
+    open?: string; dueOn?: string; limit?: string; override?: boolean; store?: 'ACTIVE' | 'INACTIVE'; mode?: 'WEEKLY' | 'BILL_TO_BILL'; committed?: string;
+  } = {}) => creditStatus({
+    status: over.store ?? 'ACTIVE', mode: over.mode ?? 'WEEKLY', limit: m(over.limit ?? '5000.00'), graceDays: 0, today: '2026-09-19',
+    overrideActive: over.override ?? false, committed: m(over.committed ?? '0.00'),
     openDebits: over.open ? [{ dueOn: over.dueOn ?? '2026-09-26', open: m(over.open) }] : [],
   });
 
@@ -120,8 +123,35 @@ describe('credit at the point of sale (SAL-001, SAL-002, SAL-009, CRD-004..007, 
     expect(code(() => assertSaleCredit(status({ open: '4500.00' }), 'WEEKLY', m('2000.00')))).toBe('CREDIT_LIMIT_EXCEEDED');
   });
 
-  it('SAL-006: bill to bill settles at once, so the limit does not apply', () => {
-    expect(assertSaleCredit(status({ limit: '0.00' }), 'BILL_TO_BILL', m('2000.00'))).toEqual({ usesOverride: false });
+  it('ADR-0047: what is paid with the sale counts — 4,500 owed and a 2,000 sale fit a 5,000 limit once 1,500 is paid', () => {
+    expect(assertSaleCredit(status({ open: '4500.00' }), 'WEEKLY', m('2000.00'), { paidNow: m('1500.00') })).toEqual({ usesOverride: false });
+    expect(code(() => assertSaleCredit(status({ open: '4500.00' }), 'WEEKLY', m('2000.00'), { paidNow: m('1499.99') }))).toBe('CREDIT_LIMIT_EXCEEDED');
+  });
+
+  it('ADR-0047: bill to bill takes a new bill only once the last one is cleared — part-paid is not cleared', () => {
+    expect(assertSaleCredit(status({ mode: 'BILL_TO_BILL' }), 'BILL_TO_BILL', m('500.00'))).toEqual({ usesOverride: false });
+    const refused = (() => { try { assertSaleCredit(status({ mode: 'BILL_TO_BILL', open: '0.01' }), 'BILL_TO_BILL', m('500.00')); return null; } catch (e) { return e as DomainError; } })();
+    expect(refused).toMatchObject({ code: 'CREDIT_BLOCKED', details: { reasons: [{ code: 'UNPAID_BILL', amount: '0.01' }] } });
+    // CRD-006: a manager's same-day override still releases it for one sale.
+    expect(assertSaleCredit(status({ mode: 'BILL_TO_BILL', open: '100.00', override: true }), 'BILL_TO_BILL', m('500.00'))).toEqual({ usesOverride: true });
+  });
+
+  it('ADR-0047: the limit binds bill to bill too — a limit of 0 means paying in full', () => {
+    const none = status({ mode: 'BILL_TO_BILL', limit: '0.00' });
+    expect(code(() => assertSaleCredit(none, 'BILL_TO_BILL', m('2000.00')))).toBe('CREDIT_LIMIT_EXCEEDED');
+    expect(code(() => assertSaleCredit(none, 'BILL_TO_BILL', m('2000.00'), { paidNow: m('1999.99') }))).toBe('CREDIT_LIMIT_EXCEEDED');
+    expect(assertSaleCredit(none, 'BILL_TO_BILL', m('2000.00'), { paidNow: m('2000.00') })).toEqual({ usesOverride: false });
+  });
+
+  it('ADR-0047, ADR-0038: an order on its way is a bill of its own — the next waits, but it never blocks itself', () => {
+    const waiting = status({ mode: 'BILL_TO_BILL', committed: '300.00' });
+    const refused = (() => { try { assertSaleCredit(waiting, 'BILL_TO_BILL', m('50.00')); return null; } catch (e) { return e as DomainError; } })();
+    expect(refused).toMatchObject({ code: 'CREDIT_BLOCKED', details: { reasons: [{ code: 'DISPATCH_PENDING', amount: '300.00' }] } });
+    // Confirming that same order: nothing else is on its way.
+    expect(assertSaleCredit(waiting, 'BILL_TO_BILL', m('300.00'), { committed: m('0.00') })).toEqual({ usesOverride: false });
+    // A cycle store may have orders on their way; they only count against its limit.
+    expect(assertSaleCredit(status({ committed: '300.00' }), 'WEEKLY', m('4700.00'))).toEqual({ usesOverride: false });
+    expect(code(() => assertSaleCredit(status({ committed: '300.00' }), 'WEEKLY', m('4700.01')))).toBe('CREDIT_LIMIT_EXCEEDED');
   });
 
   it('SAL-002, CRD-004: a store past due is blocked with its reasons', () => {
