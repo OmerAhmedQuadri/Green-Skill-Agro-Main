@@ -4,7 +4,7 @@ import { Banknote, ChartColumn, ListChecks, Target, CalendarCheck, CalendarClock
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Button, cn } from '@gsa/ui';
 import type { NavIcon } from '@/lib/navigation';
 import { BrandMark } from './BrandMark';
@@ -24,6 +24,19 @@ export function ConsoleShell({ items, user, children }: Props) {
   const t = useTranslations('nav');
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const menuButton = useRef<HTMLButtonElement>(null);
+
+  // Escape closes the menu, as it does the notification panel, and the keyboard goes back to the button that opened it.
+  useEffect(() => {
+    if (!open) return undefined;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      setOpen(false);
+      menuButton.current?.focus();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [open]);
 
   const nav = (
     <nav className="flex flex-1 flex-col gap-1">
@@ -67,7 +80,7 @@ export function ConsoleShell({ items, user, children }: Props) {
         <BrandMark inverse />
         <div className="flex items-center gap-1">
           <NotificationBell inverse />
-          <Button variant="ghost" size="sm" className="text-white hover:bg-white/10" onClick={() => setOpen(true)} aria-label={t('menu')}>
+          <Button ref={menuButton} variant="ghost" size="sm" className="text-white hover:bg-white/10" onClick={() => setOpen(true)} aria-label={t('menu')} aria-expanded={open}>
             <Menu className="size-5" aria-hidden />
           </Button>
         </div>

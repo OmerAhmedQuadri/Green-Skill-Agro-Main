@@ -103,9 +103,11 @@ describe('sales analytics (ADR-0048)', () => {
 
   it('ADR-0048: a long range runs month by month; a range is a year at most; the view is the reports permission\'s', async () => {
     const day = await aDayOfSales();
-    const view = await salesAnalytics(day.admin, { from: '2026-01-01', to: '2026-12-31', sellerId: day.seller.account.id });
+    // The year the suite runs in: the sales it looks for are recorded today.
+    const year = today.slice(0, 4);
+    const view = await salesAnalytics(day.admin, { from: `${year}-01-01`, to: `${year}-12-31`, sellerId: day.seller.account.id });
     expect(view.range.bucket).toBe('MONTH');
-    expect(view.series.map((p) => p.period)).toEqual(['2026-01', '2026-02', '2026-03', '2026-04', '2026-05', '2026-06', '2026-07', '2026-08', '2026-09', '2026-10', '2026-11', '2026-12']);
+    expect(view.series.map((p) => p.period)).toEqual(Array.from({ length: 12 }, (_, i) => `${year}-${String(i + 1).padStart(2, '0')}`));
     expect(view.series.find((p) => p.period === today.slice(0, 7))?.net).toBe('560.00');
     expect(await code(salesAnalytics(day.admin, { from: '2025-01-01', to: '2026-12-31' }))).toBe('RANGE_TOO_LONG');
     expect(await code(salesAnalytics(day.seller.ctx, { from: today, to: today }))).toBe('FORBIDDEN');

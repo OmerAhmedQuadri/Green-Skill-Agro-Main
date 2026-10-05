@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import en from '../src/messages/en.json' with { type: 'json' };
 import { sessionPage, signIn } from './helpers';
 
 /**
@@ -43,6 +44,20 @@ test.describe('shell layout', () => {
     await page.goto('/console/dashboard');
     await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
     await panelWithinViewport(page);
+  });
+
+  test('NFR-002: the console\'s menu on a phone closes on Escape, as the panel does, and the keyboard goes back to its button', async ({ browser, baseURL }) => {
+    const page = await sessionPage(browser, 'admin@dev.local', 'en', baseURL ?? '');
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/console/dashboard');
+    const menu = page.getByRole('button', { name: en.nav.menu, exact: true });
+    await menu.click();
+    await expect(menu).toHaveAttribute('aria-expanded', 'true');
+    await expect(page.getByRole('button', { name: en.nav.close, exact: true }).first()).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('button', { name: en.nav.close, exact: true })).toHaveCount(0);
+    await expect(menu).toHaveAttribute('aria-expanded', 'false');
+    await expect(menu).toBeFocused();
   });
 
   test('NFR-002: and in the seller\'s field app on a phone', async ({ page }) => {

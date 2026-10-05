@@ -1,4 +1,4 @@
-import type { DomainError, PermissionCode } from '@gsa/core';
+import { businessDate, type DomainError, type PermissionCode } from '@gsa/core';
 import { describe, expect, it } from 'vitest';
 import { ownerQuery } from '../../test/db';
 import { anAccount, ctxFor } from '../../test/factories';
@@ -17,6 +17,8 @@ import {
 } from './index';
 
 const code = async (p: Promise<unknown>) => p.then(() => 'NO_ERROR', (e: DomainError) => e.code ?? String(e));
+/** The Riyadh date `days` from now — for dates that must stay ahead of the calendar. */
+const daysFromToday = (days: number) => businessDate(new Date(Date.now() + days * 86_400_000));
 const admin = async () => ctxFor(await anAccount('ADMIN'));
 const manager = async (grants: PermissionCode[]) => ctxFor(await anAccount('MANAGER'), { overrides: new Map(grants.map((g) => [g, true])) });
 
@@ -74,8 +76,10 @@ describe('vehicle register (VEH-001..004)', () => {
 describe('vehicle loads (workflow F, VEH-005..008)', () => {
   it('VEH-005: batches are proposed first-expiry-first-out, a flagged batch on top; a shortfall is reported', async () => {
     const ctx = await admin();
-    const okra = await okraInWarehouse(ctx); // W1, 20 bags, expiring 2027-12-31
-    await moreBags(ctx, okra, { packs: 10, lotNumber: 'W2', expiresOn: '2027-03-31' });
+    // Two years and one year out, so neither batch is ever inside the 90-day expiry warning:
+    // with fixed dates, W2 would be flagged from 2026-12-31 and the order below would change.
+    const okra = await okraInWarehouse(ctx, { expiresOn: daysFromToday(730) }); // W1, 20 bags
+    await moreBags(ctx, okra, { packs: 10, lotNumber: 'W2', expiresOn: daysFromToday(365) });
     const [fefo] = await proposeLoad(ctx, { lines: [{ skuId: okra.bag.id, packs: 25 }] });
     expect(fefo?.batches.map((b) => [b.lotNumber, b.packs])).toEqual([['W2', 10], ['W1', 15]]);
     const w1 = fefo?.batches.find((b) => b.lotNumber === 'W1');

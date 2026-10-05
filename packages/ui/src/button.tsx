@@ -1,5 +1,5 @@
 import { cva, type VariantProps } from 'class-variance-authority';
-import type { ButtonHTMLAttributes } from 'react';
+import type { ComponentProps } from 'react';
 import { cn } from './cn';
 
 const button = cva(
@@ -20,7 +20,8 @@ const button = cva(
   },
 );
 
-export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & VariantProps<typeof button>;
+/** React 19 passes `ref` as a prop, so a Button can be focused from outside — the menu does, after Escape. */
+export type ButtonProps = ComponentProps<'button'> & VariantProps<typeof button>;
 
 export function Button({ className, variant, size, block, type = 'button', ...props }: ButtonProps) {
   return <button type={type} className={cn(button({ variant, size, block }), className)} {...props} />;
