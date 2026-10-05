@@ -1,4 +1,4 @@
-import type { DomainError, UserId } from '@gsa/core';
+import { businessDate, nextBusinessDate, type DomainError, type UserId } from '@gsa/core';
 import { describe, expect, it } from 'vitest';
 import { ownerQuery } from '../../test/db';
 import { anAccount, ctxFor } from '../../test/factories';
@@ -16,8 +16,16 @@ import {
 const code = async (p: Promise<unknown>) => p.then(() => 'NO_ERROR', (e: DomainError) => e.code ?? String(e));
 const admin = async () => ctxFor(await anAccount('ADMIN'));
 const H = 3_600_000;
-/** Riyadh wall-clock time on a fixed day, far from today, so each test controls the clock. */
-const t = (hhmm: string, day = '2026-10-05') => new Date(`${day}T${hhmm}:00+03:00`);
+/**
+ * Riyadh wall-clock time on a day after today, so each test controls the clock
+ * and every reading it takes comes after the vehicle's registration, which the
+ * setup makes at the real time. A fixed day did this only until the calendar
+ * reached it: from 2026-10-05 the registration was the latest reading, and the
+ * vehicle's odometer stopped following the readings the tests took.
+ */
+const DAY = businessDate(new Date(Date.now() + 48 * H));
+const NEXT_DAY = nextBusinessDate(DAY);
+const t = (hhmm: string, day = DAY) => new Date(`${day}T${hhmm}:00+03:00`);
 
 async function sellerWithVehicle(odometer = 10_000) {
   const ctx = await admin();
@@ -97,13 +105,13 @@ describe('check-in and check-out (workflow G, ATT-001..007)', () => {
   it('ATT-006, OQ-004: a trip past midnight stays with its first day; hours and distance split by clock time', async () => {
     const { admin: ctx, as, seller } = await sellerWithVehicle();
     await checkInAs(await as(t('18:00')), { odometer: 10_000 });
-    await closeFinishedDays(t('03:00', '2026-10-06')); // an open trip is not closed
-    const out = await checkOut(await as(t('06:00', '2026-10-06')), await captureFor(await as(t('06:00', '2026-10-06')), 10_900));
-    expect(out.day).toMatchObject({ workDate: '2026-10-05', status: 'CHECKED_OUT' });
-    const [row] = await listAttendance(await ctxFor({ id: ctx.user.id, role: 'ADMIN' }, { now: t('07:00', '2026-10-06') }), { from: '2026-10-05', to: '2026-10-06', sellerId: seller.account.id });
+    await closeFinishedDays(t('03:00', NEXT_DAY)); // an open trip is not closed
+    const out = await checkOut(await as(t('06:00', NEXT_DAY)), await captureFor(await as(t('06:00', NEXT_DAY)), 10_900));
+    expect(out.day).toMatchObject({ workDate: DAY, status: 'CHECKED_OUT' });
+    const [row] = await listAttendance(await ctxFor({ id: ctx.user.id, role: 'ADMIN' }, { now: t('07:00', NEXT_DAY) }), { from: DAY, to: NEXT_DAY, sellerId: seller.account.id });
     expect(row?.attribution).toEqual([
-      { date: '2026-10-05', activeMs: 6 * H, distanceKm: 450 },
-      { date: '2026-10-06', activeMs: 6 * H, distanceKm: 450 },
+      { date: DAY, activeMs: 6 * H, distanceKm: 450 },
+      { date: NEXT_DAY, activeMs: 6 * H, distanceKm: 450 },
     ]);
   });
 
@@ -180,11 +188,11 @@ describe('guard, zones and manager actions (ATT-008..013)', () => {
     const out = await checkOut(await as(t('18:00')), await captureFor(await as(t('18:00')), 10_700));
     expect(out.sessions[0]?.flags).toEqual(['BELOW_PREVIOUS', 'DISTANCE_IMPLAUSIBLE']);
     expect((await getVehicle(ctx, vehicle.id)).odometer).toBe(10_700);
-    const [day] = await listAttendance(await ctxFor({ id: ctx.user.id, role: 'ADMIN' }, { now: t('19:00') }), { from: '2026-10-05', attention: true });
+    const [day] = await listAttendance(await ctxFor({ id: ctx.user.id, role: 'ADMIN' }, { now: t('19:00') }), { from: DAY, attention: true });
     expect(day?.needsAttention).toBe(true);
     expect(await code(reviewSession(ctx, out.sessions[0]?.id ?? '', { comment: '' }))).toBe('REASON_REQUIRED');
     await reviewSession(ctx, out.sessions[0]?.id ?? '', { comment: 'Long delivery run to Al-Kharj; reading confirmed from the photo' });
-    expect(await listAttendance(await ctxFor({ id: ctx.user.id, role: 'ADMIN' }, { now: t('19:00') }), { from: '2026-10-05', attention: true })).toEqual([]);
+    expect(await listAttendance(await ctxFor({ id: ctx.user.id, role: 'ADMIN' }, { now: t('19:00') }), { from: DAY, attention: true })).toEqual([]);
   });
 
   it('VEH-004: readings run on across drivers — the next seller\'s check-in continues from the last one', async () => {
@@ -224,8 +232,8 @@ describe('guard, zones and manager actions (ATT-008..013)', () => {
     await createZone(ctx, { name: 'Yard', lat: YARD.lat, lng: YARD.lng, radiusM: 300 });
     await updateToggles(ctx, [{ key: 'attendance.restricted_check_in', enabled: true }]);
     await checkInAs(await ctxFor(waiter.account, { now: t('08:00') }), { location: AWAY, withoutVehicle: true });
-    expect(await closeFinishedDays(t('03:00', '2026-10-06'))).toEqual({ closed: 2, withdrawn: 1 });
-    expect(await closeFinishedDays(t('03:00', '2026-10-06'))).toEqual({ closed: 0, withdrawn: 0 }); // idempotent
+    expect(await closeFinishedDays(t('03:00', NEXT_DAY))).toEqual({ closed: 2, withdrawn: 1 });
+    expect(await closeFinishedDays(t('03:00', NEXT_DAY))).toEqual({ closed: 0, withdrawn: 0 }); // idempotent
     const rows = await ownerQuery<{ seller_id: UserId; status: string }>(`select seller_id, status from attendance_days order by seller_id`);
     expect(rows.every((r) => r.status === 'CLOSED')).toBe(true);
     expect(rows.map((r) => r.seller_id).sort()).toEqual([seller.account.id, waiter.account.id].sort());
