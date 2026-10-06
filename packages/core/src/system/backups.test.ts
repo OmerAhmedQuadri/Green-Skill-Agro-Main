@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { BACKUP_NAME, BACKUP_PREFIX, backupKey, backupsRemovedBy, expiredBackups, type StoredBackup } from './backups';
+import {
+  BACKUP_NAME, BACKUP_PREFIX, backupKey, backupsRemovedBy, backupsSwitchedOn, chooseBackup, expiredBackups, isPgDump, parseBackupListing,
+  type StoredBackup,
+} from './backups';
 
 const NOW = new Date('2026-09-21T03:00:00Z');
 const daysAgo = (n: number) => new Date(NOW.getTime() - n * 24 * 60 * 60 * 1000);
@@ -77,5 +80,43 @@ describe("the storage page's preview (ADR-0049)", () => {
     expect(backupsRemovedBy(stored, { now: NOW, days: 30 })).toEqual({ files: 1, bytes: 100 });
     expect(backupsRemovedBy(stored, { now: NOW, days: 7 })).toEqual({ files: 3, bytes: 600 });
     expect(backupsRemovedBy([sized(40, 100), sized(39, 100)], { now: NOW, days: 7 })).toEqual({ files: 0, bytes: 0 });
+  });
+});
+
+describe('a server that takes no backups (RUNBOOK §5.1)', () => {
+  it('takes them only with all three settings — a bucket alone is not a backup', () => {
+    expect(backupsSwitchedOn({ bucket: 'gsa-backups', accessKey: 'id', secretKey: 'secret' })).toBe(true);
+    expect(backupsSwitchedOn({ bucket: 'gsa-backups' })).toBe(false);
+    expect(backupsSwitchedOn({ bucket: 'gsa-backups', accessKey: 'id', secretKey: '' })).toBe(false);
+    expect(backupsSwitchedOn({})).toBe(false);
+  });
+});
+
+describe('reading the bucket back (ADR-0050)', () => {
+  const contents = (key: string, modified: string, size: number) =>
+    `<Contents><Key>${key}</Key><LastModified>${modified}</LastModified><ETag>"x"</ETag><Size>${size}</Size></Contents>`;
+
+  it('takes our backups from a listing page, with their dates and sizes, and the token for the next page', () => {
+    const xml = `<ListBucketResult><IsTruncated>true</IsTruncated>${contents('gsa-20261006T020000Z.dump', '2026-10-06T02:00:05.000Z', 5_000_000)}`
+      + `${contents('notes.txt', '2026-10-06T02:00:05.000Z', 10)}<NextContinuationToken>1ueGcxLPRx1Tr/XYExHnhbYLgveDs2J</NextContinuationToken></ListBucketResult>`;
+    expect(parseBackupListing(xml)).toEqual({
+      backups: [{ key: 'gsa-20261006T020000Z.dump', modified: new Date('2026-10-06T02:00:05.000Z'), size: 5_000_000 }],
+      next: '1ueGcxLPRx1Tr/XYExHnhbYLgveDs2J',
+    });
+    expect(parseBackupListing(`<ListBucketResult><IsTruncated>false</IsTruncated></ListBucketResult>`)).toEqual({ backups: [], next: null });
+  });
+
+  it('restores from the newest unless one is named — and a name that is not there is not quietly replaced', () => {
+    const list = [at(3), at(1), at(2)];
+    expect(chooseBackup(list)?.key).toBe(at(1).key);
+    expect(chooseBackup(list, at(3).key)?.key).toBe(at(3).key);
+    expect(chooseBackup(list, 'gsa-19990101T000000Z.dump')).toBeUndefined();
+    expect(chooseBackup([])).toBeUndefined();
+  });
+
+  it('knows a pg_dump archive by its first bytes', () => {
+    expect(isPgDump(new TextEncoder().encode('PGDMP\u0001\u000e'))).toBe(true);
+    expect(isPgDump(new TextEncoder().encode('%PDF-1.7'))).toBe(false);
+    expect(isPgDump(new TextEncoder().encode('PGD'))).toBe(false);
   });
 });

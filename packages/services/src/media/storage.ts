@@ -1,7 +1,7 @@
 import { statfs } from 'node:fs/promises';
 import { loadConfig } from '@gsa/config';
 import {
-  backupsRemovedBy, businessDate, canReadMedia, DomainError, isStoredKind, nextRetentionRun, parseSetting, RETENTION_SETTING,
+  backupsRemovedBy, backupsSwitchedOn, businessDate, canReadMedia, DomainError, isStoredKind, nextRetentionRun, parseSetting, RETENTION_SETTING,
   retentionDueOn, retentionOf, STORED_KINDS, type MediaKind, type RetentionPeriod, type SettingKey, type Settings, type StoredKind,
 } from '@gsa/core';
 import { schema } from '@gsa/db';
@@ -44,6 +44,8 @@ export type StorageOverview = {
     readonly due: FileCount;
   } | null;
   readonly backupRetentionDays: number;
+  /** Whether this server takes backups at all: all three backup settings are in its `.env`. */
+  readonly backupsOn: boolean;
   /** Both buckets together: what Cloudflare bills, and what the budget measures (ADR-0049, amended). */
   readonly r2Bytes: number;
   readonly budgetGb: number;
@@ -126,7 +128,8 @@ export async function storageOverview(ctx: Ctx): Promise<StorageOverview> {
   });
   const budgetGb = settings['storage.budget_gb'];
   const days = settings['storage.backup_retention_days'];
-  const media = { bucket: loadConfig().S3_BUCKET, files: kinds.reduce((n, k) => n + k.files, 0), bytes: kinds.reduce((n, k) => n + k.bytes, 0) };
+  const config = loadConfig();
+  const media = { bucket: config.S3_BUCKET, files: kinds.reduce((n, k) => n + k.files, 0), bytes: kinds.reduce((n, k) => n + k.bytes, 0) };
   return {
     kinds, media,
     backups: report ? {
@@ -134,6 +137,7 @@ export async function storageOverview(ctx: Ctx): Promise<StorageOverview> {
       reportedAt: report.reportedAt, due: backupsRemovedBy(report.copies, { now: ctx.now, days }),
     } : null,
     backupRetentionDays: days,
+    backupsOn: backupsSwitchedOn({ bucket: config.BACKUP_S3_BUCKET, accessKey: config.BACKUP_S3_ACCESS_KEY, secretKey: config.BACKUP_S3_SECRET_KEY }),
     r2Bytes: media.bytes + (report?.bytes ?? 0),
     budgetGb, budgetBytes: budgetGb * GB, nextRunAt,
     database: { bytes: size?.bytes ?? 0 }, disk,

@@ -116,7 +116,10 @@ function R2Total({ overview }: { overview: Overview }) {
       <Bar of={budgetBytes} label={t('r2.title')} parts={[{ bytes: files.bytes, tone: MEDIA_TONE }, { bytes: backups?.bytes ?? 0, tone: BACKUPS_TONE }]} />
       <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-stone-600">
         <span><Swatch tone={MEDIA_TONE} />{t('r2.media', { size: format.bytes(files.bytes) })}</span>
-        <span><Swatch tone={BACKUPS_TONE} />{backups ? t('r2.backups', { size: format.bytes(backups.bytes) }) : t('r2.backupsUnknown')}</span>
+        <span>
+          <Swatch tone={BACKUPS_TONE} />
+          {backups ? t('r2.backups', { size: format.bytes(backups.bytes) }) : overview.backupsOn ? t('r2.backupsUnknown') : t('r2.backupsOff')}
+        </span>
         <span>{room >= 0 ? t('freeInBudget', { free: format.bytes(room) }) : t('overBudget', { over: format.bytes(-room) })}</span>
       </div>
       <form onSubmit={submit} noValidate className="flex flex-wrap items-end gap-3 border-t border-stone-100 pt-3">
@@ -251,7 +254,7 @@ function BackupsTab({ overview }: { overview: Overview }) {
   const tc = useTranslations('common');
   const format = useFormat();
   const errorText = useErrorText();
-  const { backups, backupRetentionDays: current } = overview;
+  const { backups, backupsOn, backupRetentionDays: current } = overview;
   const [days, setDays] = useState(String(current));
   const [pending, setPending] = useState<{ days: number; removes: FileCount | null } | null>(null);
   const [saved, setSaved] = useState(false);
@@ -280,6 +283,7 @@ function BackupsTab({ overview }: { overview: Overview }) {
       <div className="space-y-4 pb-5" data-testid="storage-backups">
         {backups ? (
           <>
+            {backupsOn ? null : <div className="px-5 pt-4"><Alert tone="warning" data-testid="backups-off">{t('backups.offWithReport')}</Alert></div>}
             <Facts items={[
               { label: t('backups.copies'), value: format.number(backups.count) },
               { label: t('backups.size'), value: format.bytes(backups.bytes) },
@@ -293,7 +297,14 @@ function BackupsTab({ overview }: { overview: Overview }) {
                 : t('backups.nothingDue')}
             </p>
           </>
-        ) : <div className="px-5 pt-4"><Alert tone="info">{t('backups.noReport')}</Alert></div>}
+        ) : (
+          // A server without the backup settings takes none: say so, rather than promise one that will never come.
+          <div className="px-5 pt-4">
+            {backupsOn
+              ? <Alert tone="info">{t('backups.noReport')}</Alert>
+              : <Alert tone="info" data-testid="backups-off">{t('backups.off')}</Alert>}
+          </div>
+        )}
         <form onSubmit={(e) => void submit(e)} noValidate className="space-y-3 px-5">
           <Field id="storage-backup-days" label={t('backups.keepFor')} hint={t('backups.keepHint')}>
             <Input id="storage-backup-days" dir="ltr" inputMode="numeric" type="number" min={7} max={3650} className="max-w-40"
