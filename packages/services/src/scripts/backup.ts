@@ -2,9 +2,9 @@ import { readFileSync, statSync } from 'node:fs';
 import { basename } from 'node:path';
 import { loadConfig } from '@gsa/config';
 import { AwsClient } from 'aws4fetch';
-import { writeAudit } from '../platform';
-import { closeDb, defaultBranchId, getDb } from '../runtime';
-import { BACKUP_NAME, BACKUP_PREFIX, backupKey, expiredBackups, type StoredBackup } from './retention';
+import { BACKUP_NAME, BACKUP_PREFIX, backupKey, expiredBackups, type StoredBackup } from '@gsa/core';
+import { closeDb } from '../runtime';
+import { backupRetentionDays, reportBackups } from '../system';
 
 /**
  * Upload one database dump to the backups bucket and delete the ones past
@@ -109,9 +109,21 @@ const listAll = async (): Promise<StoredBackup[]> => {
 };
 
 const kept = await listAll();
-const { remove, remaining, refused } = expiredBackups(kept, {
-  now: new Date(), days: config.BACKUP_RETENTION_DAYS, justWritten: dryRun ? undefined : key,
-});
+
+/**
+ * ADR-0049: the Super Admin sets the period on the Storage page. If it cannot
+ * be read tonight, nothing is removed — the cost of that is a day's extra
+ * backup; the cost of guessing could be every backup.
+ */
+let days: number | null = null;
+try {
+  days = await backupRetentionDays();
+} catch (error) {
+  console.warn(`  could not read the backups' period from the database, so nothing is removed: ${error instanceof Error ? error.message : String(error)}`);
+}
+const { remove, remaining, refused } = days === null
+  ? { remove: [], remaining: kept.filter((b) => BACKUP_NAME.test(b.key)), refused: null }
+  : expiredBackups(kept, { now: new Date(), days, justWritten: dryRun ? undefined : key });
 
 if (refused) console.log(`  keeping every backup: ${refused}`);
 for (const old of remove) {
@@ -121,7 +133,7 @@ for (const old of remove) {
       throw new Error(`deleting ${old.key} failed with HTTP ${response.status}`);
     }
   }
-  console.log(`  ${dryRun ? 'would remove' : 'removed'} ${old.key} (older than ${config.BACKUP_RETENTION_DAYS} days)`);
+  console.log(`  ${dryRun ? 'would remove' : 'removed'} ${old.key} (older than ${days ?? '?'} days)`);
 }
 
 console.log(dryRun
@@ -133,16 +145,10 @@ console.log(dryRun
  * from the audit log — so the web app never needs this bucket's token. A
  * failure here is reported, not fatal: the backup itself is safely stored.
  */
-if (!dryRun) {
-  try {
-    const newest = remaining.at(-1);
-    await writeAudit(getDb(), { actorId: null, branchId: await defaultBranchId(), requestId: 'backup', ip: null }, {
-      action: 'backup.completed', entityType: 'backup', entityId: key,
-      after: { count: remaining.length, bytes: remaining.reduce((n, b) => n + (b.size ?? 0), 0), newest: newest?.modified.toISOString() ?? null },
-    });
-  } catch (error) {
-    console.warn(`  the backup is stored, but could not be recorded for the storage page: ${error instanceof Error ? error.message : String(error)}`);
-  } finally {
-    await closeDb();
-  }
+try {
+  if (!dryRun) await reportBackups({ bucket, days, copies: remaining });
+} catch (error) {
+  console.warn(`  the backup is stored, but could not be recorded for the storage page: ${error instanceof Error ? error.message : String(error)}`);
+} finally {
+  await closeDb();
 }

@@ -1,5 +1,5 @@
 import {
-  addMonths, businessDate, businessDayStart, retentionDueOn, retentionOf, STORED_KINDS, type DomainError, type PermissionCode,
+  addMonths, backupKey, businessDate, businessDayStart, retentionDueOn, retentionOf, STORED_KINDS, type DomainError, type PermissionCode,
 } from '@gsa/core';
 import { describe, expect, it } from 'vitest';
 import { blobs } from '../../test/blobs';
@@ -14,7 +14,7 @@ import { writeAudit } from '../platform';
 import { defaultBranchId, getDb } from '../runtime';
 import { deliveryDocumentPdf, getSale, keepDeliveryDocument, recordSale, renderPendingDocuments } from '../sales';
 import { decideTransfer } from '../stores';
-import { getSettings, readSettings, updateSettings } from '../system';
+import { backupRetentionDays, getSettings, readSettings, reportBackups, updateSettings } from '../system';
 import { purgeMedia } from './retention';
 import { fileDetails, keepFile, previewStoragePolicy, setStoragePolicy, storageOverview } from './storage';
 
@@ -30,6 +30,11 @@ const dayBefore = (day: string) => businessDate(new Date(businessDayStart(day).g
 const row = async (id: string) =>
   (await ownerQuery<{ status: string; created_at: Date }>('select status, created_at from media_assets where id = $1', [id]))[0];
 const statusOf = async (id: string) => (await row(id))?.status;
+/** A backup copy `days` old, as the backups bucket lists it. */
+const copy = (days: number, size: number) => {
+  const modified = new Date(Date.now() - days * DAY);
+  return { key: backupKey(modified), modified, size };
+};
 /** The Riyadh day a file was stored — read back, so a test that crosses midnight still counts from the right day. */
 const storedOn = async (id: string) => businessDate((await row(id))?.created_at ?? new Date(0));
 
@@ -155,7 +160,7 @@ describe('storage management (ADR-0049)', () => {
     await aPhoto(await as('SELLER', new Date(Date.now() - 62 * DAY)), 'SELFIE');
 
     expect((await previewStoragePolicy(sa, { periods: { SELFIE: 1 } })).due.SELFIE).toEqual({ files: 1, bytes: JPEG.byteLength });
-    expect(await refusal(setStoragePolicy(sa, { periods: { SELFIE: 1 } }))).toEqual({ code: 'STORAGE_CONFIRM_DELETES', files: 1, bytes: JPEG.byteLength });
+    expect(await refusal(setStoragePolicy(sa, { periods: { SELFIE: 1 } }))).toEqual({ code: 'STORAGE_CONFIRM_DELETES', files: 1, bytes: JPEG.byteLength, backups: null });
     expect(retentionOf(await readSettings(), 'SELFIE')).toBe(3);
 
     const saved = await setStoragePolicy(sa, { periods: { SELFIE: 1 }, confirm: true });
@@ -193,19 +198,59 @@ describe('storage management (ADR-0049)', () => {
       oldest: earlier, kept: 1, deleted: { files: 1, bytes: JPEG.byteLength }, due: { files: 0, bytes: 0 },
     });
     expect(view.kinds.find((k) => k.kind === 'STOREFRONT')).toMatchObject({ period: 'FOREVER', files: 1, deleted: { files: 0 } });
-    expect(view.total).toEqual({ files: 3, bytes: 3 * JPEG.byteLength });
-    expect([view.budgetGb, view.budgetBytes]).toEqual([10, 10_000_000_000]);
+    expect(view.media).toEqual({ bucket: 'unused-in-tests', files: 3, bytes: 3 * JPEG.byteLength });
+    expect([view.budgetGb, view.budgetBytes, view.backupRetentionDays]).toEqual([10, 10_000_000_000, 30]);
     expect(view.database.bytes).toBeGreaterThan(0);
     expect(view.disk?.freeBytes).toBeLessThanOrEqual(view.disk?.totalBytes ?? 0);
+    // No backup has reported yet: the R2 total is the media bucket alone.
     expect(view.backups).toBeNull();
+    expect(view.r2Bytes).toBe(view.media.bytes);
 
-    // The nightly backup reports what the bucket holds; the page shows its latest word.
+    // The nightly backup reports the backups bucket; the page shows its latest word, and the budget counts both buckets.
+    const [oldest, newest] = [copy(40, 5_000_000), copy(1, 6_000_000)];
+    await reportBackups({ bucket: 'gsa-backups', days: 30, copies: [newest, oldest] });
+    const after = await storageOverview(sa);
+    expect(after.backups).toMatchObject({
+      bucket: 'gsa-backups', count: 2, bytes: 11_000_000, newestAt: newest.modified, oldestAt: oldest.modified,
+      due: { files: 1, bytes: 5_000_000 },
+    });
+    expect(after.r2Bytes).toBe(after.media.bytes + 11_000_000);
+    expect(await code(storageOverview(await as('ADMIN')))).toBe('FORBIDDEN');
+  });
+
+  it('a backup report from before the bucket and copies were recorded still reads', async () => {
     await writeAudit(getDb(), { actorId: null, branchId: await defaultBranchId(), requestId: 'backup', ip: null }, {
       action: 'backup.completed', entityType: 'backup', entityId: 'gsa-20261006T000000Z.dump',
       after: { count: 30, bytes: 123_456_789, newest: '2026-10-06T00:00:01.000Z' },
     });
-    expect((await storageOverview(sa)).backups).toMatchObject({ count: 30, bytes: 123_456_789, newestAt: new Date('2026-10-06T00:00:01.000Z') });
-    expect(await code(storageOverview(await as('ADMIN')))).toBe('FORBIDDEN');
+    expect((await storageOverview(await as('SUPER_ADMIN'))).backups).toMatchObject({
+      bucket: null, count: 30, bytes: 123_456_789, newestAt: new Date('2026-10-06T00:00:01.000Z'), due: { files: 0, bytes: 0 },
+    });
+  });
+
+  it('ADR-0049 (amended): backups are kept for the Super Admin\'s period — a shorter one is confirmed first, with what it removes', async () => {
+    const sa = await as('SUPER_ADMIN');
+    expect(await backupRetentionDays()).toBe(30);
+    // A shorter period with no report yet still asks: the page cannot say what it removes, but it may remove some.
+    expect(await refusal(setStoragePolicy(sa, { backupRetentionDays: 10 }))).toEqual({ code: 'STORAGE_CONFIRM_DELETES', files: 0, bytes: 0, backups: null });
+
+    await reportBackups({ bucket: 'gsa-backups', days: 30, copies: [copy(40, 100), copy(20, 200), copy(10, 300), copy(1, 400)] });
+    expect((await previewStoragePolicy(sa, { backupRetentionDays: 7 })).backups).toEqual({ files: 3, bytes: 600 });
+    // Beyond what the current period removes anyway: the copies 20 and 10 days old.
+    expect(await refusal(setStoragePolicy(sa, { backupRetentionDays: 7 }))).toEqual({
+      code: 'STORAGE_CONFIRM_DELETES', files: 0, bytes: 0, backups: { files: 2, bytes: 500 },
+    });
+    expect(await backupRetentionDays()).toBe(30);
+    expect((await setStoragePolicy(sa, { backupRetentionDays: 7, confirm: true })).backupRetentionDays).toBe(7);
+    expect(await backupRetentionDays()).toBe(7);
+    // Longer needs no confirming; under a week is never allowed, and the Admin cannot touch it.
+    await setStoragePolicy(sa, { backupRetentionDays: 14 });
+    expect(await code(setStoragePolicy(sa, { backupRetentionDays: 6, confirm: true }))).toBe('INVALID_SETTING');
+    expect(await code(setStoragePolicy(await as('ADMIN'), { backupRetentionDays: 60 }))).toBe('FORBIDDEN');
+    const [change] = await ownerQuery<{ before: unknown; after: unknown }>(
+      `select before, after from audit_log where action = 'system.settings_changed' order by occurred_at desc limit 1`,
+    );
+    expect(change).toEqual({ before: { 'storage.backup_retention_days': 7 }, after: { 'storage.backup_retention_days': 14 } });
   });
 
   it('SYS-010, DOC-005: delivery documents are kept forever by default; given a period they go — the sale says when — and a kept one stays', async () => {

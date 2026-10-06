@@ -41,7 +41,9 @@ for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
     await owner.goto('/console/dashboard');
     await owner.getByRole('link', { name: m.nav.storage, exact: true }).click();
     await expect(owner.getByRole('heading', { name: m.storage.title, level: 1 })).toBeVisible();
-    for (const id of ['storage-files', 'storage-database', 'storage-backups', 'storage-disk']) await expect(owner.getByTestId(id)).toBeVisible();
+    // Both R2 buckets together on top, against the budget; then the media bucket's tab, open first.
+    await expect(owner.getByTestId('storage-r2')).toContainText(m.storage.r2.title);
+    await expect(owner.getByRole('tab', { name: m.storage.tabs.media })).toHaveAttribute('aria-selected', 'true');
     await expect(owner.getByTestId('storage-row-WRITE_OFF_EVIDENCE')).toContainText(m.storage.kinds.WRITE_OFF_EVIDENCE);
     // The approved defaults; a selfie can never be kept forever as a kind.
     await expect(owner.getByTestId('storage-keep-STOREFRONT')).toHaveValue('FOREVER');
@@ -80,6 +82,37 @@ for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
     await expect(owner.getByTestId('storage-confirm')).toHaveCount(0);
     await owner.reload();
     await expect(owner.getByTestId('storage-keep-TRANSPORT_SLIP')).toHaveValue('6');
+
+    // The backups bucket's tab, reached from the keyboard: the next tab lies to the left in Arabic.
+    await owner.getByRole('tab', { name: m.storage.tabs.media }).focus();
+    await owner.keyboard.press(locale === 'ar' ? 'ArrowLeft' : 'ArrowRight');
+    await expect(owner.getByRole('tab', { name: m.storage.tabs.backups })).toHaveAttribute('aria-selected', 'true');
+    await expect(owner.getByRole('tab', { name: m.storage.tabs.backups })).toBeFocused();
+    const backups = owner.getByTestId('storage-backups');
+    await expect(backups).toBeVisible();
+    await owner.screenshot({ path: shot(`storage-backups-${locale}`), fullPage: true });
+    // ADR-0049 (amended): how long backups are kept. Longer saves straight away; shorter always asks first.
+    const keepDays = owner.getByLabel(m.storage.backups.keepFor);
+    await expect(keepDays).toHaveValue('30');
+    await keepDays.fill('45');
+    const longer = saving();
+    await backups.getByRole('button', { name: m.common.save, exact: true }).click();
+    expect((await longer).ok()).toBe(true);
+    await expect(owner.getByTestId('storage-confirm')).toHaveCount(0);
+    await keepDays.fill('30');
+    await backups.getByRole('button', { name: m.common.save, exact: true }).click();
+    await expect(owner.getByTestId('storage-confirm')).toContainText(m.storage.backups.confirmTitle);
+    const shorter = saving();
+    await owner.getByTestId('storage-confirm').getByRole('button', { name: m.storage.confirm }).click();
+    expect((await shorter).ok()).toBe(true);
+    await owner.reload();
+    await owner.getByRole('tab', { name: m.storage.tabs.backups }).click();
+    await expect(owner.getByLabel(m.storage.backups.keepFor)).toHaveValue('30');
+
+    // The server's own figures: the database and the disk under it.
+    await owner.getByRole('tab', { name: m.storage.tabs.server }).click();
+    for (const id of ['storage-database', 'storage-disk']) await expect(owner.getByTestId(id)).toBeVisible();
+    await owner.screenshot({ path: shot(`storage-server-${locale}`), fullPage: true });
     await context.close();
   });
 }

@@ -1,9 +1,10 @@
 /**
- * Which backups retention removes (ADR-0020, handover RUNBOOK §5).
+ * Which backups retention removes (ADR-0020, ADR-0049, handover RUNBOOK §5).
  *
- * Kept apart from `backup.ts` and free of I/O so it can be tested: this is the
- * code that deletes the only copies of the business, and "it looked right" is
- * not the standard for that.
+ * Kept apart from the backup script and free of I/O so it can be tested — and
+ * so the storage page can say what a shorter period would remove by the same
+ * rule the script deletes by. This is the code that deletes the only copies of
+ * the business, and "it looked right" is not the standard for that.
  */
 
 /** `size` is in bytes, when the listing gave one. */
@@ -55,7 +56,13 @@ export function expiredBackups(
   const cutoff = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
   const remove = ours.filter((b) => b.modified < cutoff && b.key !== justWritten);
   if (remove.length > 0 && remove.length >= ours.length) {
-    return { remove: [], remaining: ours, refused: `all ${ours.length} backup(s) look older than ${days} days — check BACKUP_RETENTION_DAYS and the server clock` };
+    return { remove: [], remaining: ours, refused: `all ${ours.length} backup(s) look older than ${days} days — check the backups' period on the Storage page and the server clock` };
   }
   return { remove, remaining: ours.filter((b) => !remove.includes(b)), refused: null };
+}
+
+/** What a run would remove under `days` — files and bytes — by exactly the rule above. */
+export function backupsRemovedBy(stored: readonly StoredBackup[], { now, days }: { now: Date; days: number }): { files: number; bytes: number } {
+  const { remove } = expiredBackups(stored, { now, days });
+  return { files: remove.length, bytes: remove.reduce((n, b) => n + (b.size ?? 0), 0) };
 }
