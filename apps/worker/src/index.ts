@@ -24,9 +24,11 @@ await boss.work('system.heartbeat', ([job]) => {
   return Promise.resolve();
 });
 
-// ARCHITECTURE §6.5: purge photos past retention (OQ-009) and abandoned uploads. Idempotent.
+// ADR-0049: delete files past their kind's period, and abandoned uploads. Idempotent. An hour, not the
+// default quarter: the first run after a period is shortened may have a backlog, and a run cut short
+// only resumes the next night.
 await boss.createQueue('media.retention');
-await boss.schedule('media.retention', '0 4 * * *', null, { tz: BUSINESS_TIME_ZONE });
+await boss.schedule('media.retention', '0 4 * * *', null, { tz: BUSINESS_TIME_ZONE, expireInSeconds: 3600 });
 await boss.work('media.retention', async () => {
   const result = await media.purgeMedia(new Date());
   console.log(`[worker] media.retention purged ${result.expired} expired, ${result.abandoned} abandoned`);

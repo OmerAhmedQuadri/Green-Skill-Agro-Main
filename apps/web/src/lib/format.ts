@@ -33,6 +33,8 @@ export function useFormat() {
     const shortMonthFormat = new Intl.DateTimeFormat(tag, { month: 'short', timeZone: 'UTC' });
     const dayFormat = new Intl.DateTimeFormat(tag, { day: 'numeric', month: 'short', timeZone: 'UTC' });
     const compactFormat = new Intl.NumberFormat(tag, { notation: 'compact', maximumFractionDigits: 1 });
+    const byteFormats = (['byte', 'kilobyte', 'megabyte', 'gigabyte', 'terabyte'] as const)
+      .map((unit, i) => new Intl.NumberFormat(tag, { style: 'unit', unit, unitDisplay: 'short', maximumFractionDigits: i === 0 ? 0 : 1 }));
     return {
       locale,
       /** I18N-003: product, variety and category names are data, shown in the reader's language. */
@@ -53,6 +55,13 @@ export function useFormat() {
       shortDay: (iso: string) => dayFormat.format(new Date(`${iso}T00:00:00Z`)),
       /** An axis tick — 12K, 1.5M — never a figure to read a total from. */
       compact: (value: number) => compactFormat.format(value),
+      /** ADR-0049: a size in bytes, in the largest unit that keeps it at 1 or more — in thousands, as storage is sold. */
+      bytes: (value: number) => {
+        let unit = 0;
+        let scaled = value;
+        while (Math.abs(scaled) >= 1000 && unit < byteFormats.length - 1) { scaled /= 1000; unit += 1; }
+        return (byteFormats[unit] ?? compactFormat).format(scaled);
+      },
       /** An instant, shown on Riyadh time (CONVENTIONS §4). */
       dateTime: (instant: string | Date) => dateTimeFormat.format(new Date(instant)),
       /** ADR-0015: grams are stored; a whole number of kilograms reads as kilograms. */

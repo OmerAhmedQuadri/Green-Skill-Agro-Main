@@ -94,7 +94,7 @@ export function StoreDetail({ id, can }: { id: string; can: Can }) {
             { label: t('category'), value: s.category ?? '—' },
             { label: t('address'), value: s.address ?? '—' },
             { label: t('location'), value: <a className="text-brand-800 hover:underline" target="_blank" rel="noreferrer" href={`https://www.google.com/maps?q=${s.location.lat},${s.location.lng}`}><bdi dir="ltr">{`${s.location.lat.toFixed(5)}, ${s.location.lng.toFixed(5)}`}</bdi></a> },
-            { label: t('storefront'), value: s.storefrontMediaId ? <a className="text-brand-800 hover:underline" target="_blank" rel="noreferrer" href={`/api/v1/media/${s.storefrontMediaId}`}>{t('viewPhoto')}</a> : '—' },
+            { label: t('storefront'), value: s.storefrontMediaId ? <a className="text-brand-800 hover:underline" target="_blank" rel="noreferrer" href={`/files/${s.storefrontMediaId}`}>{t('viewPhoto')}</a> : '—' },
             { label: t('crNumber'), value: s.crNumber ?? '—' },
             { label: t('vatNumber'), value: s.vatNumber ?? '—' },
             { label: t('nationalAddress'), value: s.nationalAddress ?? '—' },

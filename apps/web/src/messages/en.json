@@ -83,6 +83,7 @@
     "vendors": "Vendors",
     "pricing": "Pricing",
     "settings": "Settings",
+    "storage": "Storage",
     "purchaseOrders": "Purchase orders",
     "incoming": "Incoming",
     "stock": "Stock",
@@ -275,7 +276,9 @@
       "configure": "System settings and feature toggles",
       "manage_templates": "Product-type attribute templates",
       "set_limits": "Cash-in-hand and vehicle stock ceilings",
-      "view_audit_log": "View the audit log"
+      "view_audit_log": "View the audit log",
+      "manage_storage": "How long files are kept, and storage use",
+      "keep_files": "Keep a single file forever"
     },
     "catalogue": {
       "view": "View the catalogue",
@@ -467,6 +470,8 @@
     "CREDIT_BLOCKED": "This store is blocked on credit.",
     "CREDIT_LIMIT_EXCEEDED": "This sale is above the store's available credit.",
     "DOCUMENT_NOT_READY": "The delivery document is not ready yet.",
+    "STORAGE_CONFIRM_DELETES": "This change deletes files at the next run. Confirm it to go ahead.",
+    "FILE_DELETED": "That file has already been deleted under the storage policy.",
     "DOCUMENT_SENDING_DISABLED": "Sending delivery documents is switched off.",
     "RECEIPT_MISMATCH": "Each line's received, short and damaged packs must add up to what was sent.",
     "NOTHING_RECEIVED": "If nothing arrived, report the order lost instead.",
@@ -652,7 +657,8 @@
       "stores": "Stores",
       "credit": "Credit",
       "documents": "Delivery documents",
-      "targets": "Targets and commission"
+      "targets": "Targets and commission",
+      "storage": "Storage"
     },
     "fields": {
       "discount": {
@@ -700,9 +706,6 @@
       "documents": {
         "sending": "Sending the delivery document"
       },
-      "media": {
-        "photo_retention_days": "Days to keep selfies and odometer photos"
-      },
       "targets": {
         "pace_threshold_percent": "Flag a seller below this share of the pace (%)"
       },
@@ -711,6 +714,17 @@
       },
       "period": {
         "close_after_days": "Days after a month ends before it is final"
+      },
+      "storage": {
+        "keep_selfie": "Keep selfies for",
+        "keep_odometer": "Keep odometer photos for",
+        "keep_storefront": "Keep storefront photos for",
+        "keep_write_off_evidence": "Keep write-off photos for",
+        "keep_deposit_slip": "Keep deposit and handover slips for",
+        "keep_transport_slip": "Keep transport slips for",
+        "keep_payment_voucher": "Keep payment vouchers for",
+        "keep_delivery_document": "Keep delivery documents for",
+        "budget_gb": "File storage budget (GB)"
       }
     },
     "choices": {
@@ -804,6 +818,85 @@
     "latitude": "Latitude",
     "longitude": "Longitude",
     "addZone": "Add zone"
+  },
+  "storage": {
+    "title": "Storage",
+    "subtitle": "What is stored, how long each kind of file is kept, and how much room is left. Every change is recorded in the audit log.",
+    "files": "Files",
+    "ofBudget": "{used} of {budget}",
+    "freeInBudget": "{free} free in the budget",
+    "overBudget": "{over} over the budget",
+    "database": "Database",
+    "databaseHint": "Every record — sales, stock, balances. Never deleted.",
+    "backups": "Backups",
+    "backupsSummary": "{count, plural, one {# copy} other {# copies}} · {size}",
+    "backupsNewest": "Latest {time}",
+    "noBackups": "No backup has reported yet.",
+    "disk": "Server disk",
+    "diskSummary": "{free} free of {total}",
+    "diskUnknown": "Not available here.",
+    "nextRun": "The next clean-up runs {time}.",
+    "nextRunDeletes": "It will delete {count, plural, one {# file} other {# files}} ({size}).",
+    "nextRunNothing": "Nothing is due.",
+    "policy": "How long files are kept",
+    "policyHint": "Counted from the day a file was stored. A file kept forever, or whose record is still open, is never deleted. The record of a deleted file stays.",
+    "kinds": {
+      "SELFIE": "Selfies",
+      "ODOMETER": "Odometer photos",
+      "STOREFRONT": "Storefront photos",
+      "WRITE_OFF_EVIDENCE": "Write-off photos",
+      "DEPOSIT_SLIP": "Deposit and handover slips",
+      "TRANSPORT_SLIP": "Transport slips",
+      "PAYMENT_VOUCHER": "Payment vouchers",
+      "DELIVERY_DOCUMENT": "Delivery documents"
+    },
+    "columns": {
+      "kind": "Kind",
+      "keepFor": "Kept for",
+      "stored": "Stored",
+      "lastMonth": "Last 30 days",
+      "oldest": "Oldest",
+      "kept": "Kept forever",
+      "deleted": "Deleted so far",
+      "due": "Next clean-up"
+    },
+    "filesSize": "{count, plural, one {# file} other {# files}} · {size}",
+    "forever": "Forever",
+    "months": "{count, plural, one {# month} other {# months}}",
+    "years": "{count, plural, one {# year} other {# years}}",
+    "budgetHint": "Cloudflare R2 includes 10 GB; beyond that it charges by the gigabyte each month.",
+    "selfieCap": "Selfies are facial images: kept at most two years, never forever.",
+    "documentHint": "The signed scope keeps a copy of every delivery document. Change this only on the accountant's advice.",
+    "save": "Save changes",
+    "confirmTitle": "This deletes files",
+    "confirmBody": "Saving deletes {count, plural, one {# file} other {# files}} ({size}) at the next clean-up, {time}. They cannot be brought back.",
+    "confirm": "Delete and save"
+  },
+  "file": {
+    "kinds": {
+      "SELFIE": "Selfie",
+      "ODOMETER": "Odometer photo",
+      "STOREFRONT": "Storefront photo",
+      "WRITE_OFF_EVIDENCE": "Write-off photo",
+      "DEPOSIT_SLIP": "Deposit or handover slip",
+      "TRANSPORT_SLIP": "Transport slip",
+      "PAYMENT_VOUCHER": "Payment voucher"
+    },
+    "stored": "Stored",
+    "taken": "Taken",
+    "by": "By",
+    "size": "Size",
+    "keptFor": "Kept for",
+    "deletesOn": "Deleted automatically on {date}.",
+    "keptByPolicy": "Kept forever: files of this kind are never deleted.",
+    "keptBy": "Kept forever by {name} since {date}.",
+    "openRecord": "Its record is still open, so it stays until that record closes.",
+    "deleted": "Deleted on {date} under the storage policy.",
+    "keep": "Keep forever",
+    "release": "Stop keeping forever",
+    "keepHint": "A file kept forever is never deleted, whatever the period for its kind.",
+    "open": "Open the file",
+    "pdf": "PDF document"
   },
   "procurement": {
     "title": "Purchase orders",
@@ -1550,7 +1643,11 @@
     "monthReturned": "Returned",
     "monthNet": "Net",
     "takePayment": "Take a payment with this sale",
-    "collectFirst": "Collect the open bill first"
+    "collectFirst": "Collect the open bill first",
+    "documentDeleted": "This delivery document was deleted on {date} under the storage policy.",
+    "documentKept": "Kept forever.",
+    "keepDocument": "Keep forever",
+    "releaseDocument": "Stop keeping forever"
   },
   "audit": {
     "title": "Audit log",
@@ -1835,7 +1932,8 @@
     "markNotReceived": "Mark not received",
     "ownTransfer": "You recorded this — someone else confirms it.",
     "moreTransfers": "{count, plural, one {# more transfer is} other {# more transfers are}} waiting after these.",
-    "voucher": "Voucher"
+    "voucher": "Voucher",
+    "viewPhoto": "View"
   },
   "audits": {
     "loading": "Loading…",

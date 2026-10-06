@@ -104,6 +104,14 @@ for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
     await expect(phone.getByTestId('document-sends')).toBeVisible();
     expect(await phone.evaluate(() => (window as unknown as { sharedFiles: string[][] }).sharedFiles)).toEqual([[`${number}.pdf`]]);
 
+    // SYS-011 (ADR-0049): an Admin can keep this one document forever, whatever the period set for them — and hand it back.
+    await admin.goto(`/console/sales/${phone.url().split('/').at(-1) ?? ''}`);
+    const keep = admin.getByTestId('document-keep');
+    await keep.getByRole('button', { name: m.sales.keepDocument }).click();
+    await expect(keep).toContainText(m.sales.documentKept);
+    await keep.getByRole('button', { name: m.sales.releaseDocument }).click();
+    await expect(keep.getByRole('button', { name: m.sales.keepDocument })).toBeVisible();
+
     // SAL-005, PRC-006, PRC-009: 12% is above the tighter (5%) ceiling — the seller asks, with a reason, and waits.
     await phone.goto(`/field/sell/${credit.id}`);
     await phone.getByLabel(fill(m.sales.packsFor, { code: 'OKRA-PK-5KG' })).fill(n('4'));

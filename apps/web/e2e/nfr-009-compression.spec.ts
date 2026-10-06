@@ -61,7 +61,10 @@ test('NFR-009: a large photo is compressed in the browser before it is uploaded'
 
   await admin.goto('/console/write-offs');
   const link = admin.getByRole('row').filter({ hasText: `Compression ${lot}` }).getByRole('link', { name: en.warehouse.viewPhoto });
-  const stored = Buffer.from(await (await admin.request.get((await link.getAttribute('href')) ?? '')).body());
+  // The link opens the file's own page (ADR-0049); its bytes are behind the media route.
+  const href = (await link.getAttribute('href')) ?? '';
+  expect(href).toMatch(/^\/files\/[0-9a-f-]{36}$/);
+  const stored = Buffer.from(await (await admin.request.get(href.replace('/files/', '/api/v1/media/'))).body());
   const size = jpegSize(stored);
   expect(Math.max(size.width, size.height)).toBe(1600);
   expect(size.width / size.height).toBeCloseTo(4 / 3, 2);

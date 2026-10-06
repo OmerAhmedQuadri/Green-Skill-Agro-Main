@@ -13,23 +13,24 @@ const errorCode = (fn: () => void) => { try { fn(); } catch (e) { return (e as D
 
 describe('permission catalogue', () => {
   // A count on purpose: a permission added by accident should fail here.
-  // 61 since ADR-0045 split vendor names from vendor profiles.
-  it('USR-009: 61 unique module.action codes', () => {
-    expect(PERMISSION_CODES).toHaveLength(61);
-    expect(new Set(PERMISSION_CODES).size).toBe(61);
+  // 63 since ADR-0049 added storage management and keeping a file forever.
+  it('USR-009: 63 unique module.action codes', () => {
+    expect(PERMISSION_CODES).toHaveLength(63);
+    expect(new Set(PERMISSION_CODES).size).toBe(63);
     for (const code of PERMISSION_CODES) expect(code).toMatch(/^[a-z]+\.[a-z_]+$/);
   });
 
   it('USR-002: Super Admin holds every matrix permission, but not field self-service', () => {
     const sa = effectivePermissions('SUPER_ADMIN', none);
-    expect(sa.size).toBe(57); // 56, plus vendors.view_names (ADR-0045)
+    expect(sa.size).toBe(59); // 56, plus vendors.view_names (ADR-0045) and the two storage permissions (ADR-0049)
     for (const code of FIELD) expect(sa.has(code)).toBe(false);
   });
 
-  it('USR-003: Admin holds everything Super Admin does except managing admin accounts', () => {
+  it('USR-003: Admin holds everything Super Admin does except managing admin accounts and storage (ADR-0049)', () => {
     const sa = effectivePermissions('SUPER_ADMIN', none);
     const admin = effectivePermissions('ADMIN', none);
-    expect([...sa].filter((c) => !admin.has(c))).toEqual(['users.manage_admins']);
+    expect([...sa].filter((c) => !admin.has(c))).toEqual(['users.manage_admins', 'system.manage_storage']);
+    expect(admin.has('system.keep_files')).toBe(true);
     expect(admin.has('vendors.manage')).toBe(true); // OQ-013
   });
 

@@ -43,8 +43,10 @@ for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
     // WRO-004: the manager sees the photo and approves fewer packs than reported.
     await admin.goto('/console/write-offs');
     const row = admin.getByRole('row').filter({ hasText: `Torn bags ${lot}` });
-    await expect(row.getByRole('link', { name: m.warehouse.viewPhoto })).toHaveAttribute('href', /\/api\/v1\/media\//);
-    const photo = await admin.request.get((await row.getByRole('link', { name: m.warehouse.viewPhoto }).getAttribute('href')) ?? '');
+    // The link opens the photo's own page (ADR-0049); the bytes are behind the media route.
+    await expect(row.getByRole('link', { name: m.warehouse.viewPhoto })).toHaveAttribute('href', /^\/files\/[0-9a-f-]{36}$/);
+    const href = (await row.getByRole('link', { name: m.warehouse.viewPhoto }).getAttribute('href')) ?? '';
+    const photo = await admin.request.get(href.replace('/files/', '/api/v1/media/'));
     expect(photo.status()).toBe(200);
     await row.getByRole('button', { name: m.warehouse.decide }).click();
     await admin.getByLabel(fill(m.warehouse.approvedPacks, { max: 3 })).fill('2');

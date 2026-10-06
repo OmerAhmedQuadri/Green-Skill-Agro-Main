@@ -1,4 +1,4 @@
-import { DOCUMENT_RENDER_MAX_ATTEMPTS, documentRenderBackoffMs, DomainError, normaliseEmail, type Money, type Percent } from '@gsa/core';
+import { businessDate, DOCUMENT_RENDER_MAX_ATTEMPTS, documentRenderBackoffMs, DomainError, normaliseEmail, type Money, type Percent } from '@gsa/core';
 import { schema } from '@gsa/db';
 import { and, asc, eq, lte } from 'drizzle-orm';
 import { sizeOf } from '../catalogue';
@@ -103,6 +103,7 @@ export async function deliveryDocumentPdf(ctx: Ctx, saleId: string): Promise<{ n
   const [doc] = await db.select().from(deliveryDocuments).where(eq(deliveryDocuments.saleId, sale.id));
   if (!doc) throw new DomainError('NOT_FOUND', { entity: 'delivery_document', saleId });
   if (doc.status !== 'READY' || !doc.storageKey) throw new DomainError('DOCUMENT_NOT_READY', { status: doc.status });
+  if (doc.purgedAt) throw new DomainError('FILE_DELETED', { deletedOn: businessDate(doc.purgedAt) });
   const pdf = await getBlobStore().get(doc.storageKey);
   if (!pdf) throw new DomainError('DOCUMENT_NOT_READY', { status: 'MISSING' });
   return { number: doc.number, pdf };
@@ -116,6 +117,7 @@ async function sendable(tx: Tx, ctx: Ctx, saleId: string): Promise<{ sale: Sale;
   const [doc] = await tx.select().from(deliveryDocuments).where(eq(deliveryDocuments.saleId, saleId));
   if (!doc) throw new DomainError('NOT_FOUND', { entity: 'delivery_document', saleId });
   if (doc.status !== 'READY' || !doc.storageKey) throw new DomainError('DOCUMENT_NOT_READY', { status: doc.status });
+  if (doc.purgedAt) throw new DomainError('FILE_DELETED', { deletedOn: businessDate(doc.purgedAt) });
   return { sale, documentId: doc.id, number: doc.number, storageKey: doc.storageKey };
 }
 
@@ -145,5 +147,25 @@ export async function emailDeliveryDocument(ctx: Ctx, saleId: string, input: { t
     }, ctx.now);
     await tx.insert(deliveryDocumentSends).values({ documentId, channel: 'EMAIL', toAddress: to, sentAt: ctx.now, sentBy: ctx.user.id, branchId: ctx.branchId, createdAt: ctx.now });
     await audit(tx, ctx, { action: 'sales.document_emailed', entityType: 'sale', entityId: saleId, after: { number, to } });
+  });
+}
+
+/**
+ * SYS-011 (ADR-0049): keep one delivery document forever, whatever the
+ * period set for them — or hand it back to the policy. Locked, as the nightly
+ * run locks, so keeping and deleting never interleave. Audited.
+ */
+export async function keepDeliveryDocument(ctx: Ctx, saleId: string, keep: boolean): Promise<void> {
+  authorize(ctx, 'system.keep_files');
+  await inTx(ctx, async (tx) => {
+    const sale = await loadSale(tx, ctx, saleId);
+    const [doc] = await tx.select().from(deliveryDocuments).where(eq(deliveryDocuments.saleId, sale.id)).for('update');
+    if (!doc) throw new DomainError('NOT_FOUND', { entity: 'delivery_document', saleId });
+    if (doc.status !== 'READY') throw new DomainError('DOCUMENT_NOT_READY', { status: doc.status });
+    if (doc.purgedAt) throw new DomainError('FILE_DELETED', { deletedOn: businessDate(doc.purgedAt) });
+    if ((doc.keptAt !== null) === keep) return;
+    await tx.update(deliveryDocuments).set(keep ? { keptAt: ctx.now, keptBy: ctx.user.id } : { keptAt: null, keptBy: null })
+      .where(eq(deliveryDocuments.id, doc.id));
+    await audit(tx, ctx, { action: keep ? 'sales.document_kept' : 'sales.document_released', entityType: 'sale', entityId: saleId, after: { number: doc.number } });
   });
 }

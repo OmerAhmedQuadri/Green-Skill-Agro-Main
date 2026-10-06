@@ -22,7 +22,7 @@ import { SALE_TONE, type Sale } from './types';
  * that released it, and the delivery document. An approver decides here:
  * approve as asked, lower any line, or reject — first decision wins.
  */
-export function SaleDetail({ id, canDecide, canReturn = false }: { id: string; canDecide: boolean; canReturn?: boolean }) {
+export function SaleDetail({ id, canDecide, canReturn = false, canKeep = false }: { id: string; canDecide: boolean; canReturn?: boolean; canKeep?: boolean }) {
   const t = useTranslations('sales');
   const ts = useTranslations('stores');
   const tr = useTranslations('returns');
@@ -101,7 +101,7 @@ export function SaleDetail({ id, canDecide, canReturn = false }: { id: string; c
             { label: tStatus(null), value: s.cancelReason ? t(`cancelReasons.${s.cancelReason}`) : t(`statuses.${s.status}`) },
           ]} />
         </Section>
-        {s.document ? <Section title={t('documentTitle')}><div className="p-5"><DeliveryDocumentPanel sale={s} canSend={false} onChanged={() => undefined} /></div></Section> : null}
+        {s.document ? <Section title={t('documentTitle')}><div className="p-5"><DeliveryDocumentPanel sale={s} canSend={false} canKeep={canKeep} onChanged={(next) => queryClient.setQueryData(keys.sale(id), next)} /></div></Section> : null}
       </div>
     </div>
   );

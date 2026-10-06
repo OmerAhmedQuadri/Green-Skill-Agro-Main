@@ -126,7 +126,7 @@ export function AttendancePage({ canManage }: { canManage: boolean }) {
                         </div>
                         <div className="mt-1 flex flex-wrap gap-2 text-xs">
                           {(Object.entries(s.photos) as [keyof typeof s.photos, string | null][]).filter(([, id]) => id).map(([k, id]) => (
-                            <a key={k} href={`/api/v1/media/${id}`} target="_blank" rel="noreferrer" className="text-brand-800 hover:underline">{t(`attendance.photos.${k}`)}</a>
+                            <a key={k} href={`/files/${id}`} target="_blank" rel="noreferrer" className="text-brand-800 hover:underline">{t(`attendance.photos.${k}`)}</a>
                           ))}
                         </div>
                         {canManage && s.awaitingAuthorisation ? <Button size="sm" className="mt-1" onClick={() => authorise.run(s.id)} disabled={authorise.isPending}>{t('attendance.authorise')}</Button> : null}

@@ -9,7 +9,8 @@ import { useFormat } from '@/lib/format';
 import { useCommand, useErrorText } from '@/lib/hooks';
 import type { Sale } from './types';
 
-type Props = { sale: Sale; canSend: boolean; onChanged: (sale: Sale) => void };
+/** `canKeep`: SYS-011 — a Super Admin or Admin may keep this one document forever (ADR-0049). */
+type Props = { sale: Sale; canSend: boolean; canKeep?: boolean; onChanged: (sale: Sale) => void };
 
 /**
  * DOC-001..005, OQ-007: the delivery document once the worker has printed it.
@@ -17,7 +18,7 @@ type Props = { sale: Sale; canSend: boolean; onChanged: (sale: Sale) => void };
  * SMS, email) or has the server email it; either is recorded. A copy is kept
  * whatever the sending setting.
  */
-export function DeliveryDocumentPanel({ sale, canSend, onChanged }: Props) {
+export function DeliveryDocumentPanel({ sale, canSend, canKeep = false, onChanged }: Props) {
   const t = useTranslations('sales');
   const format = useFormat();
   const errorText = useErrorText();
@@ -27,6 +28,9 @@ export function DeliveryDocumentPanel({ sale, canSend, onChanged }: Props) {
   const shared = useCommand((_: null, key) => api<Sale>(`/sales/${sale.id}/delivery-document/shared`, { method: 'POST', body: {}, idempotencyKey: key }), { onSuccess: onChanged });
   const email = useCommand((to: string, key) => api<Sale>(`/sales/${sale.id}/delivery-document/email`, { method: 'POST', body: { to }, idempotencyKey: key }), {
     onSuccess: (s) => { setEmailing(false); onChanged(s); },
+  });
+  const keep = useCommand((value: boolean, key) => api<Sale>(`/sales/${sale.id}/delivery-document/keep`, { method: 'PUT', body: { keep: value }, idempotencyKey: key }), {
+    onSuccess: onChanged,
   });
   if (!doc) return null;
   const pdfUrl = `/api/v1/sales/${sale.id}/delivery-document`;
@@ -61,7 +65,19 @@ export function DeliveryDocumentPanel({ sale, canSend, onChanged }: Props) {
       </div>
       {doc.status === 'PENDING' ? <p className="text-sm text-stone-600" data-testid="document-preparing">{t('documentPreparing')}</p> : null}
       {doc.status === 'FAILED' ? <Alert>{t('documentFailed')}</Alert> : null}
-      {doc.status === 'READY' ? (
+      {doc.status === 'READY' && doc.purgedAt ? (
+        <Alert tone="info" data-testid="document-deleted">{t('documentDeleted', { date: format.dateTime(doc.purgedAt) })}</Alert>
+      ) : null}
+      {doc.status === 'READY' && !doc.purgedAt && canKeep ? (
+        <div className="flex flex-wrap items-center gap-2" data-testid="document-keep">
+          {doc.kept ? <span className="text-sm text-stone-600">{t('documentKept')}</span> : null}
+          <Button size="sm" variant="secondary" disabled={keep.isPending} onClick={() => keep.run(!doc.kept)}>
+            {doc.kept ? t('releaseDocument') : t('keepDocument')}
+          </Button>
+          {keep.error ? <Alert>{errorText(keep.error)}</Alert> : null}
+        </div>
+      ) : null}
+      {doc.status === 'READY' && !doc.purgedAt ? (
         <div className="space-y-3">
           <div className="flex flex-wrap gap-2">
             <a href={pdfUrl} target="_blank" rel="noreferrer" className="inline-flex h-11 items-center gap-2 rounded-md border border-stone-300 px-4 text-sm font-medium hover:bg-stone-50">

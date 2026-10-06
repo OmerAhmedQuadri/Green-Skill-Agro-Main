@@ -26,6 +26,9 @@ export async function compressPhoto(file: Blob, maxEdge = 1600, quality = 0.8): 
   canvas.height = Math.round(bitmap.height * scale);
   const context = canvas.getContext('2d');
   if (!context) throw new ApiError(0, 'UPLOAD_FAILED');
+  // A screenshot may be transparent, and JPEG has no transparency: without a backdrop it would turn black.
+  context.fillStyle = '#ffffff';
+  context.fillRect(0, 0, canvas.width, canvas.height);
   context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
   bitmap.close();
   return new Promise((resolve, reject) => {
@@ -69,9 +72,14 @@ async function withRetry<T>(work: () => Promise<T>, attempts = 3): Promise<T> {
   }
 }
 
-/** Uploads one file and returns its confirmed media id. A photo already compressed is sent as it is. */
+/**
+ * Uploads one file and returns its confirmed media id. A photo already
+ * compressed is sent as it is, and so is a PDF. A PNG screenshot of a slip is
+ * compressed like a photo (ADR-0049): one on staging was 7 MB.
+ */
 export async function uploadMedia(kind: MediaKind, file: Blob, capture: Capture = {}, options: { compressed?: boolean } = {}): Promise<string> {
-  const body = !options.compressed && (PHOTO_ONLY.has(kind) || file.type === 'image/jpeg') ? await compressPhoto(file) : file;
+  const image = file.type === 'image/jpeg' || file.type === 'image/png';
+  const body = !options.compressed && (PHOTO_ONLY.has(kind) || image) ? await compressPhoto(file) : file;
 
   const requestKey = crypto.randomUUID();
   const ticket = await withRetry(() => api<Ticket>('/media/uploads', {

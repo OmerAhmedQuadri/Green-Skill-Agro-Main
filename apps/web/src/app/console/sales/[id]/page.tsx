@@ -7,5 +7,6 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   const ctx = await requireSession();
   if (!canSeeSales(ctx.permissions)) notFound();
   const { id } = await params;
-  return <SaleDetail id={id} canDecide={ctx.permissions.has('sales.approve_discount')} canReturn={ctx.permissions.has('returns.process')} />;
+  return <SaleDetail id={id} canDecide={ctx.permissions.has('sales.approve_discount')} canReturn={ctx.permissions.has('returns.process')}
+    canKeep={ctx.permissions.has('system.keep_files')} />;
 }

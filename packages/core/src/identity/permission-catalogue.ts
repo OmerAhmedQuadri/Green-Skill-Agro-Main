@@ -24,6 +24,8 @@ export const PERMISSION_MATRIX = [
   ['system.manage_templates',         F, F,  NO,  NO],
   ['system.set_limits',               F, F,  NO,  NO],
   ['system.view_audit_log',           F, F,  NO,  NO],
+  ['system.manage_storage',           F, NO, NO,  NO],   // ADR-0049: retention periods and storage use
+  ['system.keep_files',               F, F,  NO,  NO],   // ADR-0049: keep a single file forever
   // Catalogue, pricing, vendors
   ['catalogue.view',                  F, F,  OFF, NO],
   ['catalogue.manage_structure',      F, F,  OFF, NO],

@@ -38,7 +38,7 @@ export function LedgerTable({ entries, compact = false, area = 'console' }: { en
               {e.paymentNumber ? <div className="text-xs text-stone-500"><bdi dir="ltr">{e.paymentNumber}</bdi></div> : null}
               {e.voucher ? (
                 <div className="text-xs">
-                  <a href={`/api/v1/media/${e.voucher.photoId}`} target="_blank" rel="noreferrer" className="text-brand-800 hover:underline">{t('voucherIs', { number: e.voucher.number })}</a>
+                  <a href={`/files/${e.voucher.photoId}`} target="_blank" rel="noreferrer" className="text-brand-800 hover:underline">{t('voucherIs', { number: e.voucher.number })}</a>
                 </div>
               ) : null}
               {e.note ? <div className="text-xs text-stone-500">{e.note}</div> : null}

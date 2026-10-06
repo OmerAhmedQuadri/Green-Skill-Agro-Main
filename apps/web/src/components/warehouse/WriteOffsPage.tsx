@@ -81,7 +81,7 @@ export function WriteOffsPage({ canDecide, userId }: { canDecide: boolean; userI
                   {w.decisionComment ? <div className="mt-1 text-xs text-stone-500">{w.decisionComment}</div> : null}
                 </Cell>
                 <Cell className="text-end">
-                  {w.photoId ? <a href={`/api/v1/media/${w.photoId}`} target="_blank" rel="noreferrer" className="me-2 text-sm text-brand-800 hover:underline">{t('warehouse.viewPhoto')}</a> : null}
+                  {w.photoId ? <a href={`/files/${w.photoId}`} target="_blank" rel="noreferrer" className="me-2 text-sm text-brand-800 hover:underline">{t('warehouse.viewPhoto')}</a> : null}
                   {canDecide && w.status === 'SUBMITTED' && w.submittedBy.id !== userId && deciding !== w.id
                     ? <Button size="sm" variant="secondary" onClick={() => setDeciding(w.id)}>{t('warehouse.decide')}</Button> : null}
                 </Cell>

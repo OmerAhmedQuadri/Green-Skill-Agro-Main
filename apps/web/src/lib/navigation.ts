@@ -7,7 +7,7 @@ import type { PermissionCode } from '@gsa/core';
  */
 export type NavIcon =
   | 'dashboard' | 'users' | 'catalogue' | 'vendors' | 'pricing' | 'settings' | 'purchaseOrders' | 'incoming' | 'stock' | 'writeOffs' | 'expiry'
-  | 'vehicles' | 'attendance' | 'closingStock' | 'stores' | 'sales' | 'dispatch' | 'cash' | 'audits' | 'targets' | 'reports' | 'auditLog';
+  | 'vehicles' | 'attendance' | 'closingStock' | 'stores' | 'sales' | 'dispatch' | 'cash' | 'audits' | 'targets' | 'reports' | 'auditLog' | 'storage';
 type Can = (p: ReadonlySet<PermissionCode>) => boolean;
 type NavItem = { href: string; key: NavIcon; icon: NavIcon; visible: Can };
 
@@ -33,6 +33,8 @@ export const canSeeAudits = any('inventory.audit_vehicle', 'inventory.approve_wr
 export const canSeeTargets = any('targets.manage', 'targets.view_commission');
 export const canSeeReports = any('reports.view_trends', 'reports.view_forecast');
 export const canSeeAuditLog = any('system.view_audit_log');
+/** ADR-0049: the Super Admin's alone. */
+export const canSeeStorage = any('system.manage_storage');
 export const canSeeSettings = any('system.configure', 'system.manage_templates', 'system.set_limits', 'returns.set_rules', 'targets.manage');
 
 export const CONSOLE_NAV: readonly NavItem[] = [
@@ -57,5 +59,6 @@ export const CONSOLE_NAV: readonly NavItem[] = [
   { href: '/console/attendance', key: 'attendance', icon: 'attendance', visible: canSeeAttendance },
   { href: '/console/users', key: 'users', icon: 'users', visible: canAdministerUsers },
   { href: '/console/settings', key: 'settings', icon: 'settings', visible: canSeeSettings },
+  { href: '/console/storage', key: 'storage', icon: 'storage', visible: canSeeStorage },
   { href: '/console/audit-log', key: 'auditLog', icon: 'auditLog', visible: canSeeAuditLog },
 ];
