@@ -104,7 +104,8 @@ for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
     await phone.getByRole('button', { name: m.field.declare }).click();
     await expect(phone.getByText(m.field.closingFlagged)).toBeVisible();
     expect(await batchPositions(admin, skuId, lot)).toEqual({ warehouse: 3, vehicles: 5, total: 8 });
-    await admin.goto('/console/closing-stock');
+    // As the variance notification opens it: on the flagged counts (the list itself opens on All).
+    await admin.goto('/console/closing-stock?status=VARIANCE_FLAGGED');
     const declaration = admin.getByTestId(`closing-${seller.name}`);
     await expect(declaration).toContainText('OKRA-PK-5KG');
     await declaration.getByLabel(m.closing.comment).fill('One bag given as a sample');

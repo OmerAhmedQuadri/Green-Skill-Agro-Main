@@ -25,7 +25,7 @@ export function WriteOffsPage({ canDecide, userId }: { canDecide: boolean; userI
   const format = useFormat();
   const errorText = useErrorText();
   const queryClient = useQueryClient();
-  const [status, setStatus] = useState<'SUBMITTED' | 'APPROVED' | 'REJECTED' | ''>('SUBMITTED');
+  const [status, setStatus] = useState<'SUBMITTED' | 'APPROVED' | 'REJECTED' | ''>('');
   const [deciding, setDeciding] = useState<string | null>(null);
   const list = useInfiniteQuery({
     queryKey: ['write-offs', status],
@@ -56,10 +56,10 @@ export function WriteOffsPage({ canDecide, userId }: { canDecide: boolean; userI
       <Card>
         <div className="border-b border-stone-200 p-4">
           <Select value={status} onChange={(e) => setStatus((['SUBMITTED', 'APPROVED', 'REJECTED', ''] as const).find((s) => s === e.target.value) ?? '')} aria-label={t('common.status')} className="w-auto">
+            <option value="">{t('common.all')}</option>
             <option value="SUBMITTED">{t('warehouse.statuses.SUBMITTED')}</option>
             <option value="APPROVED">{t('warehouse.statuses.APPROVED')}</option>
             <option value="REJECTED">{t('warehouse.statuses.REJECTED')}</option>
-            <option value="">{t('common.all')}</option>
           </Select>
         </div>
         {list.error ? <div className="p-4"><Alert>{errorText(list.error)}</Alert></div> : null}

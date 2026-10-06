@@ -73,7 +73,7 @@ export async function declareClosingStock(ctx: Ctx, input: { lines: readonly { s
       await tx.insert(closingStockLines).values(result.lines.map((l) => ({ declarationId: row.id, skuId: l.skuId, declaredPacks: l.declaredPacks, systemPacks: l.systemPacks })));
     }
     if (result.status === 'VARIANCE_FLAGGED') {
-      await notify(tx, ctx, { permission: 'inventory.audit_vehicle' }, 'CLOSING_VARIANCE', { workDate: live.workDate }, '/console/closing-stock');
+      await notify(tx, ctx, { permission: 'inventory.audit_vehicle' }, 'CLOSING_VARIANCE', { workDate: live.workDate }, '/console/closing-stock?status=VARIANCE_FLAGGED');
     }
     await audit(tx, ctx, { action: 'inventory.closing_stock_declared', entityType: 'closing_stock_declaration', entityId: row.id, after: result });
     const [out] = await loadDeclarations(tx, eq(closingStockDeclarations.id, row.id));

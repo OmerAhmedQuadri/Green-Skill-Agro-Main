@@ -22,7 +22,8 @@ export function CataloguePage({ can }: { can: CatalogueCan }) {
   const [search, setSearch] = useState('');
   const [typeId, setTypeId] = useState('');
   const [categoryId, setCategoryId] = useState('');
-  const [status, setStatus] = useState('true');
+  // Filters open on everything; narrowing is the reader's choice.
+  const [status, setStatus] = useState('');
   const query = useDeferredValue(search);
 
   const types = useQuery({ queryKey: keys.productTypes, queryFn: () => api<ProductType[]>('/product-types') });
@@ -76,9 +77,9 @@ export function CataloguePage({ can }: { can: CatalogueCan }) {
             {categories.data?.map((c) => <option key={c.id} value={c.id}>{format.name(c)}</option>)}
           </Select>
           <Select value={status} onChange={(e) => setStatus(e.target.value)} aria-label={t('common.status')} className="w-auto">
+            <option value="">{t('common.all')}</option>
             <option value="true">{t('common.active')}</option>
             <option value="false">{t('common.inactive')}</option>
-            <option value="">{t('common.all')}</option>
           </Select>
         </div>
 

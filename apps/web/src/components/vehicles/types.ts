@@ -9,3 +9,8 @@ export type Seller = Awaited<ReturnType<typeof vehicles.listSellers>>[number];
 export type ClosingDeclaration = vehicles.ClosingDeclaration;
 export const RETURN_REASONS = ['EXPIRY_RECALL', 'REDISTRIBUTION', 'SELLER_LEAVING', 'STORE_RETURN', 'VEHICLE_WITHDRAWN', 'MANAGER_RECALL'] as const;
 export const LOAD_TONE = { ISSUED: 'warning', DISPUTED: 'danger', CONFIRMED: 'success', CANCELLED: 'neutral' } as const;
+
+/** STK-011: a closing count's states — a plain module, so the server page can read it too. */
+export const CLOSING_STATUSES = ['VARIANCE_FLAGGED', 'MATCHED', 'REVIEWED'] as const;
+export type ClosingStatus = (typeof CLOSING_STATUSES)[number];
+

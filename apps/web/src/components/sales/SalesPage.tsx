@@ -22,7 +22,7 @@ export function SalesPage({ canDecide }: { canDecide: boolean }) {
   const tc = useTranslations('common');
   const format = useFormat();
   const errorText = useErrorText();
-  const [filter, setFilter] = useState<Filter>(canDecide ? 'AWAITING' : '');
+  const [filter, setFilter] = useState<Filter>('');
   const list = useQuery({
     queryKey: keys.sales({ filter }),
     queryFn: () => api<Page<SaleSummary>>(filter === 'AWAITING' ? '/sales?awaitingDecision=true' : filter ? `/sales?status=${filter}` : '/sales'),
