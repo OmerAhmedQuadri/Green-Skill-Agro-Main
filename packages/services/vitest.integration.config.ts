@@ -23,6 +23,11 @@ const env = {
   S3_BUCKET: 'unused-in-tests',
   S3_ACCESS_KEY: 'unused-in-tests',
   S3_SECRET_KEY: 'unused-in-tests',
+  // ADR-0050: backups count as switched on, so the backup runs can be exercised. Nothing reaches a
+  // bucket: the tests hand in a stand-in for deploy/backup.sh.
+  BACKUP_S3_BUCKET: 'unused-in-tests',
+  BACKUP_S3_ACCESS_KEY: 'unused-in-tests',
+  BACKUP_S3_SECRET_KEY: 'unused-in-tests',
 };
 Object.assign(process.env, env); // global setup runs in this process
 

@@ -50,3 +50,18 @@ export function businessMonthRange(month: string): { readonly from: Date; readon
   const next = m === 12 ? `${year + 1}-01` : `${year}-${String(m + 1).padStart(2, '0')}`;
   return { from: businessDayStart(`${month}-01`), to: businessDayStart(`${next}-01`) };
 }
+
+const DAY_MS = 86_400_000;
+
+/** `YYYY-MM-DD`, and a date that exists — JavaScript reads 30 February as 2 March. */
+export function isCalendarDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const time = Date.parse(`${value}T00:00:00Z`);
+  return !Number.isNaN(time) && new Date(time).toISOString().slice(0, 10) === value;
+}
+
+/** A calendar date plus whole days — calendar arithmetic, no time zone in it. */
+export function addDays(date: string, days: number): string {
+  return new Date(Date.parse(`${date}T00:00:00Z`) + days * DAY_MS).toISOString().slice(0, 10);
+}
+

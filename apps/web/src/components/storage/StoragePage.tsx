@@ -1,11 +1,13 @@
 'use client';
 
-import { RETENTION_SETTING, SETTINGS, STORED_KINDS, type RetentionPeriod, type StoredKind } from '@gsa/core';
-import type { media } from '@gsa/services';
+import {
+  addDays, businessDate, isBackupNote, RETENTION_SETTING, SETTINGS, STORED_KINDS, type RetentionPeriod, type StoredKind,
+} from '@gsa/core';
+import type { media, system } from '@gsa/services';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
 import { useState, type FormEvent, type ReactNode } from 'react';
-import { Alert, Button, Card, Field, Input, Select } from '@gsa/ui';
+import { Alert, Badge, Button, Card, Field, Input, Select } from '@gsa/ui';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Facts, Section } from '@/components/common/Section';
 import { Cell, Table } from '@/components/common/Table';
@@ -55,7 +57,11 @@ export function StoragePage() {
   const t = useTranslations('storage');
   const errorText = useErrorText();
   const [tab, setTab] = useState<Tab>('media');
-  const overview = useQuery({ queryKey: keys.storage, queryFn: () => api<Overview>('/storage') });
+  const overview = useQuery({
+    queryKey: keys.storage, queryFn: () => api<Overview>('/storage'),
+    // While a backup is asked for or running, follow it until it ends.
+    refetchInterval: (query) => (query.state.data?.backupRuns.some((r) => r.status === 'REQUESTED' || r.status === 'RUNNING') ? 5_000 : false),
+  });
   const data = overview.data;
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -248,6 +254,83 @@ function MediaTab({ overview }: { overview: Overview }) {
   );
 }
 
+const RUN_TONE = { REQUESTED: 'warning', RUNNING: 'warning', SUCCEEDED: 'success', FAILED: 'danger', SKIPPED: 'neutral' } as const;
+const PAUSE_NIGHTS = [1, 3, 7, 14, 30];
+
+/**
+ * ADR-0050: the nightly backup — paused for a while, or not — a backup now,
+ * and how the latest runs went, failures included.
+ */
+function BackupControls({ overview }: { overview: Overview }) {
+  const t = useTranslations('storage.backups');
+  const format = useFormat();
+  const errorText = useErrorText();
+  const queryClient = useQueryClient();
+  const [nights, setNights] = useState(String(PAUSE_NIGHTS[0]));
+  const onSuccess = (next: Overview) => { queryClient.setQueryData(keys.storage, next); };
+  const backUp = useCommand((_: null, key) => api<Overview>('/storage/backups', { method: 'POST', body: {}, idempotencyKey: key }), { onSuccess });
+  const pause = useCommand((until: string | null, key) => api<Overview>('/storage/backups/pause', { method: 'PUT', body: { until }, idempotencyKey: key }), { onSuccess });
+  const active = overview.backupRuns.find((r) => r.status === 'REQUESTED' || r.status === 'RUNNING');
+  const { backups, backupsPausedUntil: pausedUntil } = overview;
+
+  return (
+    <div className="space-y-3 px-5 pt-4" data-testid="backup-controls">
+      {pausedUntil ? (
+        <Alert tone="warning" data-testid="backups-paused">
+          <p>{t('paused', { date: format.date(pausedUntil) })}</p>
+          <Button className="mt-2" size="sm" variant="secondary" disabled={pause.isPending} onClick={() => pause.run(null)}>{t('resume')}</Button>
+        </Alert>
+      ) : (
+        <div className="flex flex-wrap items-end gap-3">
+          <p className="w-full text-sm text-stone-700">{t('nightly')}</p>
+          <Field id="backup-pause-nights" label={t('pauseFor')}>
+            <Select id="backup-pause-nights" value={nights} onChange={(e) => setNights(e.target.value)}>
+              {PAUSE_NIGHTS.map((n) => <option key={n} value={n}>{t('nights', { count: n })}</option>)}
+            </Select>
+          </Field>
+          <Button variant="secondary" disabled={pause.isPending}
+            onClick={() => pause.run(addDays(businessDate(new Date()), Number(nights)))}>{t('pause')}</Button>
+        </div>
+      )}
+      <div className="flex flex-wrap items-center gap-3">
+        <Button disabled={Boolean(active) || backUp.isPending} onClick={() => backUp.run(null)}>{t('backUpNow')}</Button>
+        {active ? (
+          <span className="text-sm text-stone-600" data-testid="backup-active">
+            {active.status === 'REQUESTED' ? t('requested', { time: format.dateTime(active.requestedAt) }) : t('running', { time: format.dateTime(active.startedAt ?? active.requestedAt) })}
+          </span>
+        ) : null}
+      </div>
+      {backUp.error ? <Alert>{errorText(backUp.error)}</Alert> : null}
+      {pause.error ? <Alert>{errorText(pause.error)}</Alert> : null}
+      {backups?.stale ? <Alert tone="warning" data-testid="backups-stale">{t('stale', { time: format.dateTime(backups.newestAt ?? backups.reportedAt) })}</Alert> : null}
+      <BackupRuns runs={overview.backupRuns} />
+    </div>
+  );
+}
+
+function BackupRuns({ runs }: { runs: readonly system.BackupRun[] }) {
+  const t = useTranslations('storage.backups');
+  const format = useFormat();
+  if (runs.length === 0) return <p className="text-sm text-stone-600">{t('noRuns')}</p>;
+  return (
+    <div className="space-y-2" data-testid="backup-runs">
+      <p className="text-sm font-semibold text-stone-900">{t('runs')}</p>
+      <Table head={[t('runWhen'), t('runHow'), t('runResult')]}>
+        {runs.map((r) => (
+          <tr key={r.id}>
+            <Cell className="whitespace-nowrap">{format.dateTime(r.requestedAt)}</Cell>
+            <Cell>{r.trigger === 'NIGHTLY' ? t('nightlyRun') : t('manualRun', { name: r.requestedBy ?? '—' })}</Cell>
+            <Cell>
+              <Badge tone={RUN_TONE[r.status]}>{t(`runStatus.${r.status}`)}</Badge>
+              {r.note ? <span className="ms-2 text-sm text-stone-600">{isBackupNote(r.note) ? t(`notes.${r.note}`) : <bdi dir="ltr">{r.note}</bdi>}</span> : null}
+            </Cell>
+          </tr>
+        ))}
+      </Table>
+    </div>
+  );
+}
+
 /** The backups bucket, as the nightly backup last reported it, and how long backups are kept (ADR-0049, amended). */
 function BackupsTab({ overview }: { overview: Overview }) {
   const t = useTranslations('storage');
@@ -281,6 +364,7 @@ function BackupsTab({ overview }: { overview: Overview }) {
   return (
     <Section title={t('backups.title')} description={<BucketHint bucket={backups?.bucket ?? null} hint={t('backups.hint')} />}>
       <div className="space-y-4 pb-5" data-testid="storage-backups">
+        {backupsOn ? <BackupControls overview={overview} /> : null}
         {backups ? (
           <>
             {backupsOn ? null : <div className="px-5 pt-4"><Alert tone="warning" data-testid="backups-off">{t('backups.offWithReport')}</Alert></div>}

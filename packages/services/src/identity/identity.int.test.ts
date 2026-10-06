@@ -195,6 +195,7 @@ describe('Phase 1 has no branch scoping (USR-012, ADR-0004)', () => {
     // A branch-specific price list later is a nullable column, an addition.
     // Lines and events belong to a parent that carries the branch; the
     // document counter is keyed by series, and a branch can be part of the key.
+    // A backup is of the whole database, every branch at once (ADR-0050).
     const exempt = new Set([
       'branches', 'sessions', 'user_permissions', 'permissions', 'permission_presets',
       'permission_preset_grants', 'rate_limits', 'idempotency_keys', 'password_reset_tokens',
@@ -205,6 +206,7 @@ describe('Phase 1 has no branch scoping (USR-012, ADR-0004)', () => {
       'attendance_breaks', 'vehicle_loadout_lines', 'vehicle_return_lines', 'closing_stock_lines', 'payment_allocations',
       'sale_lines', 'sale_line_allocations', 'dispatch_order_lines', 'dispatch_line_batches', 'dispatch_order_events',
       'return_lines', 'return_replacements', 'vehicle_audit_lines',
+      'backup_runs',
     ]);
     const rows = await ownerQuery<{ table_name: string; has_branch: boolean }>(`
       select t.table_name, bool_or(c.column_name = 'branch_id') as has_branch

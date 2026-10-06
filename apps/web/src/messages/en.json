@@ -471,6 +471,9 @@
     "CREDIT_LIMIT_EXCEEDED": "This sale is above the store's available credit.",
     "DOCUMENT_NOT_READY": "The delivery document is not ready yet.",
     "STORAGE_CONFIRM_DELETES": "This change deletes files at the next run. Confirm it to go ahead.",
+    "BACKUPS_OFF": "Backups are not switched on for this server.",
+    "BACKUP_IN_PROGRESS": "A backup is already under way. Wait for it to finish.",
+    "BACKUP_TOO_SOON": "A backup was taken in the last 10 minutes. Try again shortly.",
     "FILE_DELETED": "That file has already been deleted under the storage policy.",
     "DOCUMENT_SENDING_DISABLED": "Sending delivery documents is switched off.",
     "RECEIPT_MISMATCH": "Each line's received, short and damaged packs must add up to what was sent.",
@@ -725,7 +728,8 @@
         "keep_payment_voucher": "Keep payment vouchers for",
         "keep_delivery_document": "Keep delivery documents for",
         "budget_gb": "File storage budget (GB)",
-        "backup_retention_days": "Keep backups for (days)"
+        "backup_retention_days": "Keep backups for (days)",
+        "backups_paused_until": "Nightly backups paused through"
       }
     },
     "choices": {
@@ -900,7 +904,36 @@
       "confirmBody": "Saving removes {count, plural, one {# copy} other {# copies}} ({size}) at the next backup — every one older than {days, plural, one {# day} other {# days}}. They cannot be brought back.",
       "confirmUnknown": "Saving removes every backup older than {days, plural, one {# day} other {# days}} at the next backup. No backup has reported yet, so the page cannot say how many. They cannot be brought back.",
       "off": "Backups are not switched on for this server yet.",
-      "offWithReport": "Backups are no longer switched on for this server: these figures are the last report's."
+      "offWithReport": "Backups are no longer switched on for this server: these figures are the last report's.",
+      "nightly": "Nightly backups run at 05:00 Riyadh time.",
+      "paused": "Nightly backups are paused through {date}. They resume by themselves after that.",
+      "pauseFor": "Pause nightly backups for",
+      "nights": "{count, plural, one {# night} other {# nights}}",
+      "pause": "Pause",
+      "resume": "Resume now",
+      "backUpNow": "Back up now",
+      "requested": "Asked for at {time}. The worker starts it within seconds.",
+      "running": "Running since {time}…",
+      "stale": "The newest backup is from {time} — more than a day and a half ago. Check that the server's background worker is running.",
+      "runs": "Recent backups",
+      "runWhen": "When",
+      "runHow": "How",
+      "runResult": "Result",
+      "nightlyRun": "Nightly",
+      "manualRun": "Asked for by {name}",
+      "runStatus": {
+        "REQUESTED": "Waiting",
+        "RUNNING": "Running",
+        "SUCCEEDED": "Done",
+        "FAILED": "Failed",
+        "SKIPPED": "Skipped"
+      },
+      "notes": {
+        "PAUSED": "paused",
+        "BUSY": "another backup was running",
+        "STOPPED": "the worker stopped before it finished"
+      },
+      "noRuns": "No backup has run here yet."
     },
     "server": {
       "hint": "The database every record lives in, and the disk under it."

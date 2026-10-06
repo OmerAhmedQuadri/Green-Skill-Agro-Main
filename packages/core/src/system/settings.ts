@@ -1,6 +1,7 @@
 import { DomainError } from '../errors';
 import type { PermissionCode } from '../identity';
 import { dec, percent } from '../numeric';
+import { isCalendarDate } from '../time';
 
 /**
  * The settings register (ADR-0024). Every system-wide value an Admin can change
@@ -14,7 +15,9 @@ type Spec =
   | { readonly kind: 'boolean'; readonly default: boolean }
   | { readonly kind: 'choice'; readonly options: readonly string[]; readonly default: string }
   // A retention period (ADR-0049): whole months within the range, or 'FOREVER' where the kind allows it.
-  | { readonly kind: 'months'; readonly min: number; readonly max: number; readonly forever: boolean; readonly default: number | 'FOREVER' };
+  | { readonly kind: 'months'; readonly min: number; readonly max: number; readonly forever: boolean; readonly default: number | 'FOREVER' }
+  // A calendar date, `YYYY-MM-DD`, or none.
+  | { readonly kind: 'date'; readonly default: null };
 
 type Entry = Spec & { readonly permission: PermissionCode; readonly group: SettingGroup };
 
@@ -79,6 +82,8 @@ export const SETTINGS = {
   'storage.budget_gb': { kind: 'integer', min: 1, max: 10000, default: 10, permission: 'system.manage_storage', group: 'storage' },
   // ADR-0049 (amended): how long the nightly backup keeps database backups — never under a week, whoever asks.
   'storage.backup_retention_days': { kind: 'integer', min: 7, max: 3650, default: 30, permission: 'system.manage_storage', group: 'storage' },
+  // ADR-0050: the nightly backup is paused through this day; it always has an end (at most 30 days on).
+  'storage.backups_paused_until': { kind: 'date', default: null, permission: 'system.manage_storage', group: 'storage' },
 } as const satisfies Record<string, Entry>;
 
 export type SettingKey = keyof typeof SETTINGS;
@@ -89,7 +94,8 @@ type ValueOf<S> = S extends { kind: 'percent' } ? string
     : S extends { kind: 'boolean' } ? boolean
       : S extends { kind: 'choice'; options: readonly (infer O)[] } ? O
         : S extends { kind: 'months' } ? number | 'FOREVER'
-          : never;
+          : S extends { kind: 'date' } ? string | null
+            : never;
 export type SettingValue<K extends SettingKey> = ValueOf<(typeof SETTINGS)[K]>;
 export type Settings = { readonly [K in SettingKey]: SettingValue<K> };
 
@@ -116,6 +122,10 @@ export function parseSetting<K extends SettingKey>(key: K, raw: unknown): Settin
     case 'months':
       if (raw === 'FOREVER' && spec.forever) return raw as SettingValue<K>;
       if (typeof raw !== 'number' || !Number.isInteger(raw) || raw < spec.min || raw > spec.max) throw invalid();
+      return raw as SettingValue<K>;
+    case 'date':
+      if (raw === null) return raw as SettingValue<K>;
+      if (typeof raw !== 'string' || !isCalendarDate(raw)) throw invalid();
       return raw as SettingValue<K>;
   }
 }
