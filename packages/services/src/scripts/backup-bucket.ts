@@ -1,6 +1,7 @@
 import { loadConfig } from '@gsa/config';
 import { BACKUP_PREFIX, parseBackupListing, type StoredBackup } from '@gsa/core';
 import { AwsClient } from 'aws4fetch';
+import { closeDb } from '../runtime';
 
 /**
  * The backups bucket, for the two scripts that run on the server: taking a
@@ -64,3 +65,20 @@ export function scriptArgs(argv: readonly string[] = process.argv.slice(2)): Map
   }
   return args;
 }
+
+/**
+ * A script's body: if it stops, say why in one line — no stack trace — and
+ * exit non-zero. The worker shows that line on the storage page as the reason
+ * a backup failed (ADR-0050).
+ */
+export async function asScript(body: () => Promise<void>): Promise<void> {
+  try {
+    await body();
+  } catch (error) {
+    console.error(`Stopped: ${error instanceof Error ? error.message : String(error)}`);
+    process.exitCode = 1;
+  } finally {
+    await closeDb();
+  }
+}
+

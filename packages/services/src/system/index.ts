@@ -5,4 +5,7 @@ export {
   type Ceilings, type CeilingKind, type CommissionRate,
 } from './limits';
 export { listAuditLog, type AuditEntryView, type AuditFilter } from './audit-log';
-export { backupRetentionDays, reportBackups, lastBackupReport, type BackupReport, type LastBackupReport } from './backups';
+export {
+  backupRetentionDays, reportBackups, lastBackupReport, backupsOn, requestBackup, serveBackupRequest, runNightlyBackup, pauseBackups,
+  recentBackupRuns, type BackupReport, type LastBackupReport, type BackupRun, type BackupRunStatus, type BackupRunner,
+} from './backups';

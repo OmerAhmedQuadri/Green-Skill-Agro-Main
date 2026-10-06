@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
+import { type DomainError } from '../errors';
+import { addDays, isCalendarDate } from '../time';
 import {
-  BACKUP_NAME, BACKUP_PREFIX, backupKey, backupsRemovedBy, backupsSwitchedOn, chooseBackup, expiredBackups, isPgDump, parseBackupListing,
-  type StoredBackup,
+  assertPauseUntil, BACKUP_NAME, BACKUP_PREFIX, backupIsStale, backupKey, backupsPausedOn, backupsRemovedBy, backupsSwitchedOn, chooseBackup,
+  expiredBackups, isPgDump, parseBackupListing, type StoredBackup,
 } from './backups';
+import { parseSetting } from './settings';
 
 const NOW = new Date('2026-09-21T03:00:00Z');
 const daysAgo = (n: number) => new Date(NOW.getTime() - n * 24 * 60 * 60 * 1000);
@@ -120,3 +123,38 @@ describe('reading the bucket back (ADR-0050)', () => {
     expect(isPgDump(new TextEncoder().encode('PGD'))).toBe(false);
   });
 });
+
+describe('pausing the nightly backup (ADR-0050)', () => {
+  const code = (fn: () => unknown) => { try { fn(); } catch (e) { return (e as DomainError).code; } return 'NO_ERROR'; };
+
+  it('a pause covers every night through its last day, and then lifts by itself', () => {
+    expect(backupsPausedOn(null, '2026-10-06')).toBe(false);
+    expect(backupsPausedOn('2026-10-10', '2026-10-10')).toBe(true);
+    expect(backupsPausedOn('2026-10-10', '2026-10-11')).toBe(false);
+  });
+
+  it('a pause always ends: after today, and no more than 30 days on', () => {
+    expect(code(() => assertPauseUntil('2026-10-07', '2026-10-06'))).toBe('NO_ERROR');
+    expect(code(() => assertPauseUntil('2026-11-05', '2026-10-06'))).toBe('NO_ERROR');
+    for (const bad of ['2026-11-06', '2026-10-06', '2026-10-01', '2026-02-30', 'soon']) {
+      expect(code(() => assertPauseUntil(bad, '2026-10-06'))).toBe('INVALID_SETTING');
+    }
+    expect(parseSetting('storage.backups_paused_until', null)).toBeNull();
+    expect(parseSetting('storage.backups_paused_until', '2026-10-10')).toBe('2026-10-10');
+    for (const bad of ['2026-02-30', 5, '']) expect(code(() => parseSetting('storage.backups_paused_until', bad))).toBe('INVALID_SETTING');
+  });
+
+  it('the newest backup more than a day and a half old means the nightly one has stopped', () => {
+    const now = new Date('2026-10-08T12:00:00Z');
+    expect(backupIsStale(null, now)).toBe(false);
+    expect(backupIsStale(new Date(now.getTime() - 35 * 3_600_000), now)).toBe(false);
+    expect(backupIsStale(new Date(now.getTime() - 37 * 3_600_000), now)).toBe(true);
+  });
+
+  it('calendar dates: real ones only, and whole days added across months and years', () => {
+    expect(['2026-10-06', '2028-02-29'].map(isCalendarDate)).toEqual([true, true]);
+    expect(['2026-02-29', '2026-13-01', '2026-1-6', ''].map(isCalendarDate)).toEqual([false, false, false, false]);
+    expect([addDays('2026-10-06', 30), addDays('2026-12-31', 1), addDays('2026-03-01', -1)]).toEqual(['2026-11-05', '2027-01-01', '2026-02-28']);
+  });
+});
+

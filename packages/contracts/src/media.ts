@@ -51,3 +51,7 @@ export const PreviewBackupRetentionDays = z.coerce.number().int().optional();
 
 /** SYS-011: keep one file forever, or hand it back to the policy. */
 export const KeepFileRequest = z.object({ keep: z.boolean() });
+
+/** ADR-0050: pause the nightly backup through a day — at most 30 days on — or lift the pause with null. */
+export const PauseBackupsRequest = z.object({ until: z.iso.date().nullable() });
+

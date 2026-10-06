@@ -200,8 +200,8 @@ describe('storage management (ADR-0049)', () => {
     expect(view.kinds.find((k) => k.kind === 'STOREFRONT')).toMatchObject({ period: 'FOREVER', files: 1, deleted: { files: 0 } });
     expect(view.media).toEqual({ bucket: 'unused-in-tests', files: 3, bytes: 3 * JPEG.byteLength });
     expect([view.budgetGb, view.budgetBytes, view.backupRetentionDays]).toEqual([10, 10_000_000_000, 30]);
-    // Tests have no backup settings, so take no backups: the page says so rather than promising one.
-    expect(view.backupsOn).toBe(false);
+    // The tests' backup settings count as switched on (vitest.integration.config.ts).
+    expect(view.backupsOn).toBe(true);
     expect(view.database.bytes).toBeGreaterThan(0);
     expect(view.disk?.freeBytes).toBeLessThanOrEqual(view.disk?.totalBytes ?? 0);
     // No backup has reported yet: the R2 total is the media bucket alone.

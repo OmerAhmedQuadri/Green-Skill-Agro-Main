@@ -1,6 +1,6 @@
 import { DomainError } from '../errors';
 import { Dec, dec, toMoney, type Money } from '../numeric';
-import { businessDayStart } from '../time';
+import { businessDayStart, isCalendarDate } from '../time';
 
 /** ADR-0048: the longest range one view covers — a year, so no view becomes a scan of everything. */
 export const MAX_RANGE_DAYS = 366;
@@ -13,10 +13,7 @@ const DAY_MS = 86_400_000;
 const dayNumber = (date: string): number => Date.parse(`${date}T00:00:00Z`) / DAY_MS;
 const dateOf = (day: number): string => new Date(day * DAY_MS).toISOString().slice(0, 10);
 
-/** `YYYY-MM-DD`, and a date that exists — JavaScript reads 30 February as 2 March. */
-function isDate(value: string): boolean {
-  return /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(dayNumber(value)) && dateOf(dayNumber(value)) === value;
-}
+const isDate = isCalendarDate;
 
 export type AnalyticsRange = {
   readonly from: string; readonly to: string; readonly days: number;

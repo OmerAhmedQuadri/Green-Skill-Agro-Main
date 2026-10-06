@@ -1,7 +1,8 @@
 import { loadConfig } from '@gsa/config';
 import { BUSINESS_TIME_ZONE } from '@gsa/core';
-import { attendance, cash, getMailer, media, notifications, reports, sales, targets } from '@gsa/services';
+import { attendance, cash, getMailer, media, notifications, reports, sales, system, targets } from '@gsa/services';
 import { PgBoss } from 'pg-boss';
+import { runBackupScript } from './backup';
 import { chromiumRenderer } from './pdf';
 
 /**
@@ -33,6 +34,36 @@ await boss.work('media.retention', async () => {
   const result = await media.purgeMedia(new Date());
   console.log(`[worker] media.retention purged ${result.expired} expired, ${result.abandoned} abandoned`);
 });
+
+// ADR-0050: database backups. The nightly one at 05:00 Riyadh — the quiet slot between the 04:00
+// clean-up and the 06:00 pace check — unless the Super Admin has paused it; and any they ask for from
+// the storage page, taken up within seconds. Each runs deploy/backup.sh in a process of its own. A
+// server without the backup settings takes none, and its schedule is lifted.
+let backupRequests: ReturnType<typeof setInterval> | undefined;
+if (system.backupsOn()) {
+  await boss.createQueue('backups.nightly');
+  await boss.schedule('backups.nightly', '0 5 * * *', null, { tz: BUSINESS_TIME_ZONE, expireInSeconds: 3600 });
+  await boss.work('backups.nightly', async () => {
+    const run = await system.runNightlyBackup(runBackupScript);
+    console.log(`[worker] backups.nightly ${run.status.toLowerCase()}${run.note ? `: ${run.note}` : ''}`);
+  });
+  let serving = false;
+  const serveRequests = async () => {
+    if (serving) return;
+    serving = true;
+    try {
+      const run = await system.serveBackupRequest(runBackupScript);
+      if (run) console.log(`[worker] backup asked for: ${run.status.toLowerCase()}${run.note ? `: ${run.note}` : ''}`);
+    } catch (error) {
+      console.error('[worker] backup request pass failed', error);
+    } finally {
+      serving = false;
+    }
+  };
+  backupRequests = setInterval(() => void serveRequests(), 10_000);
+} else {
+  await boss.unschedule('backups.nightly').catch(() => undefined);
+}
 
 // STATE-MACHINES §10: close finished days at 03:00 Riyadh; an open multi-day trip stays open. Idempotent.
 await boss.createQueue('attendance.close-day');
@@ -147,6 +178,7 @@ void deliverEmails();
 console.log('[worker] started');
 
 const shutdown = async () => {
+  clearInterval(backupRequests);
   clearInterval(emailLoop);
   clearInterval(documentLoop);
   await renderer.close();

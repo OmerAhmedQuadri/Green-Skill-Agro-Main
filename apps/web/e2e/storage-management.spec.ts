@@ -118,3 +118,69 @@ for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
     await context.close();
   });
 }
+
+/**
+ * ADR-0050, in English and Arabic: back up now, pause the nightly backup, and
+ * how the runs went. This server takes no backups, so the page is shown its own
+ * overview as one that does, and the two requests are answered here; the rules
+ * behind them are the integration tests'.
+ */
+for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
+  test(`Backups (${locale}) — ADR-0050: back up now, pause the nightly backup, and how the runs went`, async ({ browser, baseURL }) => {
+    test.setTimeout(120_000);
+    const origin = baseURL ?? '';
+    const context = await browser.newContext({ baseURL: origin });
+    const owner = await context.newPage();
+    await signIn(owner, 'superadmin@dev.local');
+    await context.addCookies([{ name: 'NEXT_LOCALE', value: locale, url: origin }]);
+
+    const base = (await (await owner.request.get('/api/v1/storage')).json()) as Record<string, unknown>;
+    const run = (id: string, trigger: 'NIGHTLY' | 'MANUAL', status: string, note: string | null, at: string) =>
+      ({ id, trigger, status, requestedBy: trigger === 'MANUAL' ? 'Dev Super Admin' : null, requestedAt: at, startedAt: null, finishedAt: null, note });
+    const earlier = [
+      run('r2', 'MANUAL', 'FAILED', 'listing the bucket failed with HTTP 403', '2026-10-06T07:00:00.000Z'),
+      run('r1', 'NIGHTLY', 'SKIPPED', 'PAUSED', '2026-10-06T02:00:00.000Z'),
+    ];
+    const state: { pausedUntil: string | null; asked: boolean } = { pausedUntil: null, asked: false };
+    const overview = () => ({
+      ...base, backupsOn: true, backupsPausedUntil: state.pausedUntil,
+      backupRuns: [...(state.asked ? [run('r3', 'MANUAL', 'REQUESTED', null, new Date().toISOString())] : []), ...earlier],
+    });
+    await owner.route('**/api/v1/storage', (route) => route.fulfill({ json: overview() }));
+    await owner.route('**/api/v1/storage/backups', (route) => { state.asked = true; return route.fulfill({ json: overview() }); });
+    const pauses: unknown[] = [];
+    await owner.route('**/api/v1/storage/backups/pause', (route) => {
+      const { until } = route.request().postDataJSON() as { until: string | null };
+      pauses.push(until);
+      state.pausedUntil = until;
+      return route.fulfill({ json: overview() });
+    });
+
+    await owner.goto('/console/storage');
+    await owner.getByRole('tab', { name: m.storage.tabs.backups }).click();
+    const controls = owner.getByTestId('backup-controls');
+    // How the runs went: a failure says why, in the script's own words; a skipped night says it was paused.
+    const runs = owner.getByTestId('backup-runs');
+    await expect(runs).toContainText(m.storage.backups.runStatus.FAILED);
+    await expect(runs).toContainText('listing the bucket failed with HTTP 403');
+    await expect(runs).toContainText(m.storage.backups.notes.PAUSED);
+    await expect(controls).toContainText(m.storage.backups.nightly);
+
+    // Back up now: asked for, and the button waits until it is done.
+    await controls.getByRole('button', { name: m.storage.backups.backUpNow }).click();
+    await expect(owner.getByTestId('backup-active')).toContainText(opening(m.storage.backups.requested));
+    await expect(controls.getByRole('button', { name: m.storage.backups.backUpNow })).toBeDisabled();
+
+    // Pause for three nights — it says until when — then resume.
+    const today = new Date(Date.now() + 3 * 3_600_000);
+    const inThree = new Date(today.getTime() + 3 * 86_400_000).toISOString().slice(0, 10);
+    await controls.getByLabel(m.storage.backups.pauseFor).selectOption('3');
+    await controls.getByRole('button', { name: m.storage.backups.pause, exact: true }).click();
+    await expect(owner.getByTestId('backups-paused')).toContainText(opening(m.storage.backups.paused));
+    await owner.screenshot({ path: shot(`storage-backups-controls-${locale}`), fullPage: true });
+    await owner.getByTestId('backups-paused').getByRole('button', { name: m.storage.backups.resume }).click();
+    await expect(owner.getByTestId('backups-paused')).toHaveCount(0);
+    expect(pauses).toEqual([inThree, null]);
+    await context.close();
+  });
+}

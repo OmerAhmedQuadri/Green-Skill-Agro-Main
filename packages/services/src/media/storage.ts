@@ -1,7 +1,7 @@
 import { statfs } from 'node:fs/promises';
 import { loadConfig } from '@gsa/config';
 import {
-  backupsRemovedBy, backupsSwitchedOn, businessDate, canReadMedia, DomainError, isStoredKind, nextRetentionRun, parseSetting, RETENTION_SETTING,
+  backupIsStale, backupsPausedOn, backupsRemovedBy, businessDate, canReadMedia, DomainError, isStoredKind, nextRetentionRun, parseSetting, RETENTION_SETTING,
   retentionDueOn, retentionOf, STORED_KINDS, type MediaKind, type RetentionPeriod, type SettingKey, type Settings, type StoredKind,
 } from '@gsa/core';
 import { schema } from '@gsa/db';
@@ -10,7 +10,7 @@ import { alias } from 'drizzle-orm/pg-core';
 import { authorize, type Ctx } from '../context';
 import { audit, inTx, type Executor } from '../platform';
 import { getDb } from '../runtime';
-import { lastBackupReport, readSettings, writeSettings, type LastBackupReport } from '../system';
+import { backupsOn, lastBackupReport, readSettings, recentBackupRuns, writeSettings, type BackupRun, type LastBackupReport } from '../system';
 import { dueOn, isFileOpen, type FileCount } from './retention';
 
 const { mediaAssets, deliveryDocuments, users } = schema;
@@ -42,7 +42,13 @@ export type StorageOverview = {
     readonly newestAt: Date | null; readonly oldestAt: Date | null; readonly reportedAt: Date;
     /** What the next backup removes under the current period — by the rule it deletes by. */
     readonly due: FileCount;
+    /** On, not paused, and the newest backup more than a day and a half old: the nightly one has stopped. */
+    readonly stale: boolean;
   } | null;
+  /** ADR-0050: the nightly backup is paused through this day; null when it is not. */
+  readonly backupsPausedUntil: string | null;
+  /** The latest backup runs, newest first: nightly, asked for, or skipped. */
+  readonly backupRuns: readonly BackupRun[];
   readonly backupRetentionDays: number;
   /** Whether this server takes backups at all: all three backup settings are in its `.env`. */
   readonly backupsOn: boolean;
@@ -107,10 +113,10 @@ export async function storageOverview(ctx: Ctx): Promise<StorageOverview> {
   const settings = await readSettings(db);
   const since = new Date(ctx.now.getTime() - ADDED_WINDOW_MS);
   const nextRunAt = nextRetentionRun(ctx.now);
-  const [mediaRows, documents, due, [size], disk, report] = await Promise.all([
+  const [mediaRows, documents, due, [size], disk, report, runs] = await Promise.all([
     mediaUsage(db, since), documentUsage(db, since), dueOn(db, settings, businessDate(nextRunAt)),
     db.select({ bytes: sql<number>`pg_database_size(current_database())`.mapWith(Number) }).from(sql`(select 1) as one`),
-    diskSpace(), lastBackupReport(db),
+    diskSpace(), lastBackupReport(db), recentBackupRuns(db),
   ]);
   const byKind = new Map<StoredKind, NonNullable<typeof documents>>(mediaRows.map((r) => [r.kind, r]));
   if (documents) byKind.set('DELIVERY_DOCUMENT', documents);
@@ -128,16 +134,21 @@ export async function storageOverview(ctx: Ctx): Promise<StorageOverview> {
   });
   const budgetGb = settings['storage.budget_gb'];
   const days = settings['storage.backup_retention_days'];
-  const config = loadConfig();
-  const media = { bucket: config.S3_BUCKET, files: kinds.reduce((n, k) => n + k.files, 0), bytes: kinds.reduce((n, k) => n + k.bytes, 0) };
+  const media = { bucket: loadConfig().S3_BUCKET, files: kinds.reduce((n, k) => n + k.files, 0), bytes: kinds.reduce((n, k) => n + k.bytes, 0) };
+  const on = backupsOn();
+  const pausedUntil = settings['storage.backups_paused_until'];
+  const paused = backupsPausedOn(pausedUntil, businessDate(ctx.now));
   return {
     kinds, media,
     backups: report ? {
       bucket: report.bucket, count: report.count, bytes: report.bytes, newestAt: report.newestAt, oldestAt: report.oldestAt,
       reportedAt: report.reportedAt, due: backupsRemovedBy(report.copies, { now: ctx.now, days }),
+      stale: on && !paused && backupIsStale(report.newestAt, ctx.now),
     } : null,
+    backupsPausedUntil: paused ? pausedUntil : null,
+    backupRuns: runs,
     backupRetentionDays: days,
-    backupsOn: backupsSwitchedOn({ bucket: config.BACKUP_S3_BUCKET, accessKey: config.BACKUP_S3_ACCESS_KEY, secretKey: config.BACKUP_S3_SECRET_KEY }),
+    backupsOn: on,
     r2Bytes: media.bytes + (report?.bytes ?? 0),
     budgetGb, budgetBytes: budgetGb * GB, nextRunAt,
     database: { bytes: size?.bytes ?? 0 }, disk,

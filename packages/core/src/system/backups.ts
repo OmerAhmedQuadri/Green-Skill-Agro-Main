@@ -1,3 +1,6 @@
+import { DomainError } from '../errors';
+import { addDays, isCalendarDate } from '../time';
+
 /**
  * Which backups retention removes (ADR-0020, ADR-0049, handover RUNBOOK §5).
  *
@@ -105,3 +108,36 @@ export function chooseBackup(backups: readonly StoredBackup[], key?: string): St
 export function isPgDump(head: Uint8Array): boolean {
   return [0x50, 0x47, 0x44, 0x4d, 0x50].every((byte, i) => head[i] === byte);
 }
+
+/** ADR-0050: a pause is at most this many days long — it always ends by itself. */
+export const BACKUP_PAUSE_MAX_DAYS = 30;
+/** No newer backup than this, while backups are on and not paused: the nightly one has stopped. */
+export const BACKUP_STALE_AFTER_MS = 36 * 3_600_000;
+/** The shortest gap between one backup and a second asked for by hand. */
+export const BACKUP_MANUAL_GAP_MS = 10 * 60_000;
+
+/** Whether the nightly backup on business day `today` is paused: through `until`, inclusive. */
+export function backupsPausedOn(until: string | null, today: string): boolean {
+  return until !== null && today <= until;
+}
+
+/**
+ * A pause must end: after today, and no more than 30 days on. A pause that
+ * lasts until somebody remembers to lift it is how backups stop for months.
+ */
+export function assertPauseUntil(until: string, today: string): void {
+  if (!isCalendarDate(until) || until <= today || until > addDays(today, BACKUP_PAUSE_MAX_DAYS)) {
+    throw new DomainError('INVALID_SETTING', { key: 'storage.backups_paused_until', latest: addDays(today, BACKUP_PAUSE_MAX_DAYS) });
+  }
+}
+
+/** The newest backup is more than a day and a half old. */
+export function backupIsStale(newestAt: Date | null, now: Date): boolean {
+  return newestAt !== null && now.getTime() - newestAt.getTime() > BACKUP_STALE_AFTER_MS;
+}
+
+/** Why a run was skipped or cut short, as a code the page words; any other note is the backup script's own message. */
+export const BACKUP_NOTES = ['PAUSED', 'BUSY', 'STOPPED'] as const;
+export type BackupNote = (typeof BACKUP_NOTES)[number];
+export const isBackupNote = (note: string): note is BackupNote => (BACKUP_NOTES as readonly string[]).includes(note);
+

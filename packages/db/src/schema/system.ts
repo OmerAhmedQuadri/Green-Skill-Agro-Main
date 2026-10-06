@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
-import { boolean, check, index, jsonb, numeric, pgEnum, pgTable, text, unique, uuid } from 'drizzle-orm/pg-core';
-import { id, timestamptz } from './columns';
+import { boolean, check, index, jsonb, numeric, pgEnum, pgTable, text, unique, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { createdAt, id, timestamptz } from './columns';
 import { users } from './identity';
 
 /**
@@ -60,3 +60,37 @@ export const commissionRates = pgTable(
     check('commission_rates_below_target_range', sql`${t.belowTargetPercent} between 0 and 100`),
   ],
 );
+
+export const backupTrigger = pgEnum('backup_trigger', ['NIGHTLY', 'MANUAL']);
+/**
+ * REQUESTED — asked for from the storage page, waiting for the worker
+ * RUNNING   — the worker is running deploy/backup.sh
+ * SUCCEEDED — stored in the bucket and checked
+ * FAILED    — it stopped; `note` says why
+ * SKIPPED   — the nightly run did not start: PAUSED, or BUSY with another
+ */
+export const backupRunStatus = pgEnum('backup_run_status', ['REQUESTED', 'RUNNING', 'SUCCEEDED', 'FAILED', 'SKIPPED']);
+
+/** ADR-0050: every database backup the worker ran, was asked for, or skipped. */
+export const backupRuns = pgTable(
+  'backup_runs',
+  {
+    id: id(),
+    trigger: backupTrigger('trigger').notNull(),
+    status: backupRunStatus('status').notNull(),
+    requestedBy: uuid('requested_by').references(() => users.id),
+    requestedAt: timestamptz('requested_at').notNull(),
+    startedAt: timestamptz('started_at'),
+    finishedAt: timestamptz('finished_at'),
+    /** Why it failed, or why it was skipped. */
+    note: text('note'),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    // One backup at a time: a second request, or the nightly run, waits its turn.
+    uniqueIndex('backup_runs_one_active').on(sql`(true)`).where(sql`${t.status} in ('REQUESTED', 'RUNNING')`),
+    index('backup_runs_requested_at_idx').on(t.requestedAt),
+    check('backup_runs_requester', sql`(${t.trigger} = 'MANUAL') = (${t.requestedBy} is not null)`),
+  ],
+);
+
