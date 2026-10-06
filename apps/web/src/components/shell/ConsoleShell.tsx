@@ -10,6 +10,7 @@ import type { NavIcon } from '@/lib/navigation';
 import { BrandMark } from './BrandMark';
 import { LocaleSwitch } from './LocaleSwitch';
 import { NotificationBell } from './NotificationBell';
+import { RiyadhClock } from './RiyadhClock';
 import { SignOutButton } from './SignOutButton';
 
 const ICONS = {
@@ -71,7 +72,10 @@ export function ConsoleShell({ items, user, children }: Props) {
   return (
     <div className="min-h-dvh lg:flex">
       <aside className="hidden w-64 shrink-0 flex-col gap-6 bg-brand-900 p-4 lg:flex">
-        <div className="flex items-center justify-between"><BrandMark inverse /><NotificationBell inverse /></div>
+        <div className="space-y-3">
+          <div className="flex items-center justify-between"><BrandMark inverse /><NotificationBell inverse /></div>
+          <RiyadhClock />
+        </div>
         {nav}
         {footer}
       </aside>
@@ -89,11 +93,14 @@ export function ConsoleShell({ items, user, children }: Props) {
         <div className="fixed inset-0 z-40 lg:hidden">
           <button type="button" className="absolute inset-0 bg-black/40" onClick={() => setOpen(false)} aria-label={t('close')} />
           <aside className="absolute inset-y-0 start-0 flex w-72 flex-col gap-6 bg-brand-900 p-4">
-            <div className="flex items-center justify-between">
-              <BrandMark inverse />
-              <Button variant="ghost" size="sm" className="text-white hover:bg-white/10" onClick={() => setOpen(false)} aria-label={t('close')}>
-                <X className="size-5" aria-hidden />
-              </Button>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <BrandMark inverse />
+                <Button variant="ghost" size="sm" className="text-white hover:bg-white/10" onClick={() => setOpen(false)} aria-label={t('close')}>
+                  <X className="size-5" aria-hidden />
+                </Button>
+              </div>
+              <RiyadhClock />
             </div>
             {nav}
             {footer}

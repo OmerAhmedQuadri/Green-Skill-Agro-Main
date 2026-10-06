@@ -100,7 +100,9 @@
     "cash": "النقدية",
     "audits": "الجرد",
     "targets": "الأهداف",
-    "reports": "التقارير"
+    "reports": "التقارير",
+    "riyadhTime": "توقيت الرياض",
+    "riyadhHint": "كل الأوقات في التطبيق بتوقيت الرياض."
   },
   "dashboard": {
     "welcome": "مرحباً، {name}",

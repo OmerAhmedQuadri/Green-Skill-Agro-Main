@@ -100,7 +100,9 @@
     "cash": "Cash",
     "audits": "Audits",
     "targets": "Targets",
-    "reports": "Reports"
+    "reports": "Reports",
+    "riyadhTime": "Riyadh time",
+    "riyadhHint": "Every time in the app is Riyadh time."
   },
   "dashboard": {
     "welcome": "Welcome, {name}",

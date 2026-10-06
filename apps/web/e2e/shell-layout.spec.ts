@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import ar from '../src/messages/ar.json' with { type: 'json' };
 import en from '../src/messages/en.json' with { type: 'json' };
 import { sessionPage, signIn } from './helpers';
 
@@ -66,4 +67,26 @@ test.describe('shell layout', () => {
     await expect(page).toHaveURL(/\/field\/today$/);
     await panelWithinViewport(page);
   });
+
+  for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
+    test(`the console shows what time it is in Riyadh, on a computer and in the phone menu (${locale})`, async ({ browser, baseURL }) => {
+      const page = await sessionPage(browser, 'admin@dev.local', locale, baseURL ?? '');
+      const riyadh = (at: Date) => new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Riyadh', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(at);
+      const shown = async () => {
+        const clock = page.locator('[data-testid="riyadh-clock"]:visible');
+        await expect(clock).toContainText(m.nav.riyadhTime);
+        await expect(clock).toHaveAttribute('title', m.nav.riyadhHint);
+        const at = new Date((await clock.locator('time').getAttribute('datetime')) ?? '');
+        // The time it prints is Riyadh's for the moment it holds, and that moment is now.
+        expect(Math.abs(Date.now() - at.getTime())).toBeLessThan(60_000);
+        await expect(clock.locator('time')).toContainText(riyadh(at));
+      };
+      await page.setViewportSize({ width: 1280, height: 800 });
+      await page.goto('/console/dashboard');
+      await shown();
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.getByRole('button', { name: m.nav.menu, exact: true }).click();
+      await shown();
+    });
+  }
 });
