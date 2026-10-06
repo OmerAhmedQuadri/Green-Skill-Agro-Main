@@ -129,6 +129,8 @@ for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
 
     // PRC-012, PRC-013: the approver — notified — lowers it to 8% with a comment.
     await admin.goto('/console/sales');
+    // The list opens on All; the approver narrows it to what awaits them.
+    await admin.getByRole('combobox', { name: m.common.status, exact: true }).selectOption('AWAITING');
     await admin.getByRole('row').filter({ hasText: String(credit.name) }).getByRole('link').click();
     await admin.getByLabel(fill(m.sales.approvedFor, { code: 'OKRA-PK-5KG' })).fill(n('8'));
     await admin.getByLabel(m.sales.comment).fill('Eight is the most this season');

@@ -18,3 +18,84 @@
   /* Latin first; Arabic glyphs fall through to the Arabic face (ARCHITECTURE §6.7). */
   --font-sans: var(--font-latin), var(--font-arabic), ui-sans-serif, system-ui, sans-serif;
 }
+
+/*
+ * Dropdowns: the Select in packages/ui/src/field.tsx carries `.ui-select`.
+ * Everywhere, the closed control is drawn like the inputs with the site's own
+ * chevron, on the end side in either language. Chrome and Edge on a computer
+ * also draw the open list in the site's style (customizable select); phones
+ * keep their native pickers, which are kinder to a thumb, and other browsers
+ * their own list. Unlayered on purpose, so it wins over the `appearance-none`
+ * utility where the open list can be styled.
+ */
+.ui-select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2379716b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-size: 1rem;
+  background-position: right 0.75rem center;
+}
+.ui-select:dir(rtl) {
+  background-position: left 0.75rem center;
+}
+
+@media (pointer: fine) {
+  @supports (appearance: base-select) {
+    .ui-select,
+    .ui-select::picker(select) {
+      appearance: base-select;
+    }
+    /*
+     * Drawn this way, a select sizes to its current choice, not its longest
+     * option: centre the text, and keep a narrow filter from jumping in width
+     * as the choice changes.
+     */
+    .ui-select {
+      display: flex;
+      align-items: center;
+      min-inline-size: 11rem;
+    }
+    .ui-select::picker-icon {
+      display: none;
+    }
+    .ui-select:open {
+      border-color: --theme(--color-brand-600);
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2379716b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m18 15-6-6-6 6'/%3E%3C/svg%3E");
+    }
+    .ui-select::picker(select) {
+      margin-block: 0.25rem;
+      padding: 0.25rem;
+      border: 1px solid --theme(--color-stone-200);
+      border-radius: --theme(--radius-lg);
+      background: white;
+      box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.08), 0 4px 6px -4px rgb(0 0 0 / 0.08);
+      max-block-size: min(20rem, 60vh);
+      overflow-y: auto;
+    }
+    .ui-select option {
+      gap: 0.5rem;
+      padding: 0.5rem 0.75rem;
+      border-radius: --theme(--radius-md);
+      font-size: --theme(--text-sm);
+      color: --theme(--color-stone-800);
+      cursor: pointer;
+    }
+    .ui-select option:hover,
+    .ui-select option:focus-visible {
+      background: --theme(--color-brand-50);
+      outline: none;
+    }
+    .ui-select option:checked {
+      background: --theme(--color-brand-100);
+      color: --theme(--color-brand-900);
+      font-weight: 500;
+    }
+    .ui-select option::checkmark {
+      color: --theme(--color-brand-700);
+    }
+    .ui-select option:disabled {
+      color: --theme(--color-stone-400);
+      cursor: not-allowed;
+    }
+  }
+}
+

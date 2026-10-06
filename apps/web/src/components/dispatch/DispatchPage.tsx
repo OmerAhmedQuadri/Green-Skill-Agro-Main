@@ -15,13 +15,13 @@ import { DISPATCH_TONE, type DispatchSummary, type Page } from './types';
 
 type Filter = 'OPEN' | 'UNCONFIRMED' | 'ALL';
 
-/** RPT-009, DSP-004, DSP-014: open orders first, who is handling each, and the ones released too long ago. */
+/** RPT-009, DSP-004, DSP-014: every order — open, or released too long ago, on request — and who is handling each. */
 export function DispatchPage({ canCreate }: { canCreate: boolean }) {
   const t = useTranslations('dispatch');
   const tc = useTranslations('common');
   const format = useFormat();
   const errorText = useErrorText();
-  const [filter, setFilter] = useState<Filter>('OPEN');
+  const [filter, setFilter] = useState<Filter>('ALL');
   const list = useQuery({
     queryKey: keys.dispatchOrders({ filter }),
     queryFn: () => api<Page<DispatchSummary>>(filter === 'OPEN' ? '/dispatch-orders?open=true' : filter === 'UNCONFIRMED' ? '/dispatch-orders?unconfirmed=true' : '/dispatch-orders'),
@@ -33,8 +33,8 @@ export function DispatchPage({ canCreate }: { canCreate: boolean }) {
         actions={canCreate ? <Link href="/console/dispatch/new" className="inline-flex h-11 items-center rounded-md bg-brand-800 px-4 text-sm font-medium text-white">{t('newForSeller')}</Link> : null} />
       <Card>
         <div className="flex flex-wrap items-center gap-3 border-b border-stone-200 p-4">
-          <Select value={filter} aria-label={tc('status')} className="w-auto" onChange={(e) => setFilter((['OPEN', 'UNCONFIRMED', 'ALL'] as const).find((f) => f === e.target.value) ?? 'OPEN')}>
-            <option value="OPEN">{t('filters.OPEN')}</option><option value="UNCONFIRMED">{t('filters.UNCONFIRMED')}</option><option value="ALL">{t('filters.ALL')}</option>
+          <Select value={filter} aria-label={tc('status')} className="w-auto" onChange={(e) => setFilter((['ALL', 'OPEN', 'UNCONFIRMED'] as const).find((f) => f === e.target.value) ?? 'ALL')}>
+            <option value="ALL">{t('filters.ALL')}</option><option value="OPEN">{t('filters.OPEN')}</option><option value="UNCONFIRMED">{t('filters.UNCONFIRMED')}</option>
           </Select>
         </div>
         {list.error ? <div className="p-4"><Alert>{errorText(list.error)}</Alert></div> : null}

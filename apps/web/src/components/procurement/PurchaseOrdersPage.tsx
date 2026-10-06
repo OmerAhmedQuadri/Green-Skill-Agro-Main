@@ -17,14 +17,14 @@ import { VendorLabel } from './VendorLabel';
 import type { PoStatus, PoSummary } from './types';
 
 type Page = { items: PoSummary[]; nextCursor: string | null };
-const FILTERS = ['OPEN', 'DRAFT', 'PENDING_APPROVAL', 'IN_TRANSIT', 'PARTIALLY_RECEIVED', 'CLOSED', 'ALL'] as const;
+const FILTERS = ['ALL', 'OPEN', 'DRAFT', 'PENDING_APPROVAL', 'IN_TRANSIT', 'PARTIALLY_RECEIVED', 'CLOSED'] as const;
 
 /** PO-001: purchase orders, newest first, filtered by where they are in their life. */
 export function PurchaseOrdersPage({ canCreate }: { canCreate: boolean }) {
   const t = useTranslations();
   const format = useFormat();
   const errorText = useErrorText();
-  const [filter, setFilter] = useState<(typeof FILTERS)[number]>('OPEN');
+  const [filter, setFilter] = useState<(typeof FILTERS)[number]>('ALL');
   const [search, setSearch] = useState('');
   const query = useDeferredValue(search);
   const list = useInfiniteQuery({
@@ -52,7 +52,7 @@ export function PurchaseOrdersPage({ canCreate }: { canCreate: boolean }) {
             <Search className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-stone-400" aria-hidden />
             <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t('procurement.searchPlaceholder')} aria-label={t('common.search')} className="ps-9" />
           </div>
-          <Select value={filter} onChange={(e) => setFilter(FILTERS.find((f) => f === e.target.value) ?? 'OPEN')} aria-label={t('common.status')} className="w-auto">
+          <Select value={filter} onChange={(e) => setFilter(FILTERS.find((f) => f === e.target.value) ?? 'ALL')} aria-label={t('common.status')} className="w-auto">
             {FILTERS.map((f) => <option key={f} value={f}>{t(`procurement.filters.${f}`)}</option>)}
           </Select>
         </div>

@@ -62,6 +62,9 @@ for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
     await second.getByRole('button', { name: m.warehouse.decide }).click();
     await admin.getByLabel(m.warehouse.rejectComment).fill('Still saleable');
     await admin.getByRole('button', { name: m.warehouse.reject, exact: true }).click();
+    // The list shows every write-off: the rejection lands in place first, then the filter narrows to it.
+    // Switching while the rejection is still being saved raced on CI's slower machine.
+    await expect(second).toContainText(m.warehouse.statuses.REJECTED);
     await admin.getByLabel(m.common.status).selectOption('REJECTED');
     await expect(admin.getByRole('row').filter({ hasText: `Scuffed ${lot}` })).toContainText('Still saleable');
     expect(await heldHere()).toBe(8);

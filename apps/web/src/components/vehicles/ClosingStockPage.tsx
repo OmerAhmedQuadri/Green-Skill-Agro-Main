@@ -11,22 +11,23 @@ import { useFormat } from '@/lib/format';
 import { formText } from '@/lib/forms';
 import { useCommand, useErrorText } from '@/lib/hooks';
 import { keys } from '@/lib/query-keys';
-import type { ClosingDeclaration } from './types';
+import { CLOSING_STATUSES, type ClosingDeclaration, type ClosingStatus } from './types';
 
-type Status = 'VARIANCE_FLAGGED' | 'MATCHED' | 'REVIEWED' | '';
+type Status = ClosingStatus | '';
 const TONE = { MATCHED: 'success', VARIANCE_FLAGGED: 'danger', REVIEWED: 'neutral' } as const;
 
 /**
  * STK-010, 011: sellers' daily closing counts. A difference is flagged, never
  * adjusted; a manager records what they found. A real loss is then raised as
- * a write-off.
+ * a write-off. Opens on every count, unless a link asks for one status — the
+ * variance notification opens on the flagged ones.
  */
-export function ClosingStockPage() {
+export function ClosingStockPage({ initialStatus = '' }: { initialStatus?: Status }) {
   const t = useTranslations();
   const format = useFormat();
   const errorText = useErrorText();
   const queryClient = useQueryClient();
-  const [status, setStatus] = useState<Status>('VARIANCE_FLAGGED');
+  const [status, setStatus] = useState<Status>(initialStatus);
   const list = useQuery({
     queryKey: keys.closingStock({ status }),
     queryFn: () => api<ClosingDeclaration[]>(`/closing-stock-declarations${status ? `?status=${status}` : ''}`),
@@ -41,11 +42,9 @@ export function ClosingStockPage() {
       <Card>
         <div className="border-b border-stone-200 p-4">
           <Select value={status} aria-label={t('common.status')} className="w-auto"
-            onChange={(e) => setStatus((['VARIANCE_FLAGGED', 'MATCHED', 'REVIEWED', ''] as const).find((s) => s === e.target.value) ?? '')}>
-            <option value="VARIANCE_FLAGGED">{t('closing.statuses.VARIANCE_FLAGGED')}</option>
-            <option value="MATCHED">{t('closing.statuses.MATCHED')}</option>
-            <option value="REVIEWED">{t('closing.statuses.REVIEWED')}</option>
+            onChange={(e) => setStatus(CLOSING_STATUSES.find((s) => s === e.target.value) ?? '')}>
             <option value="">{t('common.all')}</option>
+            {CLOSING_STATUSES.map((s) => <option key={s} value={s}>{t(`closing.statuses.${s}`)}</option>)}
           </Select>
         </div>
         {list.error ? <div className="p-4"><Alert>{errorText(list.error)}</Alert></div> : null}
