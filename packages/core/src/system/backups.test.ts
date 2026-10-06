@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BACKUP_NAME, BACKUP_PREFIX, backupKey, expiredBackups, type StoredBackup } from './retention';
+import { BACKUP_NAME, BACKUP_PREFIX, backupKey, backupsRemovedBy, expiredBackups, type StoredBackup } from './backups';
 
 const NOW = new Date('2026-09-21T03:00:00Z');
 const daysAgo = (n: number) => new Date(NOW.getTime() - n * 24 * 60 * 60 * 1000);
@@ -31,7 +31,7 @@ describe('backup retention', () => {
   it('refuses to empty the bucket rather than tidying away the last copy', () => {
     const { remove, refused } = expiredBackups([at(400), at(390)], { now: NOW, days: 30 });
     expect(remove).toEqual([]);
-    expect(refused).toMatch(/check BACKUP_RETENTION_DAYS and the server clock/);
+    expect(refused).toMatch(/check the backups' period on the Storage page and the server clock/);
   });
 
   it('a bucket holding only a stranger removes nothing and refuses nothing', () => {
@@ -66,5 +66,16 @@ describe('what is left after a run', () => {
   it('does not count a stranger as a backup', () => {
     const stranger: StoredBackup = { key: 'notes.txt', modified: daysAgo(1) };
     expect(expiredBackups([stranger, at(1)], { now: NOW, days: 30 }).remaining).toHaveLength(1);
+  });
+});
+
+describe("the storage page's preview (ADR-0049)", () => {
+  const sized = (n: number, size: number): StoredBackup => ({ ...at(n), size });
+
+  it('says what a shorter period removes — by the same rule, so never the last copy', () => {
+    const stored = [sized(40, 100), sized(20, 200), sized(10, 300), sized(1, 400)];
+    expect(backupsRemovedBy(stored, { now: NOW, days: 30 })).toEqual({ files: 1, bytes: 100 });
+    expect(backupsRemovedBy(stored, { now: NOW, days: 7 })).toEqual({ files: 3, bytes: 600 });
+    expect(backupsRemovedBy([sized(40, 100), sized(39, 100)], { now: NOW, days: 7 })).toEqual({ files: 0, bytes: 0 });
   });
 });

@@ -1,18 +1,19 @@
 import { statfs } from 'node:fs/promises';
+import { loadConfig } from '@gsa/config';
 import {
-  businessDate, canReadMedia, DomainError, isStoredKind, nextRetentionRun, parseSetting, RETENTION_SETTING, retentionDueOn,
-  retentionOf, STORED_KINDS, type MediaKind, type RetentionPeriod, type SettingKey, type Settings, type StoredKind,
+  backupsRemovedBy, businessDate, canReadMedia, DomainError, isStoredKind, nextRetentionRun, parseSetting, RETENTION_SETTING,
+  retentionDueOn, retentionOf, STORED_KINDS, type MediaKind, type RetentionPeriod, type SettingKey, type Settings, type StoredKind,
 } from '@gsa/core';
 import { schema } from '@gsa/db';
-import { and, desc, eq, gte, isNotNull, isNull, sql, type AnyColumn, type SQL } from 'drizzle-orm';
+import { and, eq, gte, isNotNull, isNull, sql, type AnyColumn, type SQL } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { authorize, type Ctx } from '../context';
 import { audit, inTx, type Executor } from '../platform';
 import { getDb } from '../runtime';
-import { readSettings, writeSettings } from '../system';
+import { lastBackupReport, readSettings, writeSettings, type LastBackupReport } from '../system';
 import { dueOn, isFileOpen, type FileCount } from './retention';
 
-const { mediaAssets, deliveryDocuments, auditLog, users } = schema;
+const { mediaAssets, deliveryDocuments, users } = schema;
 
 /** One kind of file on the storage page (ADR-0049, SYS-013). Sizes are in bytes. */
 export type KindUsage = {
@@ -33,15 +34,24 @@ export type KindUsage = {
 
 export type StorageOverview = {
   readonly kinds: readonly KindUsage[];
-  readonly total: FileCount;
+  /** The media bucket: photos, slips, vouchers and delivery documents. */
+  readonly media: { readonly bucket: string } & FileCount;
+  /** The backups bucket as the last backup run reported it (`backup.completed`); null until one has. */
+  readonly backups: {
+    readonly bucket: string | null; readonly count: number; readonly bytes: number;
+    readonly newestAt: Date | null; readonly oldestAt: Date | null; readonly reportedAt: Date;
+    /** What the next backup removes under the current period — by the rule it deletes by. */
+    readonly due: FileCount;
+  } | null;
+  readonly backupRetentionDays: number;
+  /** Both buckets together: what Cloudflare bills, and what the budget measures (ADR-0049, amended). */
+  readonly r2Bytes: number;
   readonly budgetGb: number;
   readonly budgetBytes: number;
   readonly nextRunAt: Date;
   readonly database: { readonly bytes: number };
   /** The server's own disk; null where it cannot be read. */
   readonly disk: { readonly totalBytes: number; readonly freeBytes: number } | null;
-  /** As the last backup run reported it (`backup.completed` in the audit log); null until one has. */
-  readonly backups: { readonly count: number; readonly bytes: number; readonly newestAt: Date | null; readonly reportedAt: Date } | null;
 };
 
 /** Gigabytes as storage providers count them. */
@@ -88,21 +98,6 @@ async function diskSpace(): Promise<StorageOverview['disk']> {
   }
 }
 
-/** The last report a backup run left in the audit log (deploy/backup.sh → `pnpm db:backup`). */
-async function lastBackupReport(db: Executor): Promise<StorageOverview['backups']> {
-  const [row] = await db.select({ after: auditLog.after, at: auditLog.occurredAt }).from(auditLog)
-    .where(and(eq(auditLog.entityType, 'backup'), eq(auditLog.action, 'backup.completed')))
-    .orderBy(desc(auditLog.occurredAt)).limit(1);
-  if (!row) return null;
-  const report = (row.after ?? {}) as { count?: unknown; bytes?: unknown; newest?: unknown };
-  return {
-    count: typeof report.count === 'number' ? report.count : 0,
-    bytes: typeof report.bytes === 'number' ? report.bytes : 0,
-    newestAt: typeof report.newest === 'string' ? new Date(report.newest) : null,
-    reportedAt: row.at,
-  };
-}
-
 /** SYS-013: what is stored, kind by kind, against the budget — with the database, the backups and the server disk. */
 export async function storageOverview(ctx: Ctx): Promise<StorageOverview> {
   authorize(ctx, 'system.manage_storage');
@@ -110,12 +105,12 @@ export async function storageOverview(ctx: Ctx): Promise<StorageOverview> {
   const settings = await readSettings(db);
   const since = new Date(ctx.now.getTime() - ADDED_WINDOW_MS);
   const nextRunAt = nextRetentionRun(ctx.now);
-  const [media, documents, due, [size], disk, backups] = await Promise.all([
+  const [mediaRows, documents, due, [size], disk, report] = await Promise.all([
     mediaUsage(db, since), documentUsage(db, since), dueOn(db, settings, businessDate(nextRunAt)),
     db.select({ bytes: sql<number>`pg_database_size(current_database())`.mapWith(Number) }).from(sql`(select 1) as one`),
     diskSpace(), lastBackupReport(db),
   ]);
-  const byKind = new Map<StoredKind, NonNullable<typeof documents>>(media.map((r) => [r.kind, r]));
+  const byKind = new Map<StoredKind, NonNullable<typeof documents>>(mediaRows.map((r) => [r.kind, r]));
   if (documents) byKind.set('DELIVERY_DOCUMENT', documents);
 
   const kinds = STORED_KINDS.map((kind): KindUsage => {
@@ -130,17 +125,26 @@ export async function storageOverview(ctx: Ctx): Promise<StorageOverview> {
     };
   });
   const budgetGb = settings['storage.budget_gb'];
+  const days = settings['storage.backup_retention_days'];
+  const media = { bucket: loadConfig().S3_BUCKET, files: kinds.reduce((n, k) => n + k.files, 0), bytes: kinds.reduce((n, k) => n + k.bytes, 0) };
   return {
-    kinds,
-    total: { files: kinds.reduce((n, k) => n + k.files, 0), bytes: kinds.reduce((n, k) => n + k.bytes, 0) },
+    kinds, media,
+    backups: report ? {
+      bucket: report.bucket, count: report.count, bytes: report.bytes, newestAt: report.newestAt, oldestAt: report.oldestAt,
+      reportedAt: report.reportedAt, due: backupsRemovedBy(report.copies, { now: ctx.now, days }),
+    } : null,
+    backupRetentionDays: days,
+    r2Bytes: media.bytes + (report?.bytes ?? 0),
     budgetGb, budgetBytes: budgetGb * GB, nextRunAt,
-    database: { bytes: size?.bytes ?? 0 }, disk, backups,
+    database: { bytes: size?.bytes ?? 0 }, disk,
   };
 }
 
 export type StoragePolicyChange = {
   readonly periods?: Partial<Record<string, unknown>> | undefined;
   readonly budgetGb?: unknown;
+  /** ADR-0049 (amended): how long the nightly backup keeps backups. */
+  readonly backupRetentionDays?: unknown;
   /** The Super Admin has seen what the change deletes at the next run, and goes ahead (SYS-012). */
   readonly confirm?: boolean | undefined;
 };
@@ -152,24 +156,41 @@ function parseChange(change: StoragePolicyChange): { key: SettingKey; value: unk
     parsed.push({ key: RETENTION_SETTING[kind], value: parseSetting(RETENTION_SETTING[kind], value) });
   }
   if (change.budgetGb !== undefined) parsed.push({ key: 'storage.budget_gb', value: parseSetting('storage.budget_gb', change.budgetGb) });
+  if (change.backupRetentionDays !== undefined) {
+    parsed.push({ key: 'storage.backup_retention_days', value: parseSetting('storage.backup_retention_days', change.backupRetentionDays) });
+  }
   return parsed;
 }
 
 const withChanges = (settings: Settings, parsed: readonly { key: SettingKey; value: unknown }[]): Settings =>
   ({ ...settings, ...Object.fromEntries(parsed.map((p) => [p.key, p.value])) });
 
-/** What the next run would delete if these periods were saved — the figure the page asks the Super Admin to confirm. */
-export async function previewStoragePolicy(ctx: Ctx, change: StoragePolicyChange): Promise<{ runAt: Date; due: Record<StoredKind, FileCount> }> {
+/** What the next backup removes under a period, from the copies the last backup reported; null when none has. */
+const backupsDue = (report: LastBackupReport | null, days: number, now: Date): FileCount | null =>
+  (report ? backupsRemovedBy(report.copies, { now, days }) : null);
+
+/**
+ * What the next run would delete if these periods were saved, and what the
+ * next backup would remove — the figures the page asks the Super Admin to confirm.
+ */
+export async function previewStoragePolicy(
+  ctx: Ctx, change: StoragePolicyChange,
+): Promise<{ runAt: Date; due: Record<StoredKind, FileCount>; backups: FileCount | null }> {
   authorize(ctx, 'system.manage_storage');
   const db = ctx.tx ?? getDb();
   const runAt = nextRetentionRun(ctx.now);
-  return { runAt, due: await dueOn(db, withChanges(await readSettings(db), parseChange(change)), businessDate(runAt)) };
+  const proposed = withChanges(await readSettings(db), parseChange(change));
+  return {
+    runAt, due: await dueOn(db, proposed, businessDate(runAt)),
+    backups: backupsDue(await lastBackupReport(db), proposed['storage.backup_retention_days'], ctx.now),
+  };
 }
 
 /**
  * SYS-010, SYS-012: new periods or a new budget. A change that would delete
  * more at the next run than the current periods do is refused unless the
- * Super Admin confirms it; the refusal says how much. Audited as a settings change.
+ * Super Admin confirms it, and so is any shorter period for backups, whatever
+ * the last report says; the refusal says how much. Audited as a settings change.
  */
 export async function setStoragePolicy(ctx: Ctx, change: StoragePolicyChange): Promise<StorageOverview> {
   authorize(ctx, 'system.manage_storage');
@@ -178,12 +199,19 @@ export async function setStoragePolicy(ctx: Ctx, change: StoragePolicyChange): P
   await inTx(ctx, async (tx) => {
     const current = await readSettings(tx);
     const runDay = businessDate(nextRetentionRun(ctx.now));
-    const [before, after] = [await dueOn(tx, current, runDay), await dueOn(tx, withChanges(current, parsed), runDay)];
+    const proposed = withChanges(current, parsed);
+    const [before, after] = [await dueOn(tx, current, runDay), await dueOn(tx, proposed, runDay)];
     const more = STORED_KINDS.filter((k) => after[k].files > before[k].files);
-    if (more.length > 0 && change.confirm !== true) {
+    const [daysNow, daysThen] = [current['storage.backup_retention_days'], proposed['storage.backup_retention_days']];
+    if ((more.length > 0 || daysThen < daysNow) && change.confirm !== true) {
+      const report = daysThen < daysNow ? await lastBackupReport(tx) : null;
+      const [backupsNow, backupsThen] = [backupsDue(report, daysNow, ctx.now), backupsDue(report, daysThen, ctx.now)];
       throw new DomainError('STORAGE_CONFIRM_DELETES', {
         files: more.reduce((n, k) => n + after[k].files - before[k].files, 0),
         bytes: more.reduce((n, k) => n + after[k].bytes - before[k].bytes, 0),
+        backups: backupsNow && backupsThen
+          ? { files: backupsThen.files - backupsNow.files, bytes: backupsThen.bytes - backupsNow.bytes }
+          : null,
       });
     }
     await writeSettings(tx, ctx, parsed);

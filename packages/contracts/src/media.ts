@@ -32,15 +32,22 @@ export const StoredKind = z.enum([...MediaKind.options, 'DELIVERY_DOCUMENT']);
 /** Whole months, or forever. The settings register in core checks each kind's range. */
 export const RetentionPeriod = z.union([z.literal('FOREVER'), z.number().int()]);
 
-/** SYS-010, SYS-012: new periods, a new budget, or both — `confirm` once the Super Admin has seen what the next run deletes. */
+/**
+ * SYS-010, SYS-012: new periods, a new budget, how long backups are kept — any
+ * of them; `confirm` once the Super Admin has seen what it deletes (ADR-0049).
+ */
 export const SetStoragePolicyRequest = z.object({
   periods: z.partialRecord(StoredKind, RetentionPeriod).optional(),
   budgetGb: z.number().int().optional(),
+  backupRetentionDays: z.number().int().optional(),
   confirm: z.boolean().optional(),
 });
 
 /** The proposed periods, from the address: `?SELFIE=1&STOREFRONT=FOREVER`. */
 export const PreviewStoragePolicyQuery = z.partialRecord(StoredKind, z.union([z.literal('FOREVER'), z.coerce.number().int()]));
+
+/** And the proposed backups' period, in days: `?backupRetentionDays=14`. */
+export const PreviewBackupRetentionDays = z.coerce.number().int().optional();
 
 /** SYS-011: keep one file forever, or hand it back to the policy. */
 export const KeepFileRequest = z.object({ keep: z.boolean() });

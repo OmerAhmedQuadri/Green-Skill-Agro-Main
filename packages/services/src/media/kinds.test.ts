@@ -12,5 +12,7 @@ describe('media kinds (ARCHITECTURE §6.4, SECURITY §5)', () => {
     expect(media.SetStoragePolicyRequest.safeParse({ periods: { SELFIE: 3, DELIVERY_DOCUMENT: 'FOREVER' } }).success).toBe(true);
     expect(media.SetStoragePolicyRequest.safeParse({ periods: { NOT_A_KIND: 3 } }).success).toBe(false);
     expect(media.PreviewStoragePolicyQuery.parse({ SELFIE: '1', STOREFRONT: 'FOREVER' })).toEqual({ SELFIE: 1, STOREFRONT: 'FOREVER' });
+    expect(media.SetStoragePolicyRequest.safeParse({ backupRetentionDays: 14, confirm: true }).success).toBe(true);
+    expect(media.PreviewBackupRetentionDays.parse('14')).toBe(14);
   });
 });

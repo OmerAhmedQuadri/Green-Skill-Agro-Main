@@ -77,6 +77,8 @@ export const SETTINGS = {
   // DOC-005: a copy of every delivery document is kept — forever unless the Super Admin decides otherwise.
   'storage.keep_delivery_document': { kind: 'months', min: 1, max: 120, forever: true, default: 'FOREVER', permission: 'system.manage_storage', group: 'storage' },
   'storage.budget_gb': { kind: 'integer', min: 1, max: 10000, default: 10, permission: 'system.manage_storage', group: 'storage' },
+  // ADR-0049 (amended): how long the nightly backup keeps database backups — never under a week, whoever asks.
+  'storage.backup_retention_days': { kind: 'integer', min: 7, max: 3650, default: 30, permission: 'system.manage_storage', group: 'storage' },
 } as const satisfies Record<string, Entry>;
 
 export type SettingKey = keyof typeof SETTINGS;

@@ -724,7 +724,8 @@
         "keep_transport_slip": "Keep transport slips for",
         "keep_payment_voucher": "Keep payment vouchers for",
         "keep_delivery_document": "Keep delivery documents for",
-        "budget_gb": "File storage budget (GB)"
+        "budget_gb": "File storage budget (GB)",
+        "backup_retention_days": "Keep backups for (days)"
       }
     },
     "choices": {
@@ -822,23 +823,17 @@
   "storage": {
     "title": "Storage",
     "subtitle": "What is stored, how long each kind of file is kept, and how much room is left. Every change is recorded in the audit log.",
-    "files": "Files",
     "ofBudget": "{used} of {budget}",
     "freeInBudget": "{free} free in the budget",
     "overBudget": "{over} over the budget",
     "database": "Database",
     "databaseHint": "Every record — sales, stock, balances. Never deleted.",
-    "backups": "Backups",
-    "backupsSummary": "{count, plural, one {# copy} other {# copies}} · {size}",
-    "backupsNewest": "Latest {time}",
-    "noBackups": "No backup has reported yet.",
     "disk": "Server disk",
     "diskSummary": "{free} free of {total}",
     "diskUnknown": "Not available here.",
     "nextRun": "The next clean-up runs {time}.",
     "nextRunDeletes": "It will delete {count, plural, one {# file} other {# files}} ({size}).",
     "nextRunNothing": "Nothing is due.",
-    "policy": "How long files are kept",
     "policyHint": "Counted from the day a file was stored. A file kept forever, or whose record is still open, is never deleted. The record of a deleted file stays.",
     "kinds": {
       "SELFIE": "Selfies",
@@ -864,13 +859,50 @@
     "forever": "Forever",
     "months": "{count, plural, one {# month} other {# months}}",
     "years": "{count, plural, one {# year} other {# years}}",
-    "budgetHint": "Cloudflare R2 includes 10 GB; beyond that it charges by the gigabyte each month.",
+    "budgetHint": "Cloudflare R2 includes 10 GB across both buckets; beyond that it charges by the gigabyte each month.",
     "selfieCap": "Selfies are facial images: kept at most two years, never forever.",
     "documentHint": "The signed scope keeps a copy of every delivery document. Change this only on the accountant's advice.",
     "save": "Save changes",
     "confirmTitle": "This deletes files",
     "confirmBody": "Saving deletes {count, plural, one {# file} other {# files}} ({size}) at the next clean-up, {time}. They cannot be brought back.",
-    "confirm": "Delete and save"
+    "confirm": "Delete and save",
+    "tabs": {
+      "label": "Storage areas",
+      "media": "Media",
+      "backups": "Backups",
+      "server": "Server"
+    },
+    "r2": {
+      "title": "Cloudflare R2 — both buckets",
+      "media": "Media bucket {size}",
+      "backups": "Backups bucket {size}",
+      "backupsUnknown": "Backups bucket: not reported yet"
+    },
+    "media": {
+      "title": "Media bucket",
+      "hint": "Photos, slips, vouchers and delivery documents."
+    },
+    "backups": {
+      "title": "Backups bucket",
+      "hint": "A copy of the whole database, taken every night on the server.",
+      "copies": "Copies",
+      "size": "Size",
+      "newest": "Newest",
+      "oldest": "Oldest",
+      "reported": "Last reported {time}.",
+      "due": "The next backup removes {count, plural, one {# copy} other {# copies}} older than {days, plural, one {# day} other {# days}} ({size}).",
+      "nothingDue": "Nothing is due to go at the next backup.",
+      "noReport": "No backup has reported yet. This bucket's figures appear after the next nightly backup.",
+      "keepFor": "Keep backups for (days)",
+      "keepHint": "7 to 3650 days. The newest backup is never removed.",
+      "confirmTitle": "This deletes backups",
+      "confirmBody": "Saving removes {count, plural, one {# copy} other {# copies}} ({size}) at the next backup — every one older than {days, plural, one {# day} other {# days}}. They cannot be brought back.",
+      "confirmUnknown": "Saving removes every backup older than {days, plural, one {# day} other {# days}} at the next backup. No backup has reported yet, so the page cannot say how many. They cannot be brought back."
+    },
+    "server": {
+      "hint": "The database every record lives in, and the disk under it."
+    },
+    "bucketLabel": "Bucket"
   },
   "file": {
     "kinds": {
