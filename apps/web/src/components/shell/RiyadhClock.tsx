@@ -25,12 +25,13 @@ export function RiyadhClock() {
     return () => clearInterval(timer);
   }, []);
   return (
-    <div className="flex items-start gap-2 px-3 text-xs" title={t('riyadhHint')} data-testid="riyadh-clock">
-      <Clock className="mt-0.5 size-3.5 shrink-0 text-brand-200" aria-hidden />
-      <div className="min-h-8 leading-snug">
-        <div className="text-brand-200">{t('riyadhTime')}</div>
-        {now ? <time dateTime={now.toISOString()} className="block whitespace-nowrap font-medium text-white">{format.format(now)}</time> : null}
-      </div>
+    <div className="flex min-h-5 items-center gap-2 whitespace-nowrap px-3 text-xs text-brand-200" title={t('riyadhHint')} data-testid="riyadh-clock">
+      <Clock className="size-3.5 shrink-0" aria-hidden />
+      {now ? (
+        <span>
+          <time dateTime={now.toISOString()} className="font-medium text-white">{format.format(now)}</time> {t('riyadh')}
+        </span>
+      ) : null}
     </div>
   );
 }

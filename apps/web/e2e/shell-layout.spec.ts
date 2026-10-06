@@ -79,7 +79,10 @@ test.describe('shell layout', () => {
       const riyadh = (at: Date) => new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Riyadh', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(at);
       const shown = async () => {
         const clock = page.locator('[data-testid="riyadh-clock"]:visible');
-        await expect(clock).toContainText(m.nav.riyadhTime);
+        // Under the last link, which on a phone is below the fold of the menu.
+        await clock.scrollIntoViewIfNeeded();
+        await expect(clock).toBeInViewport();
+        await expect(clock).toContainText(m.nav.riyadh);
         await expect(clock).toHaveAttribute('title', m.nav.riyadhHint);
         const at = new Date((await clock.locator('time').getAttribute('datetime')) ?? '');
         // The time it prints is Riyadh's for the moment it holds, and that moment is now.
