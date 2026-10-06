@@ -37,9 +37,13 @@ export const post = async (page: Page, origin: string, path: string, data: Json)
   return (await response.json()) as Json & { id: string; version: number };
 };
 
+/** Two years after today in Riyadh: clear of the 90-day expiry warning whenever the suite runs. */
+const twoYearsOn = () => new Date(Date.now() + 3 * 3_600_000 + 730 * 86_400_000).toISOString().slice(0, 10);
+
 /**
  * Stock in the warehouse, received through the real purchase-order path, for
  * specs that start from stock on hand. Needs a page signed in as an Admin.
+ * Expires two years after the run unless the spec says otherwise.
  */
 export async function receiveStock(page: Page, origin: string, input: { code: string; packs: number; lot: string; expiresOn?: string }) {
   const skus = (await (await page.request.get(`/api/v1/skus?search=${encodeURIComponent(input.code)}`)).json()) as { items: { id: string; code: string }[] };
@@ -51,7 +55,7 @@ export async function receiveStock(page: Page, origin: string, input: { code: st
   const line = (po.lines as { id: string }[])[0];
   await post(page, origin, `/purchase-orders/${po.id}/receipts`, {
     version: po.version,
-    lines: [{ purchaseOrderLineId: line?.id, packs: input.packs, lotNumber: input.lot, manufacturedOn: '2026-01-10', expiresOn: input.expiresOn ?? '2027-12-31' }],
+    lines: [{ purchaseOrderLineId: line?.id, packs: input.packs, lotNumber: input.lot, manufacturedOn: '2026-01-10', expiresOn: input.expiresOn ?? twoYearsOn() }],
   });
   return { skuId: sku.id };
 }

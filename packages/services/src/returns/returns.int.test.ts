@@ -4,6 +4,7 @@ import { ownerQuery } from '../../test/db';
 import { anAccount, ctxFor } from '../../test/factories';
 import { aPhoto } from '../../test/media';
 import { aSellingSeller, paid } from '../../test/sales';
+import { OKRA_EXPIRES_ON } from '../../test/stock';
 import { basePriceListId } from '../../test/stores';
 import { aLoadedVehicle } from '../../test/vehicles';
 import { cashInHand } from '../cash';
@@ -48,7 +49,7 @@ describe('from the sale (workflow L, RET-001..006)', () => {
         { condition: 'UNCLEARED_PAYMENT', windowDays: 30, daysLeft: 30, blockedBy: null },
         { condition: 'DEFECTIVE', windowDays: 30, daysLeft: 30, blockedBy: null },
       ],
-      lines: [{ saleLineId: line.id, code: 'OKRA-PK-5KG', packs: 4, total: '360.00', credited: 0, batches: [{ batchId, lotNumber: 'W1', expiresOn: '2027-12-31', expired: false, packs: 4 }] }],
+      lines: [{ saleLineId: line.id, code: 'OKRA-PK-5KG', packs: 4, total: '360.00', credited: 0, batches: [{ batchId, lotNumber: 'W1', expiresOn: OKRA_EXPIRES_ON, expired: false, packs: 4 }] }],
     });
   });
 
@@ -100,7 +101,7 @@ describe('the credit note (RET-007, RET-008, OQ-020)', () => {
     expect(credit).toMatchObject({
       number: `CN-${year}-000001`, kind: 'CREDIT_NOTE', amount: '90.00', toSale: '90.00', toOtherDebts: '0.00', refund: '0.00', collectedPortion: '0.00',
       seller: { id: seller.account.id }, processedBy: { id: seller.account.id }, vehicle: { id: expect.any(String) as string }, warehouse: null,
-      lines: [{ saleLineId: line.id, packs: 1, outcome: 'RESTOCK', amount: '90.00', batch: { batchId, lotNumber: 'W1', expiresOn: '2027-12-31' }, replacements: [] }],
+      lines: [{ saleLineId: line.id, packs: 1, outcome: 'RESTOCK', amount: '90.00', batch: { batchId, lotNumber: 'W1', expiresOn: OKRA_EXPIRES_ON }, replacements: [] }],
     });
     expect(await vehiclePacks(seller.ctx)).toBe(7);
     expect(await movements(credit.id)).toEqual([
