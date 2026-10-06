@@ -8,8 +8,22 @@ export function Input({ className, ...props }: ComponentProps<'input'>) {
   return <input className={cn(control, 'h-11', className)} {...props} />;
 }
 
+/**
+ * A native select drawn like the inputs, with the site's chevron; the open
+ * list is styled where the browser allows it (`.ui-select`, apps/web
+ * globals.css). Native underneath, so keyboards, screen readers, forms and
+ * phones' own pickers all work as they always have.
+ */
 export function Select({ className, ...props }: ComponentProps<'select'>) {
-  return <select className={cn(control, 'h-11', className)} {...props} />;
+  return (
+    <select
+      className={cn(
+        control, 'ui-select h-11 cursor-pointer appearance-none pe-9 hover:border-stone-400',
+        'disabled:cursor-not-allowed disabled:text-stone-500 disabled:hover:border-stone-300', className,
+      )}
+      {...props}
+    />
+  );
 }
 
 /** Label + control + error, wired for assistive technology. */
