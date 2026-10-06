@@ -55,6 +55,11 @@ test.describe('shell layout', () => {
     await menu.click();
     await expect(menu).toHaveAttribute('aria-expanded', 'true');
     await expect(page.getByRole('button', { name: en.nav.close, exact: true }).first()).toBeVisible();
+    // The menu is taller than a phone, and once did not scroll: everything
+    // under Vehicles, Sign out included, was out of reach.
+    const signOut = page.getByRole('button', { name: en.common.signOut, exact: true });
+    await signOut.scrollIntoViewIfNeeded();
+    await expect(signOut).toBeInViewport();
     await page.keyboard.press('Escape');
     await expect(page.getByRole('button', { name: en.nav.close, exact: true })).toHaveCount(0);
     await expect(menu).toHaveAttribute('aria-expanded', 'false');

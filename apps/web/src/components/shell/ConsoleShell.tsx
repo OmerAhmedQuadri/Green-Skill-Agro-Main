@@ -92,7 +92,7 @@ export function ConsoleShell({ items, user, children }: Props) {
       {open ? (
         <div className="fixed inset-0 z-40 lg:hidden">
           <button type="button" className="absolute inset-0 bg-black/40" onClick={() => setOpen(false)} aria-label={t('close')} />
-          <aside className="absolute inset-y-0 start-0 flex w-72 flex-col gap-6 bg-brand-900 p-4">
+          <aside className="absolute inset-y-0 start-0 flex w-72 flex-col gap-6 overflow-y-auto overscroll-contain bg-brand-900 p-4">
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <BrandMark inverse />
