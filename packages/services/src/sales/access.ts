@@ -34,6 +34,8 @@ export type DiscountRequest = {
 
 export type DeliveryDocumentInfo = {
   readonly id: string; readonly number: string; readonly status: DeliveryDocumentStatus; readonly renderedAt: Date | null;
+  /** ADR-0049: the PDF deleted under the storage policy, and whether it is kept forever instead. */
+  readonly purgedAt: Date | null; readonly kept: boolean;
   readonly sends: readonly { readonly channel: DocumentSendChannel; readonly toAddress: string | null; readonly sentAt: Date; readonly by: string }[];
 };
 
@@ -150,7 +152,10 @@ export async function loadSale(db: Executor, ctx: Ctx, id: string): Promise<Sale
       voucher: payment.voucherNumber && payment.voucherPhotoId ? { number: payment.voucherNumber, photoId: payment.voucherPhotoId } : null,
     } : null,
     creditOverride: override ?? null,
-    document: document ? { id: document.id, number: document.number, status: document.status, renderedAt: document.renderedAt, sends } : null,
+    document: document ? {
+      id: document.id, number: document.number, status: document.status, renderedAt: document.renderedAt,
+      purgedAt: document.purgedAt, kept: document.keptAt !== null, sends,
+    } : null,
     createdAt: s.createdAt, completedAt: s.completedAt, cancelledAt: s.cancelledAt, cancelReason: s.cancelReason, version: s.version,
   };
 }

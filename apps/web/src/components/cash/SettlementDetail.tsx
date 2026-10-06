@@ -55,6 +55,10 @@ export function SettlementDetail({ id, surface, canDecide = false }: { id: strin
         {s.approvedAmount ? <div className="flex justify-between font-semibold"><span>{t('approved')}</span><span data-testid="approved">{format.money(s.approvedAmount)}</span></div> : null}
         {s.shortfall ? <div className="flex justify-between text-amber-800"><span>{t('shortfall')}</span><span data-testid="shortfall">{format.money(s.shortfall)}</span></div> : null}
         {s.discrepancy ? <div className="flex justify-between text-amber-800"><span>{t('discrepancy')}</span><span data-testid="discrepancy">{format.money(s.discrepancy)}</span></div> : null}
+        <div className="flex justify-between">
+          <span>{s.route === 'BANK_DEPOSIT' ? t('slip') : t('handoverPhoto')}</span>
+          <a href={`/files/${s.photoId}`} target="_blank" rel="noreferrer" className="text-brand-800 hover:underline" data-testid="settlement-photo">{t('viewPhoto')}</a>
+        </div>
         {s.note ? <div className="pt-1 text-stone-600">{t('noteLine', { note: s.note })}</div> : null}
         {s.decidedBy ? <div className="pt-1 text-stone-600">{t('decidedBy', { name: s.decidedBy.name, time: format.dateTime(s.decidedAt ?? s.submittedAt) })}</div> : null}
         {s.decisionComment ? <div className="text-stone-600">{t('commentLine', { comment: s.decisionComment })}</div> : null}

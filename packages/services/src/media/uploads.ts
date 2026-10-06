@@ -1,13 +1,12 @@
 import {
-  canReadMedia, DomainError, isPastRetention, MEDIA_ABANDONED_AFTER_MS, MEDIA_DOWNLOAD_URL_SECONDS, MEDIA_KINDS,
-  MEDIA_MAX_BYTES, MEDIA_POLICY, MEDIA_UPLOAD_URL_SECONDS, mediaStorageKey, sniffContentType, type MediaKind,
+  canReadMedia, DomainError, MEDIA_DOWNLOAD_URL_SECONDS, MEDIA_MAX_BYTES, MEDIA_POLICY, MEDIA_UPLOAD_URL_SECONDS,
+  mediaStorageKey, sniffContentType, type MediaKind,
 } from '@gsa/core';
 import { newId, schema } from '@gsa/db';
-import { and, eq, lte } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { authorize, type Ctx } from '../context';
-import { inTx, writeAudit, type Executor } from '../platform';
-import { defaultBranchId, getBlobStore, getDb } from '../runtime';
-import { readSettings } from '../system';
+import { inTx, type Executor } from '../platform';
+import { getBlobStore, getDb } from '../runtime';
 import type { PresignedUpload } from './blob-store';
 
 const { mediaAssets } = schema;
@@ -99,40 +98,6 @@ export async function mediaDownloadUrl(ctx: Ctx, mediaId: string): Promise<strin
     throw new DomainError('NOT_FOUND', { entity: 'media', id: mediaId });
   }
   return getBlobStore().presignDownload(asset.storageKey, MEDIA_DOWNLOAD_URL_SECONDS);
-}
-
-/**
- * The daily sweep (worker job `media.retention`): purges photos past the
- * Admin's retention period (OQ-009) and uploads requested but never confirmed. Rows stay as
- * a record; the bytes go. Idempotent.
- */
-export async function purgeMedia(now: Date, batch = 500): Promise<{ expired: number; abandoned: number }> {
-  const db = getDb();
-  const store = getBlobStore();
-  const purge = async (asset: typeof mediaAssets.$inferSelect) => {
-    await store.delete(asset.storageKey);
-    await db.update(mediaAssets).set({ status: 'PURGED', purgedAt: now }).where(eq(mediaAssets.id, asset.id));
-  };
-
-  let expired = 0;
-  const retentionDays = (await readSettings(db))['media.photo_retention_days'];
-  for (const kind of MEDIA_KINDS.filter((k) => MEDIA_POLICY[k].purged)) {
-    const cutoff = new Date(now.getTime() - retentionDays * 86_400_000);
-    const due = await db.select().from(mediaAssets)
-      .where(and(eq(mediaAssets.kind, kind), eq(mediaAssets.status, 'READY'), lte(mediaAssets.createdAt, cutoff))).limit(batch);
-    for (const asset of due.filter((a) => isPastRetention(a.kind, a.createdAt, now, retentionDays))) { await purge(asset); expired += 1; }
-  }
-
-  const stale = await db.select().from(mediaAssets)
-    .where(and(eq(mediaAssets.status, 'PENDING'), lte(mediaAssets.createdAt, new Date(now.getTime() - MEDIA_ABANDONED_AFTER_MS)))).limit(batch);
-  for (const asset of stale) await purge(asset);
-
-  if (expired + stale.length > 0) {
-    await writeAudit(db, { actorId: null, branchId: await defaultBranchId(), requestId: null, ip: null }, {
-      action: 'media.purged', entityType: 'media', after: { expired, abandoned: stale.length },
-    });
-  }
-  return { expired, abandoned: stale.length };
 }
 
 /**

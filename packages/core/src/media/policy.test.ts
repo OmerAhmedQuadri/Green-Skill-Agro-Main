@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { effectivePermissions, presetOverrides, PRESET_DEFAULTS } from '../identity';
 import {
-  canReadMedia, isPastRetention, MEDIA_KINDS, MEDIA_POLICY, mediaStorageKey, sniffContentType,
+  canReadMedia, MEDIA_KINDS, MEDIA_POLICY, mediaStorageKey, sniffContentType,
 } from './policy';
 
 const none = new Map();
@@ -31,12 +31,6 @@ describe('media policy (SECURITY §5, DATA-MODEL §5.8)', () => {
     expect(canReadMedia('SELFIE', sales, false)).toBe(true); // attendance.view
   });
 
-  it('OQ-009: selfies and odometer photos are purged after 90 days; business records are kept', () => {
-    const created = new Date('2026-01-01T00:00:00Z');
-    expect(isPastRetention('SELFIE', created, new Date('2026-03-31T23:59:59Z'), 90)).toBe(false);
-    expect(isPastRetention('SELFIE', created, new Date('2026-04-01T00:00:00Z'), 90)).toBe(true);
-    expect(isPastRetention('DEPOSIT_SLIP', created, new Date('2030-01-01T00:00:00Z'), 90)).toBe(false);
-  });
 
   it('ADR-0020: keys are prefixed by kind, then month', () => {
     expect(mediaStorageKey('WRITE_OFF_EVIDENCE', 'abc', 'image/jpeg', new Date('2026-09-18T22:30:00Z'))).toBe('write-off/2026-09/abc.jpg');

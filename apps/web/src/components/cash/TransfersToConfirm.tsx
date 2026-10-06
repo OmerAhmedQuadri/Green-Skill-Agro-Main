@@ -58,7 +58,7 @@ function TransferRow({ transfer }: { transfer: AwaitingTransfer }) {
       <Cell className="whitespace-nowrap"><bdi dir="ltr">{transfer.reference}</bdi></Cell>
       <Cell className="whitespace-nowrap">
         {transfer.voucher ? (
-          <a href={`/api/v1/media/${transfer.voucher.photoId}`} target="_blank" rel="noreferrer" className="text-brand-800 hover:underline"><bdi dir="ltr">{transfer.voucher.number}</bdi></a>
+          <a href={`/files/${transfer.voucher.photoId}`} target="_blank" rel="noreferrer" className="text-brand-800 hover:underline"><bdi dir="ltr">{transfer.voucher.number}</bdi></a>
         ) : '—'}
       </Cell>
       <Cell className="whitespace-nowrap">{format.money(transfer.amount)}</Cell>

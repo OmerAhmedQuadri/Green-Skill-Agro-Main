@@ -3,8 +3,9 @@ import { describe, expect, it } from 'vitest';
 import { blobs } from '../../test/blobs';
 import { ownerQuery } from '../../test/db';
 import { anAccount, ctxFor } from '../../test/factories';
-import { updateSettings } from '../system';
-import { confirmUpload, mediaDownloadUrl, purgeMedia, requestUpload } from './uploads';
+import { purgeMedia } from './retention';
+import { setStoragePolicy } from './storage';
+import { confirmUpload, mediaDownloadUrl, requestUpload } from './uploads';
 
 const JPEG = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0, 16, 74, 70, 73, 70, 0, 1, 1, 0, 0, 1, 0xff, 0xd9]);
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13]);
@@ -83,7 +84,7 @@ describe('photo upload pipeline (ARCHITECTURE §6.4, SECURITY §5)', () => {
     expect(await code(mediaDownloadUrl(warehouse, mediaId))).toBe('NOT_FOUND');
   });
 
-  it('OQ-009: selfies are purged after 90 days; abandoned uploads after a day; storefronts are kept', async () => {
+  it('SYS-010 (ADR-0049): selfies go 3 months after they were taken; abandoned uploads after a day; storefronts are kept', async () => {
     const t0 = new Date('2026-01-01T08:00:00Z');
     const seller = await ctxFor(await anAccount('SELLER'), { now: t0 });
     const selfie = await uploadSelfie(seller);
@@ -95,7 +96,9 @@ describe('photo upload pipeline (ARCHITECTURE §6.4, SECURITY §5)', () => {
 
     expect(await purgeMedia(new Date('2026-01-01T20:00:00Z'))).toEqual({ expired: 0, abandoned: 0 });
     expect(await purgeMedia(new Date('2026-01-02T09:00:00Z'))).toEqual({ expired: 0, abandoned: 1 });
-    expect(await purgeMedia(new Date('2026-04-02T09:00:00Z'))).toEqual({ expired: 1, abandoned: 0 });
+    // Taken on 1 January in Riyadh: kept through 31 March, gone in the run of 1 April.
+    expect(await purgeMedia(new Date('2026-03-31T01:00:00Z'))).toEqual({ expired: 0, abandoned: 0 });
+    expect(await purgeMedia(new Date('2026-04-01T01:00:00Z'))).toEqual({ expired: 1, abandoned: 0 });
 
     const status = async (id: string) => (await ownerQuery<{ status: string }>('select status from media_assets where id = $1', [id]))[0]?.status;
     expect(await status(selfie)).toBe('PURGED');
@@ -105,14 +108,15 @@ describe('photo upload pipeline (ARCHITECTURE §6.4, SECURITY §5)', () => {
     expect(await code(mediaDownloadUrl(seller, selfie))).toBe('NOT_FOUND');
   });
 
-  it('OQ-009: the Admin sets how long staff photographs are kept', async () => {
-    const admin = await ctxFor(await anAccount('ADMIN'));
-    await updateSettings(admin, [{ key: 'media.photo_retention_days', value: 30 }]);
+  it('SYS-010 (ADR-0049): the Super Admin sets the period in months; a selfie can never be kept forever as a kind', async () => {
+    const sa = await ctxFor(await anAccount('SUPER_ADMIN'));
+    await setStoragePolicy(sa, { periods: { SELFIE: 1 } });
     const seller = await ctxFor(await anAccount('SELLER'), { now: new Date('2026-01-01T08:00:00Z') });
     const selfie = await uploadSelfie(seller);
     await confirmUpload(seller, selfie);
-    expect(await purgeMedia(new Date('2026-01-30T09:00:00Z'))).toEqual({ expired: 0, abandoned: 0 });
-    expect(await purgeMedia(new Date('2026-01-31T09:00:00Z'))).toEqual({ expired: 1, abandoned: 0 });
-    expect(await code(updateSettings(admin, [{ key: 'media.photo_retention_days', value: 3 }]))).toBe('INVALID_SETTING');
+    expect(await purgeMedia(new Date('2026-01-31T09:00:00Z'))).toEqual({ expired: 0, abandoned: 0 });
+    expect(await purgeMedia(new Date('2026-02-01T09:00:00Z'))).toEqual({ expired: 1, abandoned: 0 });
+    expect(await code(setStoragePolicy(sa, { periods: { SELFIE: 'FOREVER' } }))).toBe('INVALID_SETTING');
+    expect(await code(setStoragePolicy(sa, { periods: { SELFIE: 0 } }))).toBe('INVALID_SETTING');
   });
 });

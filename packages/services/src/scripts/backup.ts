@@ -2,6 +2,8 @@ import { readFileSync, statSync } from 'node:fs';
 import { basename } from 'node:path';
 import { loadConfig } from '@gsa/config';
 import { AwsClient } from 'aws4fetch';
+import { writeAudit } from '../platform';
+import { closeDb, defaultBranchId, getDb } from '../runtime';
 import { BACKUP_NAME, BACKUP_PREFIX, backupKey, expiredBackups, type StoredBackup } from './retention';
 
 /**
@@ -96,7 +98,8 @@ const listAll = async (): Promise<StoredBackup[]> => {
     for (const [, entry] of xml.matchAll(/<Contents>([\s\S]*?)<\/Contents>/g)) {
       const name = /<Key>([^<]+)<\/Key>/.exec(entry ?? '')?.[1];
       const modified = /<LastModified>([^<]+)<\/LastModified>/.exec(entry ?? '')?.[1];
-      if (name && modified && BACKUP_NAME.test(name)) found.push({ key: name, modified: new Date(modified) });
+      const bytes = /<Size>(\d+)<\/Size>/.exec(entry ?? '')?.[1];
+      if (name && modified && BACKUP_NAME.test(name)) found.push({ key: name, modified: new Date(modified), size: bytes ? Number(bytes) : undefined });
     }
     token = /<IsTruncated>true<\/IsTruncated>/.test(xml)
       ? /<NextContinuationToken>([^<]+)<\/NextContinuationToken>/.exec(xml)?.[1]
@@ -124,3 +127,22 @@ for (const old of remove) {
 console.log(dryRun
   ? `  dry run — nothing was uploaded or removed; ${remaining.length} backup(s) in ${bucket}`
   : `  ${remaining.length} backup(s) in ${bucket}, oldest ${remaining[0]?.modified.toISOString().slice(0, 10) ?? 'today'}`);
+
+/**
+ * ADR-0049: the storage page shows the backups as this run left them, read
+ * from the audit log — so the web app never needs this bucket's token. A
+ * failure here is reported, not fatal: the backup itself is safely stored.
+ */
+if (!dryRun) {
+  try {
+    const newest = remaining.at(-1);
+    await writeAudit(getDb(), { actorId: null, branchId: await defaultBranchId(), requestId: 'backup', ip: null }, {
+      action: 'backup.completed', entityType: 'backup', entityId: key,
+      after: { count: remaining.length, bytes: remaining.reduce((n, b) => n + (b.size ?? 0), 0), newest: newest?.modified.toISOString() ?? null },
+    });
+  } catch (error) {
+    console.warn(`  the backup is stored, but could not be recorded for the storage page: ${error instanceof Error ? error.message : String(error)}`);
+  } finally {
+    await closeDb();
+  }
+}

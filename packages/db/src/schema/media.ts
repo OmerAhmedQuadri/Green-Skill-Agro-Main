@@ -1,4 +1,5 @@
-import { index, integer, numeric, pgEnum, pgTable, text, uuid } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
+import { check, index, integer, numeric, pgEnum, pgTable, text, uuid } from 'drizzle-orm/pg-core';
 import { createdAt, id, timestamptz } from './columns';
 import { users } from './identity';
 import { branches } from './organisation';
@@ -11,7 +12,7 @@ export const mediaKind = pgEnum('media_kind', [
  * PENDING  — upload URL issued, not yet confirmed
  * READY    — confirmed: exists, right owner, size and real type checked
  * REJECTED — failed confirmation; the object was deleted
- * PURGED   — removed by retention (OQ-009) or abandoned; the row stays as a record
+ * PURGED   — deleted under the storage policy (ADR-0049) or abandoned; the row stays as a record
  */
 export const mediaStatus = pgEnum('media_status', ['PENDING', 'READY', 'REJECTED', 'PURGED']);
 
@@ -34,10 +35,14 @@ export const mediaAssets = pgTable(
     createdAt: createdAt(),
     confirmedAt: timestamptz('confirmed_at'),
     purgedAt: timestamptz('purged_at'),
+    // ADR-0049: kept forever by a Super Admin or Admin, whatever its kind's period.
+    keptAt: timestamptz('kept_at'),
+    keptBy: uuid('kept_by').references(() => users.id),
   },
   (t) => [
     index('media_assets_uploaded_by_idx').on(t.uploadedBy),
     // The retention and abandoned-upload sweeps scan by status and age.
     index('media_assets_status_created_at_idx').on(t.status, t.createdAt),
+    check('media_assets_kept', sql`(${t.keptAt} is null) = (${t.keptBy} is null)`),
   ],
 );

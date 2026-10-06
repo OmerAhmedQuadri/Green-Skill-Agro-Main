@@ -6,7 +6,8 @@
  * not the standard for that.
  */
 
-export type StoredBackup = { readonly key: string; readonly modified: Date };
+/** `size` is in bytes, when the listing gave one. */
+export type StoredBackup = { readonly key: string; readonly modified: Date; readonly size?: number | undefined };
 
 /**
  * The only name this system gives a backup, and so the only shape retention

@@ -155,12 +155,18 @@ export const deliveryDocuments = pgTable(
     nextAttemptAt: timestamptz('next_attempt_at').notNull().defaultNow(),
     lastError: text('last_error'),
     renderedAt: timestamptz('rendered_at'),
+    // ADR-0049: the PDF deleted under the storage policy — the record and the sale stay.
+    purgedAt: timestamptz('purged_at'),
+    keptAt: timestamptz('kept_at'),
+    keptBy: uuid('kept_by').references(() => users.id),
     branchId: uuid('branch_id').notNull().references(() => branches.id),
     createdAt: createdAt(),
   },
   (t) => [
     index('delivery_documents_due_idx').on(t.nextAttemptAt).where(sql`${t.status} = 'PENDING'`),
     check('delivery_documents_ready', sql`(${t.status} = 'READY') = (${t.storageKey} is not null and ${t.renderedAt} is not null)`),
+    check('delivery_documents_purged', sql`${t.purgedAt} is null or ${t.status} = 'READY'`),
+    check('delivery_documents_kept', sql`(${t.keptAt} is null) = (${t.keptBy} is null)`),
   ],
 );
 

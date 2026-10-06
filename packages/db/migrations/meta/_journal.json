@@ -169,6 +169,13 @@
       "when": 1790849900565,
       "tag": "0023_sales_completed_index",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1791250743256,
+      "tag": "0024_storage_retention",
+      "breakpoints": true
     }
   ]
 }

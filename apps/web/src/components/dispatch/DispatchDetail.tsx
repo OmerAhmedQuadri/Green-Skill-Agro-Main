@@ -97,7 +97,7 @@ export function DispatchDetail({ id, can }: { id: string; can: Can }) {
           <Facts items={[
             { label: t('raisedBy'), value: `${o.raisedBy.name} · ${format.dateTime(o.createdAt)}` },
             { label: t('releasedLabel'), value: o.releasedAt ? `${o.releasedBy?.name ?? ''} · ${format.dateTime(o.releasedAt)}` : '—' },
-            { label: t('transportSlip'), value: o.transportSlipMediaId ? <a className="text-brand-800 hover:underline" target="_blank" rel="noreferrer" href={`/api/v1/media/${o.transportSlipMediaId}`}>{t('viewSlip')}</a> : '—' },
+            { label: t('transportSlip'), value: o.transportSlipMediaId ? <a className="text-brand-800 hover:underline" target="_blank" rel="noreferrer" href={`/files/${o.transportSlipMediaId}`}>{t('viewSlip')}</a> : '—' },
             { label: t('transportNote'), value: o.transportNote ?? '—' },
             { label: t('confirmedLabel'), value: o.confirmedAt ? `${format.dateTime(o.confirmedAt)} · ${o.confirmationMode ? t(`modes.${o.confirmationMode}`) : ''}` : '—' },
             { label: t('outcome'), value: o.closeReason ? `${t(`closeReasons.${o.closeReason}`)}${o.resolution ? ` · ${t(`resolutions.${o.resolution}`)}` : ''}${o.cancelReason ? ` · ${o.cancelReason}` : ''}` : '—' },

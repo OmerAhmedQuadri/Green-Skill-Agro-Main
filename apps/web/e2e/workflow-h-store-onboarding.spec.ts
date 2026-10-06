@@ -58,7 +58,8 @@ for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
     // STO-009: a manager approves; the storefront photo is there to check.
     await admin.goto('/console/stores');
     await admin.getByRole('link', { name, exact: true }).click();
-    await expect(admin.getByRole('link', { name: m.stores.viewPhoto })).toHaveAttribute('href', /\/api\/v1\/media\//);
+    // ADR-0049: the photo opens on its own page, with how long it is kept.
+    await expect(admin.getByRole('link', { name: m.stores.viewPhoto })).toHaveAttribute('href', /^\/files\/[0-9a-f-]{36}$/);
     await admin.getByRole('button', { name: m.stores.approve, exact: true }).click();
     await expect(admin.getByText(m.stores.statuses.ACTIVE).first()).toBeVisible();
 

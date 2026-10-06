@@ -28,8 +28,11 @@ export async function readToggles(db: Executor = getDb()): Promise<FeatureToggle
   return resolveToggles(await db.select({ key: featureToggles.key, enabled: featureToggles.enabled }).from(featureToggles));
 }
 
-const GOVERNING = [...new Set(SETTING_KEYS.map((k) => SETTINGS[k].permission))];
-const editableBy = (ctx: Ctx) => SETTING_KEYS.filter((k) => ctx.permissions.has(SETTINGS[k].permission));
+/** The storage periods and budget are changed on the storage page, behind its confirmation (ADR-0049) — not here. */
+const isGeneral = (key: SettingKey) => SETTINGS[key].group !== 'storage';
+const GENERAL_KEYS = SETTING_KEYS.filter(isGeneral);
+const GOVERNING = [...new Set(GENERAL_KEYS.map((k) => SETTINGS[k].permission))];
+const editableBy = (ctx: Ctx) => GENERAL_KEYS.filter((k) => ctx.permissions.has(SETTINGS[k].permission));
 
 /** The settings the caller may change, with their current values (SYS-001..007). */
 export async function getSettings(ctx: Ctx): Promise<{ values: Partial<Settings>; editable: SettingKey[] }> {
@@ -58,27 +61,30 @@ export async function updateSettings(
 ): Promise<{ values: Partial<Settings>; editable: SettingKey[] }> {
   if (changes.length === 0) throw new DomainError('INVALID_SETTING', { key: null });
   const parsed = changes.map(({ key, value }) => {
-    if (!isSettingKey(key)) throw new DomainError('INVALID_SETTING', { key });
+    if (!isSettingKey(key) || !isGeneral(key)) throw new DomainError('INVALID_SETTING', { key });
     authorize(ctx, SETTINGS[key].permission);
     return { key, value: parseSetting(key, value) };
   });
-  await inTx(ctx, async (tx) => {
-    const before = await readSettings(tx);
-    for (const { key, value } of parsed) {
-      await tx.insert(systemSettings).values({ key, value: wrap(value), updatedAt: ctx.now, updatedBy: ctx.user.id })
-        .onConflictDoUpdate({ target: systemSettings.key, set: { value: wrap(value), updatedAt: ctx.now, updatedBy: ctx.user.id } });
-    }
-    const after = await readSettings(tx);
-    if (parsed.some((p) => p.key.startsWith('discount.'))) await assertDiscountsConsistent(tx, after);
-    const changed = parsed.filter((p) => before[p.key] !== after[p.key]).map((p) => p.key);
-    if (changed.length) {
-      await audit(tx, ctx, {
-        action: 'system.settings_changed', entityType: 'system_settings', entityId: null,
-        before: Object.fromEntries(changed.map((k) => [k, before[k]])), after: Object.fromEntries(changed.map((k) => [k, after[k]])),
-      });
-    }
-  });
+  await inTx(ctx, (tx) => writeSettings(tx, ctx, parsed));
   return getSettings(ctx);
+}
+
+/** Stores values already validated and authorised, and audits whatever changed (SYS-009). */
+export async function writeSettings(tx: Executor, ctx: Ctx, parsed: readonly { key: SettingKey; value: unknown }[]): Promise<void> {
+  const before = await readSettings(tx);
+  for (const { key, value } of parsed) {
+    await tx.insert(systemSettings).values({ key, value: wrap(value), updatedAt: ctx.now, updatedBy: ctx.user.id })
+      .onConflictDoUpdate({ target: systemSettings.key, set: { value: wrap(value), updatedAt: ctx.now, updatedBy: ctx.user.id } });
+  }
+  const after = await readSettings(tx);
+  if (parsed.some((p) => p.key.startsWith('discount.'))) await assertDiscountsConsistent(tx, after);
+  const changed = parsed.filter((p) => before[p.key] !== after[p.key]).map((p) => p.key);
+  if (changed.length) {
+    await audit(tx, ctx, {
+      action: 'system.settings_changed', entityType: 'system_settings', entityId: null,
+      before: Object.fromEntries(changed.map((k) => [k, before[k]])), after: Object.fromEntries(changed.map((k) => [k, after[k]])),
+    });
+  }
 }
 
 export async function getToggles(ctx: Ctx): Promise<FeatureToggles> {

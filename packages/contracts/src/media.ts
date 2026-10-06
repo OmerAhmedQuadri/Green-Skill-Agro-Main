@@ -25,3 +25,22 @@ export const MediaSummary = z.object({
   id: z.uuid(), kind: MediaKind, status: z.enum(['PENDING', 'READY', 'REJECTED', 'PURGED']),
   contentType: z.string(), byteSize: z.number().int().nullable(),
 });
+
+/** ADR-0049: what the storage policy governs — the photo kinds and the delivery documents. Mirrors `STORED_KINDS` in core. */
+export const StoredKind = z.enum([...MediaKind.options, 'DELIVERY_DOCUMENT']);
+
+/** Whole months, or forever. The settings register in core checks each kind's range. */
+export const RetentionPeriod = z.union([z.literal('FOREVER'), z.number().int()]);
+
+/** SYS-010, SYS-012: new periods, a new budget, or both — `confirm` once the Super Admin has seen what the next run deletes. */
+export const SetStoragePolicyRequest = z.object({
+  periods: z.partialRecord(StoredKind, RetentionPeriod).optional(),
+  budgetGb: z.number().int().optional(),
+  confirm: z.boolean().optional(),
+});
+
+/** The proposed periods, from the address: `?SELFIE=1&STOREFRONT=FOREVER`. */
+export const PreviewStoragePolicyQuery = z.partialRecord(StoredKind, z.union([z.literal('FOREVER'), z.coerce.number().int()]));
+
+/** SYS-011: keep one file forever, or hand it back to the policy. */
+export const KeepFileRequest = z.object({ keep: z.boolean() });

@@ -12,11 +12,13 @@ type Spec =
   | { readonly kind: 'percent'; readonly default: string }
   | { readonly kind: 'integer'; readonly min: number; readonly max: number; readonly default: number }
   | { readonly kind: 'boolean'; readonly default: boolean }
-  | { readonly kind: 'choice'; readonly options: readonly string[]; readonly default: string };
+  | { readonly kind: 'choice'; readonly options: readonly string[]; readonly default: string }
+  // A retention period (ADR-0049): whole months within the range, or 'FOREVER' where the kind allows it.
+  | { readonly kind: 'months'; readonly min: number; readonly max: number; readonly forever: boolean; readonly default: number | 'FOREVER' };
 
 type Entry = Spec & { readonly permission: PermissionCode; readonly group: SettingGroup };
 
-export const SETTING_GROUPS = ['discounts', 'documents', 'returns', 'expiry', 'operations', 'attendance', 'stores', 'credit', 'limits', 'targets'] as const;
+export const SETTING_GROUPS = ['discounts', 'documents', 'returns', 'expiry', 'operations', 'attendance', 'stores', 'credit', 'limits', 'targets', 'storage'] as const;
 export type SettingGroup = (typeof SETTING_GROUPS)[number];
 
 export const SETTINGS = {
@@ -44,8 +46,6 @@ export const SETTINGS = {
   // ATT-012 (ADR-0032): odometer readings outside these are flagged for review, never refused
   'attendance.odometer_tolerance_km': { kind: 'integer', min: 0, max: 100, default: 5, permission: 'system.configure', group: 'attendance' },
   'attendance.max_session_km': { kind: 'integer', min: 50, max: 2000, default: 500, permission: 'system.configure', group: 'attendance' },
-  // OQ-009: selfies and odometer photographs are purged after this many days; the derived figures are kept
-  'media.photo_retention_days': { kind: 'integer', min: 7, max: 3650, default: 90, permission: 'system.configure', group: 'attendance' },
   // STO-008, OQ-006: likely duplicates — near, or a similar name within the wider radius
   'stores.duplicate_radius_m': { kind: 'integer', min: 10, max: 5000, default: 150, permission: 'system.configure', group: 'stores' },
   'stores.duplicate_name_radius_m': { kind: 'integer', min: 100, max: 20000, default: 1000, permission: 'system.configure', group: 'stores' },
@@ -65,6 +65,18 @@ export const SETTINGS = {
   'period.close_after_days': { kind: 'integer', min: 0, max: 15, default: 3, permission: 'targets.manage', group: 'targets' },
   // LIM-003
   'ceilings.reminder_interval_hours': { kind: 'integer', min: 1, max: 168, default: 24, permission: 'system.set_limits', group: 'limits' },
+  // SYS-010, SYS-013 (ADR-0049): how long each kind of file is kept, and the budget the usage page measures against.
+  // Selfies are facial images: never forever as a kind, at most two years (OQ-009).
+  'storage.keep_selfie': { kind: 'months', min: 1, max: 24, forever: false, default: 3, permission: 'system.manage_storage', group: 'storage' },
+  'storage.keep_odometer': { kind: 'months', min: 1, max: 120, forever: true, default: 3, permission: 'system.manage_storage', group: 'storage' },
+  'storage.keep_storefront': { kind: 'months', min: 1, max: 120, forever: true, default: 'FOREVER', permission: 'system.manage_storage', group: 'storage' },
+  'storage.keep_write_off_evidence': { kind: 'months', min: 1, max: 120, forever: true, default: 6, permission: 'system.manage_storage', group: 'storage' },
+  'storage.keep_deposit_slip': { kind: 'months', min: 1, max: 120, forever: true, default: 'FOREVER', permission: 'system.manage_storage', group: 'storage' },
+  'storage.keep_transport_slip': { kind: 'months', min: 1, max: 120, forever: true, default: 6, permission: 'system.manage_storage', group: 'storage' },
+  'storage.keep_payment_voucher': { kind: 'months', min: 1, max: 120, forever: true, default: 'FOREVER', permission: 'system.manage_storage', group: 'storage' },
+  // DOC-005: a copy of every delivery document is kept — forever unless the Super Admin decides otherwise.
+  'storage.keep_delivery_document': { kind: 'months', min: 1, max: 120, forever: true, default: 'FOREVER', permission: 'system.manage_storage', group: 'storage' },
+  'storage.budget_gb': { kind: 'integer', min: 1, max: 10000, default: 10, permission: 'system.manage_storage', group: 'storage' },
 } as const satisfies Record<string, Entry>;
 
 export type SettingKey = keyof typeof SETTINGS;
@@ -74,7 +86,8 @@ type ValueOf<S> = S extends { kind: 'percent' } ? string
   : S extends { kind: 'integer' } ? number
     : S extends { kind: 'boolean' } ? boolean
       : S extends { kind: 'choice'; options: readonly (infer O)[] } ? O
-        : never;
+        : S extends { kind: 'months' } ? number | 'FOREVER'
+          : never;
 export type SettingValue<K extends SettingKey> = ValueOf<(typeof SETTINGS)[K]>;
 export type Settings = { readonly [K in SettingKey]: SettingValue<K> };
 
@@ -97,6 +110,10 @@ export function parseSetting<K extends SettingKey>(key: K, raw: unknown): Settin
       return raw as SettingValue<K>;
     case 'choice':
       if (typeof raw !== 'string' || !spec.options.includes(raw)) throw invalid();
+      return raw as SettingValue<K>;
+    case 'months':
+      if (raw === 'FOREVER' && spec.forever) return raw as SettingValue<K>;
+      if (typeof raw !== 'number' || !Number.isInteger(raw) || raw < spec.min || raw > spec.max) throw invalid();
       return raw as SettingValue<K>;
   }
 }
