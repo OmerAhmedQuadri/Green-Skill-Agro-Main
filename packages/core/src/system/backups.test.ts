@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BACKUP_NAME, BACKUP_PREFIX, backupKey, backupsRemovedBy, expiredBackups, type StoredBackup } from './backups';
+import { BACKUP_NAME, BACKUP_PREFIX, backupKey, backupsRemovedBy, backupsSwitchedOn, expiredBackups, type StoredBackup } from './backups';
 
 const NOW = new Date('2026-09-21T03:00:00Z');
 const daysAgo = (n: number) => new Date(NOW.getTime() - n * 24 * 60 * 60 * 1000);
@@ -77,5 +77,14 @@ describe("the storage page's preview (ADR-0049)", () => {
     expect(backupsRemovedBy(stored, { now: NOW, days: 30 })).toEqual({ files: 1, bytes: 100 });
     expect(backupsRemovedBy(stored, { now: NOW, days: 7 })).toEqual({ files: 3, bytes: 600 });
     expect(backupsRemovedBy([sized(40, 100), sized(39, 100)], { now: NOW, days: 7 })).toEqual({ files: 0, bytes: 0 });
+  });
+});
+
+describe('a server that takes no backups (RUNBOOK §5.1)', () => {
+  it('takes them only with all three settings — a bucket alone is not a backup', () => {
+    expect(backupsSwitchedOn({ bucket: 'gsa-backups', accessKey: 'id', secretKey: 'secret' })).toBe(true);
+    expect(backupsSwitchedOn({ bucket: 'gsa-backups' })).toBe(false);
+    expect(backupsSwitchedOn({ bucket: 'gsa-backups', accessKey: 'id', secretKey: '' })).toBe(false);
+    expect(backupsSwitchedOn({})).toBe(false);
   });
 });

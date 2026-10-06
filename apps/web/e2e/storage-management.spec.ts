@@ -43,6 +43,8 @@ for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
     await expect(owner.getByRole('heading', { name: m.storage.title, level: 1 })).toBeVisible();
     // Both R2 buckets together on top, against the budget; then the media bucket's tab, open first.
     await expect(owner.getByTestId('storage-r2')).toContainText(m.storage.r2.title);
+    // Like staging, this server takes no backups by design (RUNBOOK §5.1): the page says so.
+    await expect(owner.getByTestId('storage-r2')).toContainText(m.storage.r2.backupsOff);
     await expect(owner.getByRole('tab', { name: m.storage.tabs.media })).toHaveAttribute('aria-selected', 'true');
     await expect(owner.getByTestId('storage-row-WRITE_OFF_EVIDENCE')).toContainText(m.storage.kinds.WRITE_OFF_EVIDENCE);
     // The approved defaults; a selfie can never be kept forever as a kind.
@@ -89,7 +91,7 @@ for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
     await expect(owner.getByRole('tab', { name: m.storage.tabs.backups })).toHaveAttribute('aria-selected', 'true');
     await expect(owner.getByRole('tab', { name: m.storage.tabs.backups })).toBeFocused();
     const backups = owner.getByTestId('storage-backups');
-    await expect(backups).toBeVisible();
+    await expect(backups.getByTestId('backups-off')).toHaveText(m.storage.backups.off);
     await owner.screenshot({ path: shot(`storage-backups-${locale}`), fullPage: true });
     // ADR-0049 (amended): how long backups are kept. Longer saves straight away; shorter always asks first.
     const keepDays = owner.getByLabel(m.storage.backups.keepFor);

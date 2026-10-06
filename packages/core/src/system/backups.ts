@@ -66,3 +66,12 @@ export function backupsRemovedBy(stored: readonly StoredBackup[], { now, days }:
   const { remove } = expiredBackups(stored, { now, days });
   return { files: remove.length, bytes: remove.reduce((n, b) => n + (b.size ?? 0), 0) };
 }
+
+/**
+ * Whether a server takes backups at all: all three backup settings are in its
+ * `.env`. Staging deliberately has none (RUNBOOK §5.1), so its first backup is
+ * production's — and its storage page should say so rather than promise one.
+ */
+export function backupsSwitchedOn(env: { readonly bucket?: string | undefined; readonly accessKey?: string | undefined; readonly secretKey?: string | undefined }): boolean {
+  return Boolean(env.bucket && env.accessKey && env.secretKey);
+}

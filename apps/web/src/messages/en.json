@@ -876,7 +876,8 @@
       "title": "Cloudflare R2 — both buckets",
       "media": "Media bucket {size}",
       "backups": "Backups bucket {size}",
-      "backupsUnknown": "Backups bucket: not reported yet"
+      "backupsUnknown": "Backups bucket: not reported yet",
+      "backupsOff": "Backups bucket: not switched on"
     },
     "media": {
       "title": "Media bucket",
@@ -897,7 +898,9 @@
       "keepHint": "7 to 3650 days. The newest backup is never removed.",
       "confirmTitle": "This deletes backups",
       "confirmBody": "Saving removes {count, plural, one {# copy} other {# copies}} ({size}) at the next backup — every one older than {days, plural, one {# day} other {# days}}. They cannot be brought back.",
-      "confirmUnknown": "Saving removes every backup older than {days, plural, one {# day} other {# days}} at the next backup. No backup has reported yet, so the page cannot say how many. They cannot be brought back."
+      "confirmUnknown": "Saving removes every backup older than {days, plural, one {# day} other {# days}} at the next backup. No backup has reported yet, so the page cannot say how many. They cannot be brought back.",
+      "off": "Backups are not switched on for this server yet.",
+      "offWithReport": "Backups are no longer switched on for this server: these figures are the last report's."
     },
     "server": {
       "hint": "The database every record lives in, and the disk under it."
