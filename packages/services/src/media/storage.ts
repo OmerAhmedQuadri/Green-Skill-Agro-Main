@@ -44,7 +44,7 @@ export type StorageOverview = {
     readonly due: FileCount;
   } | null;
   readonly backupRetentionDays: number;
-  /** Whether this server takes backups at all — staging deliberately does not (RUNBOOK §5.1). */
+  /** Whether this server takes backups at all: all three backup settings are in its `.env`. */
   readonly backupsOn: boolean;
   /** Both buckets together: what Cloudflare bills, and what the budget measures (ADR-0049, amended). */
   readonly r2Bytes: number;

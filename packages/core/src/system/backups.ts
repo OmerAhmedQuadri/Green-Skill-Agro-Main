@@ -69,9 +69,39 @@ export function backupsRemovedBy(stored: readonly StoredBackup[], { now, days }:
 
 /**
  * Whether a server takes backups at all: all three backup settings are in its
- * `.env`. Staging deliberately has none (RUNBOOK §5.1), so its first backup is
- * production's — and its storage page should say so rather than promise one.
+ * `.env`. One without them — development, CI, a server not yet set up — says
+ * so on its storage page rather than promising a backup that will not come.
  */
 export function backupsSwitchedOn(env: { readonly bucket?: string | undefined; readonly accessKey?: string | undefined; readonly secretKey?: string | undefined }): boolean {
   return Boolean(env.bucket && env.accessKey && env.secretKey);
+}
+
+/**
+ * One page of a bucket listing (S3 `ListObjectsV2`): the backups on it, and
+ * the token for the next page when there is one. Anything not named like a
+ * backup is passed over — nothing here touches what it did not name.
+ */
+export function parseBackupListing(xml: string): { readonly backups: StoredBackup[]; readonly next: string | null } {
+  const backups: StoredBackup[] = [];
+  for (const [, entry = ''] of xml.matchAll(/<Contents>([\s\S]*?)<\/Contents>/g)) {
+    const key = /<Key>([^<]+)<\/Key>/.exec(entry)?.[1];
+    const modified = /<LastModified>([^<]+)<\/LastModified>/.exec(entry)?.[1];
+    const size = /<Size>(\d+)<\/Size>/.exec(entry)?.[1];
+    if (key && modified && BACKUP_NAME.test(key)) backups.push({ key, modified: new Date(modified), size: size ? Number(size) : undefined });
+  }
+  const next = /<IsTruncated>true<\/IsTruncated>/.test(xml)
+    ? (/<NextContinuationToken>([^<]+)<\/NextContinuationToken>/.exec(xml)?.[1] ?? null)
+    : null;
+  return { backups, next };
+}
+
+/** The backup to restore from (ADR-0050): the one named, or else the newest. */
+export function chooseBackup(backups: readonly StoredBackup[], key?: string): StoredBackup | undefined {
+  if (key) return backups.find((b) => b.key === key);
+  return [...backups].sort((a, b) => b.modified.getTime() - a.modified.getTime())[0];
+}
+
+/** A `pg_dump -Fc` archive begins "PGDMP". Anything else is not a backup this system took. */
+export function isPgDump(head: Uint8Array): boolean {
+  return [0x50, 0x47, 0x44, 0x4d, 0x50].every((byte, i) => head[i] === byte);
 }

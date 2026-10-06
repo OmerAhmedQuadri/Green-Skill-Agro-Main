@@ -43,7 +43,7 @@ for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
     await expect(owner.getByRole('heading', { name: m.storage.title, level: 1 })).toBeVisible();
     // Both R2 buckets together on top, against the budget; then the media bucket's tab, open first.
     await expect(owner.getByTestId('storage-r2')).toContainText(m.storage.r2.title);
-    // Like staging, this server takes no backups by design (RUNBOOK §5.1): the page says so.
+    // The test server has no backup settings, so it takes no backups — and the page says so.
     await expect(owner.getByTestId('storage-r2')).toContainText(m.storage.r2.backupsOff);
     await expect(owner.getByRole('tab', { name: m.storage.tabs.media })).toHaveAttribute('aria-selected', 'true');
     await expect(owner.getByTestId('storage-row-WRITE_OFF_EVIDENCE')).toContainText(m.storage.kinds.WRITE_OFF_EVIDENCE);

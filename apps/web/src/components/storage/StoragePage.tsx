@@ -298,7 +298,7 @@ function BackupsTab({ overview }: { overview: Overview }) {
             </p>
           </>
         ) : (
-          // Staging takes no backups by design (RUNBOOK §5.1): say so, rather than promise one that will never come.
+          // A server without the backup settings takes none: say so, rather than promise one that will never come.
           <div className="px-5 pt-4">
             {backupsOn
               ? <Alert tone="info">{t('backups.noReport')}</Alert>
