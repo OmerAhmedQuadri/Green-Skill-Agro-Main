@@ -13,18 +13,21 @@ import { useErrorText } from '@/lib/hooks';
 import { keys } from '@/lib/query-keys';
 import { STATUS_TONE, type StoreSummary } from './types';
 
-type Status = '' | 'PENDING_APPROVAL' | 'ACTIVE' | 'REJECTED' | 'INACTIVE';
+const STATUSES = ['', 'PENDING_APPROVAL', 'ACTIVE', 'REJECTED', 'INACTIVE'] as const;
+type Status = (typeof STATUSES)[number];
 
 /** STO-006, STO-009, CRD-004: every store — who manages it, its state, what it owes and whether it is blocked. */
-export function StoresPage({ canApprove }: { canApprove: boolean }) {
+export function StoresPage({ canApprove, initialStatus = '' }: { canApprove: boolean; initialStatus?: string }) {
   const t = useTranslations('stores');
   const tc = useTranslations('common');
   const format = useFormat();
   const errorText = useErrorText();
   // Every store, whoever is looking. An approver used to land on a list
   // filtered to what awaits them, which meant the Stores page quietly showed
-  // three of seventy-six and gave no sign it was hiding any.
-  const [status, setStatus] = useState<Status>('');
+  // three of seventy-six and gave no sign it was hiding any. A link may still
+  // ask for a status — the dashboard's "waiting for a decision" does (ADR-0051)
+  // — and the filter then says so.
+  const [status, setStatus] = useState<Status>(() => STATUSES.find((s) => s === initialStatus) ?? '');
   const [search, setSearch] = useState('');
   const [blockedOnly, setBlockedOnly] = useState(false);
   const filter = { status, search, blockedOnly };
@@ -48,7 +51,7 @@ export function StoresPage({ canApprove }: { canApprove: boolean }) {
         <div className="flex flex-wrap items-center gap-3 border-b border-stone-200 p-4">
           <Input value={search} onChange={(e) => setSearch(e.target.value)} aria-label={t('search')} className="w-64" />
           <Select value={status} aria-label={tc('status')} className="w-auto"
-            onChange={(e) => setStatus((['', 'PENDING_APPROVAL', 'ACTIVE', 'REJECTED', 'INACTIVE'] as const).find((s) => s === e.target.value) ?? '')}>
+            onChange={(e) => setStatus(STATUSES.find((s) => s === e.target.value) ?? '')}>
             <option value="">{tc('all')}</option>
             {(['PENDING_APPROVAL', 'ACTIVE', 'INACTIVE', 'REJECTED'] as const).map((s) => <option key={s} value={s}>{t(`statuses.${s}`)}</option>)}
           </Select>

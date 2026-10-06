@@ -2,6 +2,7 @@ import { businessDate, HOLDING_SALE_STATUSES } from '@gsa/core';
 import { schema } from '@gsa/db';
 import { and, eq, inArray, lt, lte, or, sql } from 'drizzle-orm';
 import type { Ctx } from '../context';
+import { endRequest } from '../notifications';
 import { writeAudit, type Tx } from '../platform';
 import { defaultBranchId, getDb } from '../runtime';
 
@@ -19,6 +20,8 @@ async function expire(tx: Tx, rows: readonly { id: string; sellerId: string; sto
   await tx.update(discountApprovalRequests)
     .set({ status: sql`case when ${discountApprovalRequests.status} = 'PENDING' then 'EXPIRED'::discount_request_status else ${discountApprovalRequests.status} end`, closedAt: now })
     .where(inArray(discountApprovalRequests.saleId, ids));
+  // ADR-0051: an approved sale lapsing ended its request already; this ends only those still waiting.
+  await endRequest(tx, 'DISCOUNT_APPROVAL_REQUESTED', ids, 'EXPIRED', origin.actorId, now);
   if (notifySeller) {
     await tx.insert(notifications).values(rows.map((r) => ({
       userId: r.sellerId, kind: 'DISCOUNT_EXPIRED' as const, params: { store: r.storeName }, link: `/field/sales/${r.id}`, createdAt: now, branchId: origin.branchId,

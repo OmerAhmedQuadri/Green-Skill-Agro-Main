@@ -195,9 +195,12 @@ describe('lost orders (DSP-013) and the unconfirmed flag (DSP-014)', () => {
     expect(claimed.claims).toMatchObject([{ status: 'PENDING' }]);
     expect(await code(confirmReceipt(s.seller.ctx, order.id, { version: claimed.version, mode: 'IN_PERSON', lines: [] }))).toBe('CLAIM_PENDING');
     expect((await listMyNotifications(s.ctx)).items.map((n) => n.kind)).toContain('LOST_CLAIM_RAISED');
+    // ADR-0051: the dashboard's "claims to decide" opens this list.
+    expect((await listDispatchOrders(s.ctx, { claimPending: true })).items.map((o) => o.id)).toEqual([order.id]);
     expect(await code(decideLostClaim(s.ctx, order.id, { version: claimed.version, approve: false }))).toBe('REASON_REQUIRED');
     const rejected = await decideLostClaim(s.ctx, order.id, { version: claimed.version, approve: false, comment: 'The transporter has proof of delivery' });
     expect(rejected).toMatchObject({ status: 'RELEASED', claims: [{ status: 'REJECTED' }] });
+    expect((await listDispatchOrders(s.ctx, { claimPending: true })).items).toEqual([]);
 
     const again = await raiseLostClaim(s.seller.ctx, order.id, { version: rejected.version, reason: 'Store confirms nothing came' });
     const approver = await manager(['sales.approve_lost_order']);

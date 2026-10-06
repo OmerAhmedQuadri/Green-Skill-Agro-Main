@@ -6,7 +6,7 @@ import { newId, schema } from '@gsa/db';
 import { aliasedTable, and, asc, desc, eq, inArray, lt, or, type SQL } from 'drizzle-orm';
 import { authorize, authorizeAny, type Ctx } from '../context';
 import { assertOwnEvidence } from '../media';
-import { notify, usersWithPermission } from '../notifications';
+import { endRequest, notify, usersWithPermission } from '../notifications';
 import { audit, decodeCursor, encodeCursor, inTx, nextDocumentNumber, pageLimit, type Executor } from '../platform';
 import { getDb } from '../runtime';
 import { syncFlagsFor } from './ceilings';
@@ -153,7 +153,7 @@ export async function submitSettlement(ctx: Ctx, input: SubmitSettlementInput): 
       photoId: input.photoId, note, submittedAt: ctx.now, branchId: ctx.branchId, createdBy: ctx.user.id, updatedBy: ctx.user.id,
     });
     await notify(tx, ctx, receivedById ? { users: [receivedById] } : { permission: 'cash.approve_settlement' },
-      'SETTLEMENT_SUBMITTED', { number, amount: declared }, `/console/cash/${id}`);
+      'SETTLEMENT_SUBMITTED', { number, amount: declared }, `/console/cash/${id}`, id);
     await audit(tx, ctx, { action: 'cash.settlement_submitted', entityType: 'cash_settlement', entityId: id, after: { number, route: input.route, declared } });
     return loadSettlement(tx, ctx, id);
   });
@@ -207,6 +207,7 @@ export async function decideSettlement(ctx: Ctx, id: string, input: DecideSettle
       status, approvedAmount: approved, decidedAt: ctx.now, decidedBy: ctx.user.id, decisionComment: comment,
       cashLedgerEntryId: cashEntryId, discrepancyEntryId: discrepancyId, version: row.version + 1, updatedAt: ctx.now, updatedBy: ctx.user.id,
     }).where(eq(cashSettlements.id, id));
+    await endRequest(tx, 'SETTLEMENT_SUBMITTED', [id], input.approve ? 'APPROVED' : 'REJECTED', ctx.user.id, ctx.now);
 
     // CSH-007: settling can take the seller back under their ceiling.
     if (approved) await syncFlagsFor(tx, ctx, row.sellerId);

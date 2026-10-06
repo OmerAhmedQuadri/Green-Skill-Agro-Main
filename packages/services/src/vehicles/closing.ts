@@ -3,7 +3,7 @@ import { schema } from '@gsa/db';
 import { and, asc, desc, eq, gte, inArray, lte, type SQL } from 'drizzle-orm';
 import { liveSession, sellerVehicleAccount } from '../attendance';
 import { authorize, authorizeAny, type Ctx } from '../context';
-import { notify } from '../notifications';
+import { endRequest, notify } from '../notifications';
 import { audit, inTx, mapUniqueViolations, type Executor } from '../platform';
 import { getDb } from '../runtime';
 import { vehicleBatches } from './stock';
@@ -73,7 +73,7 @@ export async function declareClosingStock(ctx: Ctx, input: { lines: readonly { s
       await tx.insert(closingStockLines).values(result.lines.map((l) => ({ declarationId: row.id, skuId: l.skuId, declaredPacks: l.declaredPacks, systemPacks: l.systemPacks })));
     }
     if (result.status === 'VARIANCE_FLAGGED') {
-      await notify(tx, ctx, { permission: 'inventory.audit_vehicle' }, 'CLOSING_VARIANCE', { workDate: live.workDate }, '/console/closing-stock?status=VARIANCE_FLAGGED');
+      await notify(tx, ctx, { permission: 'inventory.audit_vehicle' }, 'CLOSING_VARIANCE', { workDate: live.workDate }, '/console/closing-stock?status=VARIANCE_FLAGGED', row.id);
     }
     await audit(tx, ctx, { action: 'inventory.closing_stock_declared', entityType: 'closing_stock_declaration', entityId: row.id, after: result });
     const [out] = await loadDeclarations(tx, eq(closingStockDeclarations.id, row.id));
@@ -95,6 +95,7 @@ export async function reviewClosingStock(ctx: Ctx, id: string, input: { version:
     await tx.update(closingStockDeclarations).set({
       status: 'REVIEWED', reviewedAt: ctx.now, reviewedBy: ctx.user.id, reviewComment: comment, updatedAt: ctx.now, updatedBy: ctx.user.id, version: current.version + 1,
     }).where(eq(closingStockDeclarations.id, id));
+    await endRequest(tx, 'CLOSING_VARIANCE', [id], 'REVIEWED', ctx.user.id, ctx.now);
     await audit(tx, ctx, { action: 'inventory.closing_stock_reviewed', entityType: 'closing_stock_declaration', entityId: id, after: { comment } });
     const [out] = await loadDeclarations(tx, eq(closingStockDeclarations.id, id));
     if (!out) throw new Error('declaration vanished');

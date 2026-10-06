@@ -7,7 +7,7 @@ import { schema } from '@gsa/db';
 import { and, asc, desc, eq, inArray, isNull, lt, ne, sql, type SQL } from 'drizzle-orm';
 import { authorize, type Ctx } from '../context';
 import { assertOwnEvidence } from '../media';
-import { notify } from '../notifications';
+import { endRequest, notify } from '../notifications';
 import { audit, inTx, type Executor, type Tx } from '../platform';
 import { getDb } from '../runtime';
 import { expireSellerSales } from '../sales';
@@ -181,7 +181,7 @@ export async function checkIn(ctx: Ctx, input: Capture & { withoutVehicle?: bool
       });
     }
     if (!zone.inside) {
-      await notify(tx, ctx, { permission: 'attendance.manage' }, 'CHECK_IN_AWAITING_AUTHORISATION', { sessionId: session.id }, '/console/attendance');
+      await notify(tx, ctx, { permission: 'attendance.manage' }, 'CHECK_IN_AWAITING_AUTHORISATION', { sessionId: session.id }, '/console/attendance', session.id);
     }
     await audit(tx, ctx, {
       action: 'attendance.checked_in', entityType: 'attendance_session', entityId: session.id,
@@ -198,6 +198,7 @@ export async function withdraw(tx: Tx, ctx: Ctx, sessionId: string): Promise<voi
     .where(and(eq(attendanceSessions.id, sessionId), eq(attendanceSessions.status, 'AWAITING_AUTHORISATION')))
     .returning({ dayId: attendanceSessions.dayId });
   if (!row) return;
+  await endRequest(tx, 'CHECK_IN_AWAITING_AUTHORISATION', [sessionId], 'WITHDRAWN', ctx.user.id, ctx.now);
   await audit(tx, ctx, { action: 'attendance.check_in_withdrawn', entityType: 'attendance_session', entityId: sessionId });
   // Nothing was worked in it: the day is as if the attempt never happened.
   await tx.update(attendanceDays).set({ status: 'CHECKED_OUT', updatedAt: ctx.now, updatedBy: ctx.user.id, version: sql`${attendanceDays.version} + 1` })

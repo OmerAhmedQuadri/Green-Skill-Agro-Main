@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { index, integer, jsonb, pgEnum, pgTable, text, uuid } from 'drizzle-orm/pg-core';
+import { check, index, integer, jsonb, pgEnum, pgTable, text, uuid } from 'drizzle-orm/pg-core';
 import { createdAt, id, timestamptz } from './columns';
 import { locale, users } from './identity';
 import { branches } from './organisation';
@@ -58,10 +58,20 @@ export const notificationKind = pgEnum('notification_kind', [
   'TARGET_SET', 'TARGET_BEHIND_PACE', 'TARGET_MISSED', 'PERIOD_CLOSED',
 ]);
 
+// Mirror REQUEST_OUTCOMES in packages/core/src/notifications/index.ts.
+export const requestOutcome = pgEnum('request_outcome', [
+  'APPROVED', 'REDUCED', 'REJECTED', 'CONFIRMED', 'NOT_RECEIVED', 'REVIEWED', 'AUTHORISED',
+  'TAKEN', 'RELEASED', 'CANCELLED', 'EXPIRED', 'WITHDRAWN',
+]);
+
 /**
  * In-app notifications (ADR-0034): a kind and its parameters, never text —
  * the client renders them in the reader's language. Written in the same
  * transaction as the event; polled every 30 s.
+ *
+ * ADR-0051: a request goes to everyone who can act on it, one row each. Every
+ * row names what it is about, and when the request ends they all record how,
+ * when and by whom — and stop counting as unread.
  */
 export const notifications = pgTable(
   'notifications',
@@ -74,9 +84,18 @@ export const notifications = pgTable(
     createdAt: createdAt(),
     readAt: timestamptz('read_at'),
     branchId: uuid('branch_id').notNull().references(() => branches.id),
+    /** A request's record: the store, sale, settlement, payment, declaration, session or dispatch order. */
+    subjectId: uuid('subject_id'),
+    resolvedAt: timestamptz('resolved_at'),
+    /** Null when nobody did it: a request that expired, a check-in withdrawn when its day closed. */
+    resolvedBy: uuid('resolved_by').references(() => users.id),
+    outcome: requestOutcome('outcome'),
   },
   (t) => [
     index('notifications_user_created_idx').on(t.userId, t.createdAt),
-    index('notifications_unread_idx').on(t.userId).where(sql`${t.readAt} is null`),
+    index('notifications_unread_idx').on(t.userId).where(sql`${t.readAt} is null and ${t.resolvedAt} is null`),
+    index('notifications_subject_idx').on(t.subjectId).where(sql`${t.subjectId} is not null`),
+    check('notifications_resolution', sql`(${t.resolvedAt} is null) = (${t.outcome} is null) and (${t.resolvedBy} is null or ${t.resolvedAt} is not null)`),
+    check('notifications_resolved_subject', sql`${t.resolvedAt} is null or ${t.subjectId} is not null`),
   ],
 );

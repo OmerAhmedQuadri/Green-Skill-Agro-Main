@@ -25,13 +25,14 @@ const riyadhToday = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Riy
  * manager: a check-in outside the zone, a doubtful odometer reading, a missed
  * check-in to open on the seller's behalf.
  */
-export function AttendancePage({ canManage }: { canManage: boolean }) {
+export function AttendancePage({ canManage, initialAttention = false }: { canManage: boolean; initialAttention?: boolean }) {
   const t = useTranslations();
   const format = useFormat();
   const duration = useDuration();
   const errorText = useErrorText();
   const queryClient = useQueryClient();
-  const [filter, setFilter] = useState({ from: riyadhToday(), to: riyadhToday(), sellerId: '', attention: false });
+  // Today, everyone; a link may ask for what needs attention — the dashboard's "waiting for a decision" does (ADR-0051).
+  const [filter, setFilter] = useState({ from: riyadhToday(), to: riyadhToday(), sellerId: '', attention: initialAttention });
   const [reviewing, setReviewing] = useState<string | null>(null);
   const [opening, setOpening] = useState(false);
   const days = useQuery({

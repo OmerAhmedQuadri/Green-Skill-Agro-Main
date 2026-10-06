@@ -5,7 +5,7 @@ import {
 import { schema } from '@gsa/db';
 import { and, asc, desc, eq, gte, inArray, lt, lte, sql, type SQL } from 'drizzle-orm';
 import { authorize, authorizeAny, type Ctx } from '../context';
-import { notify } from '../notifications';
+import { endRequest, notify } from '../notifications';
 import { audit, inTx, writeAudit, type Tx } from '../platform';
 import { defaultBranchId, getDb } from '../runtime';
 import { readSettings } from '../system';
@@ -85,6 +85,7 @@ export async function authoriseZone(ctx: Ctx, sessionId: string): Promise<void> 
     await tx.update(attendanceSessions).set({
       status: 'OPEN', zoneAuthorisedBy: ctx.user.id, zoneAuthorisedAt: ctx.now, updatedAt: ctx.now, updatedBy: ctx.user.id, version: session.version + 1,
     }).where(eq(attendanceSessions.id, sessionId));
+    await endRequest(tx, 'CHECK_IN_AWAITING_AUTHORISATION', [sessionId], 'AUTHORISED', ctx.user.id, ctx.now);
     await notify(tx, ctx, { users: [session.sellerId] }, 'CHECK_IN_AUTHORISED', {}, '/field/today');
     await audit(tx, ctx, { action: 'attendance.zone_authorised', entityType: 'attendance_session', entityId: sessionId });
   });
@@ -158,7 +159,9 @@ export async function closeFinishedDays(now: Date): Promise<{ closed: number; wi
     const earlier = tx.select({ id: attendanceDays.id }).from(attendanceDays).where(lt(attendanceDays.workDate, today));
     const withdrawn = await tx.update(attendanceSessions).set({ status: 'WITHDRAWN', updatedAt: now, version: sql`${attendanceSessions.version} + 1` })
       .where(and(eq(attendanceSessions.status, 'AWAITING_AUTHORISATION'), inArray(attendanceSessions.dayId, earlier)))
-      .returning({ dayId: attendanceSessions.dayId });
+      .returning({ id: attendanceSessions.id, dayId: attendanceSessions.dayId });
+    // ADR-0051: nobody withdrew these; their day closed under them.
+    await endRequest(tx, 'CHECK_IN_AWAITING_AUTHORISATION', withdrawn.map((w) => w.id), 'WITHDRAWN', null, now);
     if (withdrawn.length > 0) {
       await tx.update(attendanceDays).set({ status: 'CHECKED_OUT', updatedAt: now, version: sql`${attendanceDays.version} + 1` })
         .where(inArray(attendanceDays.id, withdrawn.map((w) => w.dayId)));

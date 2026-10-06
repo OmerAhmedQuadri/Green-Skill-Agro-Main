@@ -150,10 +150,11 @@ export async function loadOrder(db: Executor, ctx: Ctx, id: string, now = ctx.no
 
 export type DispatchFilter = {
   readonly status?: DispatchStatus | undefined; readonly unconfirmed?: boolean | undefined; readonly open?: boolean | undefined;
+  /** ADR-0051: orders with a lost-order claim waiting for a decision. */ readonly claimPending?: boolean | undefined;
   readonly cursor?: string | undefined; readonly limit?: number | undefined;
 };
 
-/** RPT-009, DSP-014: newest first; `open` hides closed orders; `unconfirmed` shows the flagged ones. */
+/** RPT-009, DSP-014: newest first; `open` hides closed orders; `unconfirmed` shows the flagged ones; `claimPending`, the claimed. */
 export async function listDispatchOrders(ctx: Ctx, filter: DispatchFilter = {}): Promise<{ items: DispatchSummary[]; nextCursor: string | null }> {
   authorizeAny(ctx, DISPATCH_READERS);
   const db = ctx.tx ?? getDb();
@@ -164,6 +165,7 @@ export async function listDispatchOrders(ctx: Ctx, filter: DispatchFilter = {}):
   if (filter.status) where.push(eq(dispatchOrders.status, filter.status));
   if (filter.open) where.push(inArray(dispatchOrders.status, ['REQUESTED', 'BEING_HANDLED', 'RELEASED', 'DELIVERED']));
   if (filter.unconfirmed) where.push(and(eq(dispatchOrders.status, 'RELEASED'), lt(dispatchOrders.releasedAt, cutoff)));
+  if (filter.claimPending) where.push(pendingClaim);
   if (filter.cursor) {
     const [at, id] = decodeCursor(filter.cursor, 2) as [string, string];
     where.push(or(lt(dispatchOrders.createdAt, new Date(at)), and(eq(dispatchOrders.createdAt, new Date(at)), lt(dispatchOrders.id, id))));

@@ -3,8 +3,9 @@ import { DispatchPage } from '@/components/dispatch/DispatchPage';
 import { canSeeDispatch } from '@/lib/navigation';
 import { requireSession } from '@/server/session';
 
-export default async function Page() {
+export default async function Page({ searchParams }: { searchParams: Promise<{ status?: string }> }) {
   const ctx = await requireSession();
   if (!canSeeDispatch(ctx.permissions)) notFound();
-  return <DispatchPage canCreate={ctx.permissions.has('sales.create_order_for_seller')} />;
+  const { status } = await searchParams;
+  return <DispatchPage canCreate={ctx.permissions.has('sales.create_order_for_seller')} initialFilter={status ?? 'ALL'} />;
 }

@@ -4,7 +4,7 @@ import {
 import { schema } from '@gsa/db';
 import { aliasedTable, and, asc, eq, ilike, isNull, or, type SQL } from 'drizzle-orm';
 import { authorize, authorizeAny, type Ctx } from '../context';
-import { notify } from '../notifications';
+import { endRequest, notify } from '../notifications';
 import { audit, inTx, likePattern, type Tx } from '../platform';
 import { getDb } from '../runtime';
 import { readSettings } from '../system';
@@ -67,6 +67,7 @@ export async function decideStore(ctx: Ctx, id: string, action: 'approve' | 'rej
       status, decidedAt: ctx.now, decidedBy: ctx.user.id, decisionReason: input.reason?.trim() || null,
       updatedAt: ctx.now, updatedBy: ctx.user.id, version: current.version + 1,
     }).where(eq(stores.id, id));
+    await endRequest(tx, 'STORE_PENDING_APPROVAL', [id], action === 'approve' ? 'APPROVED' : 'REJECTED', ctx.user.id, ctx.now);
     const sellerId = await currentSellerOf(tx, id);
     if (sellerId) {
       await notify(tx, ctx, { users: [sellerId] }, action === 'approve' ? 'STORE_APPROVED' : 'STORE_REJECTED',

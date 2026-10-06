@@ -25,7 +25,7 @@ export function TransfersToConfirm() {
   });
   const more = (awaiting.data?.total ?? 0) - (awaiting.data?.items.length ?? 0);
   return (
-    <Section title={t('transfersTitle')} description={t('transfersHint')}>
+    <Section id="transfers" title={t('transfersTitle')} description={t('transfersHint')}>
       {awaiting.error ? <Alert>{errorText(awaiting.error)}</Alert> : null}
       {awaiting.data?.items.length === 0 ? <p className="p-5 text-sm text-stone-500" data-testid="no-transfers">{t('noTransfers')}</p> : (
         <Table head={[t('number'), t('store'), t('seller'), t('reference'), t('voucher'), t('amount'), t('received'), t('decision')]}>

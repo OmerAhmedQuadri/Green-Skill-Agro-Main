@@ -7,7 +7,7 @@ import { and, eq, sql } from 'drizzle-orm';
 import { sellerVehicleAccount } from '../attendance';
 import { authorize, type Ctx } from '../context';
 import { batchRefs, postStockMovements } from '../inventory';
-import { notify } from '../notifications';
+import { endRequest, notify } from '../notifications';
 import { audit, inTx, type Tx } from '../platform';
 import { getDb } from '../runtime';
 import { consumeCreditOverride, loadStore, postStoreDebit, takePayment, type PaymentInput, type Store } from '../stores';
@@ -157,7 +157,7 @@ export async function openDiscountRequest(
   const sale = await loadSale(tx, ctx, input.saleId);
   // PRC-012: every holder of the permission, at once.
   await notify(tx, ctx, { permission: 'sales.approve_discount' }, 'DISCOUNT_APPROVAL_REQUESTED',
-    { store: input.storeName, seller: sale.seller.name, total: input.priced.total }, `/console/sales/${input.saleId}`);
+    { store: input.storeName, seller: sale.seller.name, total: input.priced.total }, `/console/sales/${input.saleId}`, input.saleId);
   await audit(tx, ctx, {
     action: 'sales.discount_requested', entityType: 'sale', entityId: input.saleId,
     after: {
@@ -219,6 +219,7 @@ export async function withdrawSale(ctx: Ctx, id: string, input: { version: numbe
     }).where(eq(sales.id, id));
     await tx.update(discountApprovalRequests).set({ status: sql`case when ${discountApprovalRequests.status} = 'PENDING' then 'WITHDRAWN'::discount_request_status else ${discountApprovalRequests.status} end`, closedAt: ctx.now })
       .where(eq(discountApprovalRequests.saleId, id));
+    await endRequest(tx, 'DISCOUNT_APPROVAL_REQUESTED', [id], 'WITHDRAWN', ctx.user.id, ctx.now);
     await audit(tx, ctx, { action: 'sales.withdrawn', entityType: 'sale', entityId: id, before: { status: row.status } });
     return viewSale(tx, ctx, id);
   });

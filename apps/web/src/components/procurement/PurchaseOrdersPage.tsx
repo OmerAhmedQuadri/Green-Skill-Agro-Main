@@ -20,11 +20,12 @@ type Page = { items: PoSummary[]; nextCursor: string | null };
 const FILTERS = ['ALL', 'OPEN', 'DRAFT', 'PENDING_APPROVAL', 'IN_TRANSIT', 'PARTIALLY_RECEIVED', 'CLOSED'] as const;
 
 /** PO-001: purchase orders, newest first, filtered by where they are in their life. */
-export function PurchaseOrdersPage({ canCreate }: { canCreate: boolean }) {
+export function PurchaseOrdersPage({ canCreate, initialFilter = 'ALL' }: { canCreate: boolean; initialFilter?: string }) {
   const t = useTranslations();
   const format = useFormat();
   const errorText = useErrorText();
-  const [filter, setFilter] = useState<(typeof FILTERS)[number]>('ALL');
+  // All by default; a link may ask for one — the dashboard's "waiting for a decision" does (ADR-0051).
+  const [filter, setFilter] = useState<(typeof FILTERS)[number]>(() => FILTERS.find((f) => f === initialFilter) ?? 'ALL');
   const [search, setSearch] = useState('');
   const query = useDeferredValue(search);
   const list = useInfiniteQuery({

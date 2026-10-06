@@ -3,8 +3,9 @@ import { SalesPage } from '@/components/sales/SalesPage';
 import { canSeeSales } from '@/lib/navigation';
 import { requireSession } from '@/server/session';
 
-export default async function Page() {
+export default async function Page({ searchParams }: { searchParams: Promise<{ status?: string }> }) {
   const ctx = await requireSession();
   if (!canSeeSales(ctx.permissions)) notFound();
-  return <SalesPage canDecide={ctx.permissions.has('sales.approve_discount')} />;
+  const { status } = await searchParams;
+  return <SalesPage canDecide={ctx.permissions.has('sales.approve_discount')} initialFilter={status ?? ''} />;
 }

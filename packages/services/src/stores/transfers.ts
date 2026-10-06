@@ -2,7 +2,7 @@ import { assertTransferDecision, DomainError, type Money, type TransferOutcome }
 import { newId, schema } from '@gsa/db';
 import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { authorize, type Ctx } from '../context';
-import { notify } from '../notifications';
+import { endRequest, notify } from '../notifications';
 import { audit, inTx, type Executor, type Tx } from '../platform';
 import { getDb } from '../runtime';
 import { postStoreDebit } from './credit';
@@ -118,6 +118,7 @@ export async function decideTransfer(
     await tx.insert(transferDecisions).values({
       id, paymentId, outcome: input.outcome, reason, decidedAt: ctx.now, decidedBy: ctx.user.id, branchId: ctx.branchId,
     });
+    await endRequest(tx, 'TRANSFER_RECORDED', [paymentId], input.outcome, ctx.user.id, ctx.now);
     if (input.outcome === 'NOT_RECEIVED') {
       await reinstateDebts(tx, ctx, payment, reason ?? '');
       const [recorder] = await tx.select({ role: users.role }).from(users).where(eq(users.id, payment.receivedBy));

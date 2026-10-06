@@ -1,7 +1,8 @@
-import { cash, dispatch, identity, vehicles } from '@gsa/services';
+import { cash, dispatch, identity, notifications, vehicles } from '@gsa/services';
 import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
 import { Card } from '@gsa/ui';
+import { WaitingForDecision } from '@/components/dashboard/WaitingForDecision';
 import { canSeeAudits, canSeeCash } from '@/lib/navigation';
 import { requireSession } from '@/server/session';
 
@@ -15,9 +16,12 @@ export default async function DashboardPage() {
   const flags = canSeeCash(ctx.permissions) ? await cash.listFlags(ctx) : [];
   // VEH-015: vehicles past the Admin's audit interval, or never counted.
   const auditsDue = canSeeAudits(ctx.permissions) ? await vehicles.overdueAudits(ctx) : [];
+  // ADR-0051: what waits for a decision this reader can make — nothing for someone who decides nothing.
+  const waiting = await notifications.waitingForDecision(ctx);
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       <h1 className="text-2xl font-semibold">{t('welcome', { name: me.name })}</h1>
+      {waiting.length > 0 ? <WaitingForDecision queues={waiting} /> : null}
       <Card className="p-5 text-sm text-stone-600">
         <p>{t('signedInAs', { role: tRoles(me.role) })}</p>
         <p className="mt-1">{t('permissionCount', { count: me.permissions.length })}</p>

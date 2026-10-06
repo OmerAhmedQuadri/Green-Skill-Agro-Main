@@ -111,7 +111,7 @@ export async function takePayment(tx: Tx, ctx: Ctx, input: PaymentInput & { stor
   }), { payments_voucher_number_unique: new DomainError('DUPLICATE_VOUCHER', { number: voucher.number }) });
   if (input.method === 'CASH') await postCashCollection(tx, ctx, { sellerId: ctx.user.id, amount: input.amount, referenceType: 'PAYMENT', referenceId: id });
   // ADR-0046: a transfer earns nothing until someone checks it arrived, so whoever can is told.
-  if (input.method === 'BANK_TRANSFER') await notify(tx, ctx, { permission: 'cash.approve_settlement' }, 'TRANSFER_RECORDED', { number, amount: input.amount }, '/console/cash');
+  if (input.method === 'BANK_TRANSFER') await notify(tx, ctx, { permission: 'cash.approve_settlement' }, 'TRANSFER_RECORDED', { number, amount: input.amount }, '/console/cash', id);
   await audit(tx, ctx, {
     action: 'stores.payment_recorded', entityType: 'payment', entityId: id,
     after: { number, storeId: input.storeId, amount: input.amount, method: input.method, voucher: voucher.number },
