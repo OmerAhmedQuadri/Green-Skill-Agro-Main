@@ -13,18 +13,24 @@ import { useErrorText } from '@/lib/hooks';
 import { keys } from '@/lib/query-keys';
 import { DISPATCH_TONE, type DispatchSummary, type Page } from './types';
 
-type Filter = 'OPEN' | 'UNCONFIRMED' | 'ALL';
+/** ADR-0051: `REQUESTED` and `CLAIMED` are what the dashboard's "waiting for a decision" opens. */
+const FILTERS = ['ALL', 'OPEN', 'REQUESTED', 'CLAIMED', 'UNCONFIRMED'] as const;
+type Filter = (typeof FILTERS)[number];
+const QUERY: Record<Filter, string> = {
+  ALL: '', OPEN: '?open=true', REQUESTED: '?status=REQUESTED', CLAIMED: '?claimPending=true', UNCONFIRMED: '?unconfirmed=true',
+};
 
 /** RPT-009, DSP-004, DSP-014: every order — open, or released too long ago, on request — and who is handling each. */
-export function DispatchPage({ canCreate }: { canCreate: boolean }) {
+export function DispatchPage({ canCreate, initialFilter = 'ALL' }: { canCreate: boolean; initialFilter?: string }) {
   const t = useTranslations('dispatch');
   const tc = useTranslations('common');
   const format = useFormat();
   const errorText = useErrorText();
-  const [filter, setFilter] = useState<Filter>('ALL');
+  // All by default; a link may ask for one — the dashboard's "waiting for a decision" does (ADR-0051).
+  const [filter, setFilter] = useState<Filter>(() => FILTERS.find((f) => f === initialFilter) ?? 'ALL');
   const list = useQuery({
     queryKey: keys.dispatchOrders({ filter }),
-    queryFn: () => api<Page<DispatchSummary>>(filter === 'OPEN' ? '/dispatch-orders?open=true' : filter === 'UNCONFIRMED' ? '/dispatch-orders?unconfirmed=true' : '/dispatch-orders'),
+    queryFn: () => api<Page<DispatchSummary>>(`/dispatch-orders${QUERY[filter]}`),
     refetchInterval: 30_000,
   });
   return (
@@ -33,8 +39,8 @@ export function DispatchPage({ canCreate }: { canCreate: boolean }) {
         actions={canCreate ? <Link href="/console/dispatch/new" className="inline-flex h-11 items-center rounded-md bg-brand-800 px-4 text-sm font-medium text-white">{t('newForSeller')}</Link> : null} />
       <Card>
         <div className="flex flex-wrap items-center gap-3 border-b border-stone-200 p-4">
-          <Select value={filter} aria-label={tc('status')} className="w-auto" onChange={(e) => setFilter((['ALL', 'OPEN', 'UNCONFIRMED'] as const).find((f) => f === e.target.value) ?? 'ALL')}>
-            <option value="ALL">{t('filters.ALL')}</option><option value="OPEN">{t('filters.OPEN')}</option><option value="UNCONFIRMED">{t('filters.UNCONFIRMED')}</option>
+          <Select value={filter} aria-label={tc('status')} className="w-auto" onChange={(e) => setFilter(FILTERS.find((f) => f === e.target.value) ?? 'ALL')}>
+            {FILTERS.map((f) => <option key={f} value={f}>{t(`filters.${f}`)}</option>)}
           </Select>
         </div>
         {list.error ? <div className="p-4"><Alert>{errorText(list.error)}</Alert></div> : null}

@@ -117,7 +117,7 @@ export async function openOrder(tx: Tx, ctx: Ctx, saleId: string): Promise<strin
   await tx.insert(dispatchOrderLines).values(lines.map((l) => ({ orderId: id, saleLineId: l.id, packs: l.packs })));
   await tx.insert(dispatchOrderEvents).values({ orderId: id, type: 'RAISED', actorId: ctx.user.id, occurredAt: ctx.now });
   const params = { number, store: store?.name ?? '' };
-  await notify(tx, ctx, { permission: 'sales.fulfil_dispatch' }, 'DISPATCH_REQUESTED', params, `/console/dispatch/${id}`);
+  await notify(tx, ctx, { permission: 'sales.fulfil_dispatch' }, 'DISPATCH_REQUESTED', params, `/console/dispatch/${id}`, id);
   if (raisedBy !== sale.sellerId) await notify(tx, ctx, { users: [sale.sellerId] }, 'DISPATCH_CREATED_FOR_YOU', params, `/field/orders/${id}`);
   await audit(tx, ctx, { action: 'dispatch.raised', entityType: 'dispatch_order', entityId: id, after: { number, saleId, storeId: sale.storeId, sellerId: sale.sellerId, raisedBy } });
   return id;

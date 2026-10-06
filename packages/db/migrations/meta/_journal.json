@@ -183,6 +183,13 @@
       "when": 1791266806488,
       "tag": "0025_backup_runs",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1791321204841,
+      "tag": "0026_notification_resolution",
+      "breakpoints": true
     }
   ]
 }

@@ -108,7 +108,7 @@ export async function onboardStore(ctx: Ctx, input: OnboardInput): Promise<Store
     if (!row) throw new Error('store insert returned nothing');
     await tx.insert(storeAssignments).values({ storeId: row.id, sellerId, startedAt: ctx.now, assignedBy: ctx.user.id, branchId: ctx.branchId });
     if (status === 'PENDING_APPROVAL') {
-      await notify(tx, ctx, { permission: 'stores.approve' }, 'STORE_PENDING_APPROVAL', { name }, `/console/stores/${row.id}`);
+      await notify(tx, ctx, { permission: 'stores.approve' }, 'STORE_PENDING_APPROVAL', { name }, `/console/stores/${row.id}`, row.id);
     }
     await audit(tx, ctx, {
       action: 'stores.onboarded', entityType: 'store', entityId: row.id,

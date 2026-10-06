@@ -4,7 +4,7 @@ import { eq } from 'drizzle-orm';
 import { authorize, authorizeAny, type Ctx } from '../context';
 import { batchRefs, postStockMovements, warehouseAccount } from '../inventory';
 import { assertOwnEvidence } from '../media';
-import { notify } from '../notifications';
+import { endRequest, notify, reopenRequest } from '../notifications';
 import { audit, inTx, type Tx } from '../platform';
 import { loadOrder, type DispatchOrder } from './access';
 import { skuUnits, warehouseBatches } from './stock';
@@ -32,6 +32,8 @@ export async function takeOrder(ctx: Ctx, id: string, input: { version: number }
     await tx.update(dispatchOrders).set({ status, handledBy: ctx.user.id, handledAt: ctx.now, updatedAt: ctx.now, updatedBy: ctx.user.id, version: row.version + 1 })
       .where(eq(dispatchOrders.id, id));
     await tx.insert(dispatchOrderEvents).values({ orderId: id, type: 'TAKEN', actorId: ctx.user.id, note: previous?.name ?? null, occurredAt: ctx.now });
+    // ADR-0051: handled, not finished — taken over, the name changes; handed back, it waits again.
+    await endRequest(tx, 'DISPATCH_REQUESTED', [id], 'TAKEN', ctx.user.id, ctx.now);
     return loadOrder(tx, ctx, id);
   });
 }
@@ -45,6 +47,7 @@ export async function releaseOrderBack(ctx: Ctx, id: string, input: { version: n
     await tx.update(dispatchOrders).set({ status, handledBy: null, handledAt: null, updatedAt: ctx.now, updatedBy: ctx.user.id, version: row.version + 1 })
       .where(eq(dispatchOrders.id, id));
     await tx.insert(dispatchOrderEvents).values({ orderId: id, type: 'RELEASED_BACK', actorId: ctx.user.id, occurredAt: ctx.now });
+    await reopenRequest(tx, 'DISPATCH_REQUESTED', id, ctx.user.id, ctx.now);
     return loadOrder(tx, ctx, id);
   });
 }
@@ -88,6 +91,7 @@ export async function releaseOrder(
       handledBy: row.handledBy ?? ctx.user.id, handledAt: row.handledAt ?? ctx.now, updatedAt: ctx.now, updatedBy: ctx.user.id, version: row.version + 1,
     }).where(eq(dispatchOrders.id, id));
     await tx.insert(dispatchOrderEvents).values({ orderId: id, type: 'RELEASED', actorId: ctx.user.id, note, occurredAt: ctx.now });
+    await endRequest(tx, 'DISPATCH_REQUESTED', [id], 'RELEASED', ctx.user.id, ctx.now);
     const order = await loadOrder(tx, ctx, id);
     await notify(tx, ctx, { users: [row.sellerId] }, 'DISPATCH_RELEASED', { number: row.number, store: order.store.name }, `/field/orders/${id}`);
     await audit(tx, ctx, { action: 'dispatch.released', entityType: 'dispatch_order', entityId: id, after: { batches: allocated, transportSlipPhotoId: input.transportSlipPhotoId } });
@@ -118,6 +122,7 @@ export async function cancelOrder(ctx: Ctx, id: string, input: { version: number
       status, closeReason: 'CANCELLED', closedAt: ctx.now, cancelReason: reason, updatedAt: ctx.now, updatedBy: ctx.user.id, version: row.version + 1,
     }).where(eq(dispatchOrders.id, id));
     await tx.insert(dispatchOrderEvents).values({ orderId: id, type: 'CANCELLED', actorId: ctx.user.id, note: reason, occurredAt: ctx.now });
+    await endRequest(tx, 'DISPATCH_REQUESTED', [id], 'CANCELLED', ctx.user.id, ctx.now);
     const order = await loadOrder(tx, ctx, id);
     await notify(tx, ctx, { users: [row.sellerId, row.raisedBy] }, 'DISPATCH_CANCELLED', { number: row.number, store: order.store.name, reason }, `/field/orders/${id}`);
     await audit(tx, ctx, { action: 'dispatch.cancelled', entityType: 'dispatch_order', entityId: id, after: { reason } });

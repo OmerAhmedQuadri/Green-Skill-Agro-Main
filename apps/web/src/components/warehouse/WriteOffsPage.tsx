@@ -20,12 +20,15 @@ const TONE = { SUBMITTED: 'warning', APPROVED: 'success', REJECTED: 'neutral' } 
  * approves — as submitted or for fewer packs — or rejects with a comment; the
  * submitter never decides their own (four-eyes).
  */
-export function WriteOffsPage({ canDecide, userId }: { canDecide: boolean; userId: string }) {
+const STATUSES = ['', 'SUBMITTED', 'APPROVED', 'REJECTED'] as const;
+
+export function WriteOffsPage({ canDecide, userId, initialStatus = '' }: { canDecide: boolean; userId: string; initialStatus?: string }) {
   const t = useTranslations();
   const format = useFormat();
   const errorText = useErrorText();
   const queryClient = useQueryClient();
-  const [status, setStatus] = useState<'SUBMITTED' | 'APPROVED' | 'REJECTED' | ''>('');
+  // All by default; a link may ask for one — the dashboard's "waiting for a decision" does (ADR-0051).
+  const [status, setStatus] = useState<(typeof STATUSES)[number]>(() => STATUSES.find((s) => s === initialStatus) ?? '');
   const [deciding, setDeciding] = useState<string | null>(null);
   const list = useInfiniteQuery({
     queryKey: ['write-offs', status],
@@ -55,7 +58,7 @@ export function WriteOffsPage({ canDecide, userId }: { canDecide: boolean; userI
       <PageHeader title={t('warehouse.writeOffsTitle')} subtitle={t('warehouse.writeOffsSubtitle')} />
       <Card>
         <div className="border-b border-stone-200 p-4">
-          <Select value={status} onChange={(e) => setStatus((['SUBMITTED', 'APPROVED', 'REJECTED', ''] as const).find((s) => s === e.target.value) ?? '')} aria-label={t('common.status')} className="w-auto">
+          <Select value={status} onChange={(e) => setStatus(STATUSES.find((s) => s === e.target.value) ?? '')} aria-label={t('common.status')} className="w-auto">
             <option value="">{t('common.all')}</option>
             <option value="SUBMITTED">{t('warehouse.statuses.SUBMITTED')}</option>
             <option value="APPROVED">{t('warehouse.statuses.APPROVED')}</option>

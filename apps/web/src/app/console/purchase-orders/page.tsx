@@ -3,8 +3,9 @@ import { PurchaseOrdersPage } from '@/components/procurement/PurchaseOrdersPage'
 import { canSeePurchaseOrders } from '@/lib/navigation';
 import { requireSession } from '@/server/session';
 
-export default async function Page() {
+export default async function Page({ searchParams }: { searchParams: Promise<{ status?: string }> }) {
   const ctx = await requireSession();
   if (!canSeePurchaseOrders(ctx.permissions)) notFound();
-  return <PurchaseOrdersPage canCreate={ctx.permissions.has('procurement.manage_po')} />;
+  const { status } = await searchParams;
+  return <PurchaseOrdersPage canCreate={ctx.permissions.has('procurement.manage_po')} initialFilter={status ?? 'ALL'} />;
 }

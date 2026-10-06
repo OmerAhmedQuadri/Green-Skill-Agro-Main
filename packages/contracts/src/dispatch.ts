@@ -11,7 +11,8 @@ export const DispatchOptionsQuery = z.object({ storeId: z.uuid() });
 export const DispatchStoresQuery = z.object({ search: z.string().trim().max(100).optional() });
 export const ListDispatchQuery = z.object({
   status: z.enum(['REQUESTED', 'BEING_HANDLED', 'RELEASED', 'DELIVERED', 'CLOSED']).optional(),
-  open: QueryBoolean.optional(), unconfirmed: QueryBoolean.optional(), cursor: z.string().max(500).optional(), limit: Limit.optional(),
+  open: QueryBoolean.optional(), unconfirmed: QueryBoolean.optional(), claimPending: QueryBoolean.optional(),
+  cursor: z.string().max(500).optional(), limit: Limit.optional(),
 });
 
 export const VersionRequest = z.object({ version: Version });

@@ -1,18 +1,38 @@
 'use client';
 
-import { NOTIFICATION_POLL_MS, type NotificationKind } from '@gsa/core';
+import { NOTIFICATION_POLL_MS, type NotificationKind, type RequestOutcome } from '@gsa/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Bell } from 'lucide-react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { cn } from '@gsa/ui';
+import { Badge, cn } from '@gsa/ui';
 import { api } from '@/lib/api';
 import { useFormat } from '@/lib/format';
 import { keys } from '@/lib/query-keys';
 
-type Item = { id: string; kind: NotificationKind; params: Record<string, string | number | null>; link: string | null; createdAt: string; read: boolean };
+type Resolution = { outcome: RequestOutcome; at: string; by: { id: string; name: string } | null; byYou: boolean };
+type Item = {
+  id: string; kind: NotificationKind; params: Record<string, string | number | null>; link: string | null; createdAt: string; read: boolean;
+  /** ADR-0051: a request that has ended, however — it no longer counts. */
+  resolution: Resolution | null;
+};
 type Inbox = { items: Item[]; unread: number };
+
+/** ADR-0051: how a request ended, at a glance — done, refused, in hand, or lapsed. */
+const OUTCOME_TONE = {
+  APPROVED: 'success', REDUCED: 'success', CONFIRMED: 'success', REVIEWED: 'success', AUTHORISED: 'success', RELEASED: 'success',
+  REJECTED: 'danger', NOT_RECEIVED: 'danger', CANCELLED: 'danger',
+  TAKEN: 'warning',
+  EXPIRED: 'neutral', WITHDRAWN: 'neutral',
+} as const satisfies Record<RequestOutcome, 'success' | 'danger' | 'warning' | 'neutral'>;
+
+/**
+ * A name or a date set inside a sentence keeps its own direction, as `<bdi>`
+ * does in markup (Unicode first-strong isolate). Without it, an English name
+ * beside an Arabic date pulled the date's parts apart.
+ */
+const isolate = (text: string) => `\u2068${text}\u2069`;
 
 const PANEL_WIDTH = 320;
 const PANEL_MARGIN = 16;
@@ -100,6 +120,7 @@ export function NotificationBell({ inverse = false }: { inverse?: boolean }) {
   };
   const unread = inbox.data?.unread ?? 0;
   const text = (n: Item) => t(`kinds.${n.kind}`, Object.fromEntries(Object.entries(n.params).map(([k, v]) => [k, v ?? ''])));
+  const ended = ({ outcome, by, byYou }: Resolution) => t(`resolved.${outcome}`, { who: byYou ? 'me' : by ? 'other' : 'nobody', name: isolate(by?.name ?? '') });
 
   return (
     <div className="relative" ref={anchor}>
@@ -121,17 +142,29 @@ export function NotificationBell({ inverse = false }: { inverse?: boolean }) {
           </div>
           <ul className="max-h-96 divide-y divide-stone-100 overflow-y-auto">
             {(inbox.data?.items ?? []).length === 0 ? <li className="px-4 py-6 text-center text-sm text-stone-500">{t('empty')}</li> : null}
-            {(inbox.data?.items ?? []).map((n) => (
-              <li key={n.id}>
-                <button type="button" className={cn('block w-full px-4 py-3 text-start text-sm hover:bg-stone-50', n.read ? 'text-stone-600' : 'font-medium')}
-                  onClick={() => { close(); void markRead([n.id]); if (n.link) router.push(n.link); }}>
-                  <span className="flex items-start gap-2">
-                    {n.read ? null : <span className="mt-1.5 size-2 shrink-0 rounded-full bg-brand-600" aria-hidden />}
-                    <span>{text(n)}<span className="mt-0.5 block text-xs font-normal text-stone-500">{format.dateTime(n.createdAt)}</span></span>
-                  </span>
-                </button>
-              </li>
-            ))}
+            {(inbox.data?.items ?? []).map((n) => {
+              // ADR-0051: an ended request reads as done, whoever ended it.
+              const waiting = !n.read && !n.resolution;
+              return (
+                <li key={n.id} data-testid="notification-item">
+                  <button type="button" className={cn('block w-full px-4 py-3 text-start text-sm hover:bg-stone-50', waiting ? 'font-medium' : 'text-stone-600')}
+                    onClick={() => { close(); void markRead([n.id]); if (n.link) router.push(n.link); }}>
+                    <span className="flex items-start gap-2">
+                      {waiting ? <span className="mt-1.5 size-2 shrink-0 rounded-full bg-brand-600" aria-hidden /> : null}
+                      <span className="min-w-0">
+                        {text(n)}
+                        <span className="mt-0.5 block text-xs font-normal text-stone-500">{format.dateTime(n.createdAt)}</span>
+                        {n.resolution ? (
+                          <Badge tone={OUTCOME_TONE[n.resolution.outcome]} className="mt-1.5 max-w-full rounded-md font-normal" data-testid="notification-resolution">
+                            {t('resolvedLine', { outcome: ended(n.resolution), time: isolate(format.dateTime(n.resolution.at)) })}
+                          </Badge>
+                        ) : null}
+                      </span>
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         </div>
       ) : null}

@@ -3,7 +3,7 @@ import { schema } from '@gsa/db';
 import { and, eq } from 'drizzle-orm';
 import { authorize, type Ctx } from '../context';
 import { batchRefs, postStockMovements } from '../inventory';
-import { notify } from '../notifications';
+import { endRequest, notify } from '../notifications';
 import { audit, inTx } from '../platform';
 import { loadOrder, type DispatchOrder } from './access';
 import { lockOrder } from './handle';
@@ -25,7 +25,7 @@ export async function raiseLostClaim(ctx: Ctx, id: string, input: { version: num
     await tx.update(dispatchOrders).set({ updatedAt: ctx.now, updatedBy: ctx.user.id, version: row.version + 1 }).where(eq(dispatchOrders.id, id));
     await tx.insert(dispatchOrderEvents).values({ orderId: id, type: 'CLAIMED', actorId: ctx.user.id, note: reason, occurredAt: ctx.now });
     const order = await loadOrder(tx, ctx, id);
-    await notify(tx, ctx, { permission: 'sales.approve_lost_order' }, 'LOST_CLAIM_RAISED', { number: row.number, store: order.store.name }, `/console/dispatch/${id}`);
+    await notify(tx, ctx, { permission: 'sales.approve_lost_order' }, 'LOST_CLAIM_RAISED', { number: row.number, store: order.store.name }, `/console/dispatch/${id}`, id);
     await audit(tx, ctx, { action: 'dispatch.lost_claimed', entityType: 'dispatch_order', entityId: id, after: { reason } });
     return order;
   });
@@ -47,6 +47,7 @@ export async function decideLostClaim(ctx: Ctx, id: string, input: { version: nu
     if (claim.raisedBy === ctx.user.id || row.sellerId === ctx.user.id) throw new DomainError('FOUR_EYES');
     await tx.update(lostOrderClaims).set({ status: input.approve ? 'APPROVED' : 'REJECTED', decidedBy: ctx.user.id, decidedAt: ctx.now, comment })
       .where(eq(lostOrderClaims.id, claim.id));
+    await endRequest(tx, 'LOST_CLAIM_RAISED', [id], input.approve ? 'APPROVED' : 'REJECTED', ctx.user.id, ctx.now);
     if (input.approve) {
       const status = transitionDispatch(row.status, 'lose');
       const released = await tx.select({ batchId: dispatchLineBatches.batchId, quantity: dispatchLineBatches.quantity }).from(dispatchLineBatches)

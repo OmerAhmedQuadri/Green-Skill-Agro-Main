@@ -110,7 +110,24 @@
     "permissionCount": "{count, plural, zero {لا توجد صلاحيات} one {صلاحية واحدة} two {صلاحيتان} few {# صلاحيات} many {# صلاحية} other {# صلاحية}}",
     "unconfirmedDispatch": "{count, plural, zero {لا توجد أوامر إرسال متأخرة} one {أمر إرسال واحد في الطريق منذ مدة طويلة دون تأكيد.} two {أمرا إرسال في الطريق منذ مدة طويلة دون تأكيد.} few {# أوامر إرسال في الطريق منذ مدة طويلة دون تأكيد.} many {# أمر إرسال في الطريق منذ مدة طويلة دون تأكيد.} other {# أمر إرسال في الطريق منذ مدة طويلة دون تأكيد.}}",
     "ceilingBreached": "{name} تجاوز {kind} — {amount} مقابل {ceiling}.",
-    "auditsDue": "{count, plural, one {مركبة واحدة تحتاج جرد مخزون} two {مركبتان تحتاجان جرد مخزون} few {# مركبات تحتاج جرد مخزون} many {# مركبة تحتاج جرد مخزون} other {# مركبة تحتاج جرد مخزون}}"
+    "auditsDue": "{count, plural, one {مركبة واحدة تحتاج جرد مخزون} two {مركبتان تحتاجان جرد مخزون} few {# مركبات تحتاج جرد مخزون} many {# مركبة تحتاج جرد مخزون} other {# مركبة تحتاج جرد مخزون}}",
+    "waiting": {
+      "title": "بانتظار قرار",
+      "hint": "ما يمكنك البت فيه الآن، محسوبًا عند فتح الصفحة.",
+      "none": "لا شيء بانتظار قرارك.",
+      "queues": {
+        "DISCOUNTS": "طلبات الخصم",
+        "CHECK_INS": "حضور بانتظار الموافقة",
+        "DISPATCH": "طلبات إرسال لم يتولّها أحد",
+        "STORES": "متاجر جديدة بانتظار الاعتماد",
+        "SETTLEMENTS": "تسويات النقدية",
+        "TRANSFERS": "تحويلات بنكية بانتظار التأكيد",
+        "LOST_CLAIMS": "مطالبات الطلبات المفقودة",
+        "WRITE_OFFS": "طلبات الشطب",
+        "PURCHASE_ORDERS": "أوامر شراء بانتظار الاعتماد",
+        "CLOSING_VARIANCES": "فروقات مخزون نهاية اليوم بانتظار المراجعة"
+      }
+    }
   },
   "field": {
     "welcome": "يومك سعيد، {name}",
@@ -1265,6 +1282,21 @@
       "PERIOD_CLOSED": "شهر {period} نهائي، ولن يتغير رقم العمولة.",
       "TRANSFER_RECORDED": "تحويل بنكي بمبلغ {amount} ({number}) بانتظار تأكيدك لوصوله.",
       "TRANSFER_NOT_RECEIVED": "لم يصل التحويل البنكي {number} ({amount}) — أصبح المبلغ مستحقًا على المتجر من جديد. السبب: {reason}"
+    },
+    "resolvedLine": "{outcome} · {time}",
+    "resolved": {
+      "APPROVED": "{who, select, me {اعتمدتَه} nobody {تم اعتماده} other {اعتمده {name}}}",
+      "REDUCED": "{who, select, me {اعتمدتَه بخصم أقل} nobody {تم اعتماده بخصم أقل} other {اعتمده {name} بخصم أقل}}",
+      "REJECTED": "{who, select, me {رفضتَه} nobody {مرفوض} other {رفضه {name}}}",
+      "CONFIRMED": "{who, select, me {أكّدتَ وصوله} nobody {تأكّد وصوله} other {أكّد {name} وصوله}}",
+      "NOT_RECEIVED": "{who, select, me {سجّلتَ أنه لم يصل} nobody {لم يصل} other {سجّل {name} أنه لم يصل}}",
+      "REVIEWED": "{who, select, me {راجعتَه} nobody {تمت مراجعته} other {راجعه {name}}}",
+      "AUTHORISED": "{who, select, me {وافقتَ عليه} nobody {تمت الموافقة عليه} other {وافق عليه {name}}}",
+      "TAKEN": "{who, select, me {تولّيتَه} nobody {تم تولّيه} other {تولّاه {name}}}",
+      "RELEASED": "{who, select, me {أطلقتَه} nobody {أُطلق} other {أطلقه {name}}}",
+      "CANCELLED": "{who, select, me {ألغيتَه} nobody {أُلغي} other {ألغاه {name}}}",
+      "EXPIRED": "انتهت مهلته",
+      "WITHDRAWN": "{who, select, me {سحبتَه} nobody {سُحب} other {سحبه {name}}}"
     }
   },
   "vehicles": {
@@ -1815,6 +1847,8 @@
     "filters": {
       "OPEN": "المفتوحة",
       "UNCONFIRMED": "أُطلقت ولم تُؤكَّد في الوقت",
+      "REQUESTED": "بانتظار من يتولّاه",
+      "CLAIMED": "مطالبة طلب مفقود بانتظار القرار",
       "ALL": "الكل"
     },
     "statuses": {

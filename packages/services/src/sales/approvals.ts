@@ -2,7 +2,7 @@ import { decideDiscount, DomainError, lineAmounts, percent, sumMoney, transition
 import { schema } from '@gsa/db';
 import { eq } from 'drizzle-orm';
 import { authorize, authorizeAny, type Ctx } from '../context';
-import { notify } from '../notifications';
+import { endRequest, notify } from '../notifications';
 import { audit, inTx } from '../platform';
 import { getDb } from '../runtime';
 import { querySales, type SaleFilter, type SaleSummary } from './access';
@@ -73,6 +73,7 @@ export async function decideDiscountRequest(ctx: Ctx, saleId: string, input: Dec
       await tx.update(discountApprovalRequests).set({ status: decision.outcome, ...common }).where(eq(discountApprovalRequests.id, request.r.id));
     }
 
+    await endRequest(tx, 'DISCOUNT_APPROVAL_REQUESTED', [saleId], decision.outcome, ctx.user.id, ctx.now);
     const sale = await viewSale(tx, ctx, saleId);
     const kind = decision.outcome === 'REJECTED' ? 'DISCOUNT_REJECTED' : decision.outcome === 'REDUCED' ? 'DISCOUNT_REDUCED' : 'DISCOUNT_APPROVED';
     await notify(tx, ctx, { users: [row.sellerId] }, kind, { store: sale.store.name, total: sale.total, comment }, `/field/sales/${saleId}`);

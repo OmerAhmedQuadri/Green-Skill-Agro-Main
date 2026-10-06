@@ -3,8 +3,9 @@ import { WriteOffsPage } from '@/components/warehouse/WriteOffsPage';
 import { canSeeWriteOffs } from '@/lib/navigation';
 import { requireSession } from '@/server/session';
 
-export default async function Page() {
+export default async function Page({ searchParams }: { searchParams: Promise<{ status?: string }> }) {
   const ctx = await requireSession();
   if (!canSeeWriteOffs(ctx.permissions)) notFound();
-  return <WriteOffsPage canDecide={ctx.permissions.has('inventory.approve_write_off')} userId={ctx.user.id} />;
+  const { status } = await searchParams;
+  return <WriteOffsPage canDecide={ctx.permissions.has('inventory.approve_write_off')} userId={ctx.user.id} initialStatus={status ?? ''} />;
 }

@@ -14,15 +14,17 @@ import { keys } from '@/lib/query-keys';
 import { SALE_TONE, type Page, type SaleSummary } from './types';
 
 const STATUSES = ['PENDING_DISCOUNT_APPROVAL', 'DISCOUNT_APPROVED', 'COMPLETED', 'CANCELLED'] as const;
-type Filter = '' | 'AWAITING' | (typeof STATUSES)[number];
+const FILTERS = ['', 'AWAITING', ...STATUSES] as const;
+type Filter = (typeof FILTERS)[number];
 
 /** PRC-012, RPT-009: requests waiting for a decision first, then every sale the viewer may see. */
-export function SalesPage({ canDecide }: { canDecide: boolean }) {
+export function SalesPage({ canDecide, initialFilter = '' }: { canDecide: boolean; initialFilter?: string }) {
   const t = useTranslations('sales');
   const tc = useTranslations('common');
   const format = useFormat();
   const errorText = useErrorText();
-  const [filter, setFilter] = useState<Filter>('');
+  // All by default; a link may ask for one — the dashboard's "waiting for a decision" does (ADR-0051).
+  const [filter, setFilter] = useState<Filter>(() => FILTERS.find((f) => f === initialFilter) ?? '');
   const list = useQuery({
     queryKey: keys.sales({ filter }),
     queryFn: () => api<Page<SaleSummary>>(filter === 'AWAITING' ? '/sales?awaitingDecision=true' : filter ? `/sales?status=${filter}` : '/sales'),
@@ -34,7 +36,7 @@ export function SalesPage({ canDecide }: { canDecide: boolean }) {
       <Card>
         <div className="flex flex-wrap items-center gap-3 border-b border-stone-200 p-4">
           <Select value={filter} aria-label={tc('status')} className="w-auto"
-            onChange={(e) => setFilter((['', 'AWAITING', ...STATUSES] as const).find((s) => s === e.target.value) ?? '')}>
+            onChange={(e) => setFilter(FILTERS.find((s) => s === e.target.value) ?? '')}>
             <option value="">{tc('all')}</option>
             {canDecide ? <option value="AWAITING">{t('awaitingDecision')}</option> : null}
             {STATUSES.map((s) => <option key={s} value={s}>{t(`statuses.${s}`)}</option>)}
