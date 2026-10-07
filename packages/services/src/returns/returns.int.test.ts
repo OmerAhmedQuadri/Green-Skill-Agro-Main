@@ -64,7 +64,7 @@ describe('from the sale (workflow L, RET-001..006)', () => {
     await recordReturn(seller.ctx, take(3));
     expect(await code(recordReturn(seller.ctx, take(2)))).toBe('RETURN_EXCEEDS_HELD');
     expect((await getReturnable(seller.ctx, sale.id)).lines[0]).toMatchObject({ credited: 3, batches: [{ batchId, packs: 1 }] });
-    const pending = await recordSale(seller.ctx, { storeId: sale.store.id, lines: [{ skuId: line.skuId, packs: 1, discount: '12' }], approvalReason: 'Loyal store' });
+    const pending = await recordSale(seller.ctx, { storeId: sale.store?.id ?? '', lines: [{ skuId: line.skuId, packs: 1, discount: '12' }], approvalReason: 'Loyal store' });
     expect(await code(getReturnable(seller.ctx, pending.id))).toBe('SALE_NOT_COMPLETED');
   });
 
@@ -84,11 +84,11 @@ describe('from the sale (workflow L, RET-001..006)', () => {
 
   it('RET-002, OQ-020: part-paid — no more than the unpaid part comes back unpaid; a paid sale is not "not yet cleared"', async () => {
     const { seller, sale, line, batchId } = await aSale();
-    await recordPayment(seller.ctx, { storeId: sale.store.id, ...(await paid(seller.ctx, '300.00')) });
+    await recordPayment(seller.ctx, { storeId: sale.store?.id ?? '', ...(await paid(seller.ctx, '300.00')) });
     const input = (packs: number) => ({ saleId: sale.id, kind: 'CREDIT_NOTE' as const, condition: 'UNCLEARED_PAYMENT' as const, lines: [{ saleLineId: line.id, batchId, packs }] });
     expect((await getReturnable(seller.ctx, sale.id)).unpaid).toBe('60.00');
     expect(await code(recordReturn(seller.ctx, input(1)))).toBe('RETURN_EXCEEDS_UNPAID');
-    await recordPayment(seller.ctx, { storeId: sale.store.id, ...(await paid(seller.ctx, '60.00')) });
+    await recordPayment(seller.ctx, { storeId: sale.store?.id ?? '', ...(await paid(seller.ctx, '60.00')) });
     expect(await code(recordReturn(seller.ctx, input(1)))).toBe('SALE_ALREADY_PAID');
   });
 });
@@ -107,8 +107,8 @@ describe('the credit note (RET-007, RET-008, OQ-020)', () => {
     expect(await movements(credit.id)).toEqual([
       { batch_id: batchId, account_kind: 'SOLD', quantity: '-5000.000' }, { batch_id: batchId, account_kind: 'VEHICLE', quantity: '5000.000' },
     ]);
-    expect((await getCreditStatus(seller.ctx, sale.store.id)).outstanding).toBe('270.00');
-    const ledger = await listStoreLedger(seller.ctx, sale.store.id);
+    expect((await getCreditStatus(seller.ctx, sale.store?.id ?? '')).outstanding).toBe('270.00');
+    const ledger = await listStoreLedger(seller.ctx, sale.store?.id ?? '');
     expect(ledger.find((e) => e.entryType === 'CREDIT_NOTE')).toMatchObject({ amount: '-90.00' });
     expect(await getReturn(seller.ctx, credit.id)).toEqual(credit);
   });
@@ -210,7 +210,7 @@ describe('recorded sales and the console (RET-009, workflow L)', () => {
     ]);
     expect(await code(recordReturn(ctx, { saleId: sale.id, kind: 'REPLACEMENT', condition: 'DEFECTIVE', lines: [{ saleLineId: line.id, batchId, packs: 1 }] })))
       .toBe('REPLACEMENT_NEEDS_VEHICLE');
-    await recordPayment(seller.ctx, { storeId: sale.store.id, ...(await paid(seller.ctx, '90.00')) });
+    await recordPayment(seller.ctx, { storeId: sale.store?.id ?? '', ...(await paid(seller.ctx, '90.00')) });
     expect(await code(recordReturn(ctx, { saleId: sale.id, kind: 'CREDIT_NOTE', condition: 'DEFECTIVE', lines: [{ saleLineId: line.id, batchId, packs: 1 }] })))
       .toBe('REFUND_NEEDS_SELLER');
     // The seller sees the return on their sale.

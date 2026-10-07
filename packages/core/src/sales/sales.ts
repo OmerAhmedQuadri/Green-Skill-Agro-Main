@@ -16,6 +16,37 @@ export const HOLDING_SALE_STATUSES = ['PENDING_DISCOUNT_APPROVAL', 'DISCOUNT_APP
 export const SALE_CHANNELS = ['VEHICLE', 'DISPATCH'] as const;
 export type SaleChannel = (typeof SALE_CHANNELS)[number];
 
+/**
+ * ADR-0052: what an approval request is for. A sale waits in the same states,
+ * PENDING_DISCOUNT_APPROVAL then DISCOUNT_APPROVED, either way; the kind says
+ * which.
+ */
+export const APPROVAL_KINDS = ['DISCOUNT', 'OPEN_SALE'] as const;
+export type ApprovalKind = (typeof APPROVAL_KINDS)[number];
+
+/** SAL-016: why an open sale waits — open sales are switched off, or it is above the Admin's limit. */
+export const OPEN_SALE_GROUNDS = ['SWITCHED_OFF', 'ABOVE_LIMIT'] as const;
+export type OpenSaleGround = (typeof OPEN_SALE_GROUNDS)[number];
+
+/** SAL-019: open sales' own line where a breakdown has a line per store. */
+export const OPEN_SALES_KEY = 'OPEN';
+
+/** SAL-015, SAL-016: none, and an open sale goes through; any, and it waits for approval. */
+export function openSaleGrounds(total: Money, rules: { readonly switchedOn: boolean; readonly limit: Money }): OpenSaleGround[] {
+  const grounds: OpenSaleGround[] = [];
+  if (!rules.switchedOn) grounds.push('SWITCHED_OFF');
+  if (dec(total).gt(dec(rules.limit))) grounds.push('ABOVE_LIMIT');
+  return grounds;
+}
+
+/**
+ * SAL-013: an open sale is paid in full when it completes — the exact total.
+ * There is no store to owe a balance to, nor to hold anything paid over.
+ */
+export function assertPaidInFull(total: Money, paid: Money | null): void {
+  if (paid === null || !dec(paid).eq(dec(total))) throw new DomainError('OPEN_SALE_PAID_IN_FULL', { total, paid });
+}
+
 /** Why a sale was cancelled (PRC-014, PRC-015, DSP-013). */
 export const SALE_CANCEL_REASONS = ['REJECTED', 'EXPIRED', 'WITHDRAWN', 'REQUEST_CANCELLED', 'LOST'] as const;
 export type SaleCancelReason = (typeof SALE_CANCEL_REASONS)[number];

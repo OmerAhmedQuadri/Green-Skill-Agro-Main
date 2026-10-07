@@ -1,6 +1,6 @@
 'use client';
 
-import { businessDate, sumMoney, type Money } from '@gsa/core';
+import { businessDate, OPEN_SALES_KEY, sumMoney, type Money } from '@gsa/core';
 import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
@@ -10,6 +10,7 @@ import { Alert, Button, Card, cn, Field, Input, Select } from '@gsa/ui';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Section } from '@/components/common/Section';
 import { Cell, Table } from '@/components/common/Table';
+import { partyName } from '@/components/sales/party';
 import type { SaleSummary } from '@/components/sales/types';
 import { api } from '@/lib/api';
 import { useDuration } from '@/lib/duration';
@@ -138,7 +139,9 @@ export function SalesAnalyticsPage({ canListSales, canSeeCollections }: { canLis
           ) : null}
           <div className="grid gap-6 lg:grid-cols-2">
             <Breakdown title={t('bySeller')} rows={view.data.bySeller} name={(r) => r.label.nameEn} onPick={(id) => set({ sellerId: id })} testId="by-seller" />
-            <Breakdown title={t('byStore')} rows={view.data.byStore} name={(r) => r.label.nameEn} onPick={(id) => set({ storeId: id })} testId="by-store" />
+            {/* SAL-019: open sales are one line of their own — not a store to narrow to. */}
+            <Breakdown title={t('byStore')} rows={view.data.byStore} name={(r) => (r.id === OPEN_SALES_KEY ? t('openSales') : r.label.nameEn)}
+              onPick={(id) => { if (id !== OPEN_SALES_KEY) set({ storeId: id }); }} testId="by-store" />
             <Breakdown title={t('byProduct')} rows={view.data.byProduct} name={(r) => format.name(r.label)} onPick={(id) => set({ productId: id })} testId="by-product" />
             <Breakdown title={t('byCategory')} rows={view.data.byCategory} name={(r) => format.name(r.label)} onPick={(id) => set({ categoryId: id })} testId="by-category" />
           </div>
@@ -262,6 +265,7 @@ type Page = { items: SaleSummary[]; nextCursor: string | null };
 /** The sales behind the figures, newest first — for whoever may see every sale (`sales.view_all`). */
 function SalesList({ query }: { query: string }) {
   const t = useTranslations('analytics');
+  const tSales = useTranslations('sales');
   const format = useFormat();
   const list = useInfiniteQuery({
     queryKey: keys.sales({ analytics: query }),
@@ -286,7 +290,7 @@ function SalesList({ query }: { query: string }) {
               <Cell className="whitespace-nowrap">
                 <Link href={`/console/sales/${s.id}`} className="font-medium underline"><bdi dir="ltr">{s.documentNumber ?? s.id.slice(0, 8)}</bdi></Link>
               </Cell>
-              <Cell>{s.store.name}</Cell>
+              <Cell>{partyName(s.store, s.buyerName, tSales)}</Cell>
               <Cell>{s.seller.name}</Cell>
               <Cell className="whitespace-nowrap">{s.vehicle ? <bdi dir="ltr">{s.vehicle.registration}</bdi> : t(`channels.${s.channel}`)}</Cell>
               <Cell className="whitespace-nowrap">{format.money(s.total)}</Cell>

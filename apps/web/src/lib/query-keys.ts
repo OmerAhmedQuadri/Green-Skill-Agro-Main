@@ -53,6 +53,7 @@ export const keys = {
   sellerPerformance: (filter: object) => ['seller-performance', filter] as const,
   sale: (id: string) => ['sale', id] as const,
   saleOptions: (storeId: string) => ['sale-options', storeId] as const,
+  openSaleOptions: ['open-sale-options'] as const,
   cashInHand: ['cash-in-hand'] as const,
   auditLog: (filter?: object) => (filter ? ['audit-log', filter] as const : ['audit-log'] as const),
   dispatchOrders: (filter?: object) => (filter ? ['dispatch-orders', filter] as const : ['dispatch-orders'] as const),

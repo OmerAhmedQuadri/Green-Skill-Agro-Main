@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { Location } from './attendance';
 import { Limit, OptionalText, PaymentTaken, PercentString, QueryBoolean, Version } from './shared';
 
 /** Workflow I (SAL-001..011, PRC-009): completes within the ceilings, or — with a reason — asks for approval. */
@@ -6,6 +7,18 @@ export const RecordSaleRequest = z.object({
   storeId: z.uuid(),
   lines: z.array(z.object({ skuId: z.uuid(), packs: z.number().int().min(1).max(100_000), discount: PercentString.optional() })).min(1).max(100),
   /** ADR-0047: optional — part or all of what the store owes, with its voucher. */
+  payment: PaymentTaken.nullable().optional(),
+  approvalReason: OptionalText(500),
+});
+
+/**
+ * ADR-0052 (SAL-012..016): an open sale — the buyer as far as they say, where
+ * it is made, and the whole total paid now; or, when it must wait, a reason.
+ */
+export const RecordOpenSaleRequest = z.object({
+  lines: RecordSaleRequest.shape.lines,
+  buyer: z.object({ name: OptionalText(100), phone: OptionalText(30) }).nullable().optional(),
+  location: Location,
   payment: PaymentTaken.nullable().optional(),
   approvalReason: OptionalText(500),
 });
@@ -20,6 +33,7 @@ export const ListSalesQuery = z.object({
   /** ADR-0048: completed within these Riyadh days, given together; and what else a view of sales is cut by. */
   from: z.iso.date().optional(), to: z.iso.date().optional(), vehicleId: z.uuid().optional(), channel: SaleChannel.optional(),
   productId: z.uuid().optional(), categoryId: z.uuid().optional(),
+  /** ADR-0052: open sales only. */ open: QueryBoolean.optional(),
   cursor: z.string().max(500).optional(), limit: Limit.optional(),
 });
 

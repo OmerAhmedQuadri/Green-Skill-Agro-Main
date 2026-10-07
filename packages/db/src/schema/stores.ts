@@ -106,19 +106,23 @@ export const storeLedgerEntries = pgTable(
   ],
 );
 
-/** CRD-003: a payment collected from a store — its ledger entry is the credit. Append-only. */
+/**
+ * CRD-003: a payment collected from a store — its ledger entry is the credit.
+ * Append-only. ADR-0052: an open sale's payment has neither store nor ledger
+ * entry; its sale points at it.
+ */
 export const payments = pgTable(
   'payments',
   {
     id: id(),
     number: text('number').notNull().unique(),
-    storeId: uuid('store_id').notNull().references(() => stores.id),
+    storeId: uuid('store_id').references(() => stores.id),
     amount: money('amount').notNull(),
     method: paymentMethod('method').notNull(),
     reference: text('reference'),
     receivedAt: timestamptz('received_at').notNull(),
     receivedBy: uuid('received_by').notNull().references(() => users.id),
-    ledgerEntryId: uuid('ledger_entry_id').notNull().references(() => storeLedgerEntries.id),
+    ledgerEntryId: uuid('ledger_entry_id').references(() => storeLedgerEntries.id),
     /**
      * ADR-0047: the voucher handed to the store — the number printed on it,
      * as `core/stores` keeps it, and its photo. Required from 0022 on; a
@@ -137,6 +141,7 @@ export const payments = pgTable(
     index('payments_received_by_idx').on(t.receivedBy, t.receivedAt),
     index('payments_ledger_entry_id_idx').on(t.ledgerEntryId),
     check('payments_amount_positive', sql`${t.amount} > 0`),
+    check('payments_store_ledger', sql`(${t.storeId} is null) = (${t.ledgerEntryId} is null)`),
     check('payments_transfer_reference', sql`${t.method} <> 'BANK_TRANSFER' or ${t.reference} is not null`),
   ],
 );

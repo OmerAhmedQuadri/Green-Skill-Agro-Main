@@ -12,13 +12,13 @@ describe('requests (ADR-0051)', () => {
     expect(new Set(Object.values(REQUEST_ENDS).flat())).toEqual(new Set(REQUEST_OUTCOMES));
   });
 
-  it('SYS-014: the eight requests, and nothing that is news', () => {
+  it('SYS-014: the nine requests, and nothing that is news', () => {
     expect([...REQUEST_KINDS].sort()).toEqual([
       'CHECK_IN_AWAITING_AUTHORISATION', 'CLOSING_VARIANCE', 'DISCOUNT_APPROVAL_REQUESTED', 'DISPATCH_REQUESTED',
-      'LOST_CLAIM_RAISED', 'SETTLEMENT_SUBMITTED', 'STORE_PENDING_APPROVAL', 'TRANSFER_RECORDED',
+      'LOST_CLAIM_RAISED', 'OPEN_SALE_REQUESTED', 'SETTLEMENT_SUBMITTED', 'STORE_PENDING_APPROVAL', 'TRANSFER_RECORDED',
     ]);
     expect(isRequestKind('STORE_PENDING_APPROVAL')).toBe(true);
-    for (const news of ['STORE_APPROVED', 'TARGET_MISSED', 'CEILING_BREACHED', 'LOAD_ISSUED'] as const) expect(isRequestKind(news)).toBe(false);
+    for (const news of ['STORE_APPROVED', 'TARGET_MISSED', 'CEILING_BREACHED', 'LOAD_ISSUED', 'OPEN_SALE_APPROVED'] as const) expect(isRequestKind(news)).toBe(false);
   });
 
   it('SYS-015: only taking a dispatch request is provisional', () => {

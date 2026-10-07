@@ -57,9 +57,10 @@ export async function rebuildRollup(ctx: Ctx, from: string, to: string): Promise
     ))
     .groupBy(sql`1`, saleLines.skuId, returns.sellerId, returns.storeId);
 
-  type Row = { day: string; skuId: string; sellerId: string; storeId: string; packs: number; revenue: string; returnedPacks: number; returnedValue: string };
+  // A null store is the open sales' own line (ADR-0052).
+  type Row = { day: string; skuId: string; sellerId: string; storeId: string | null; packs: number; revenue: string; returnedPacks: number; returnedValue: string };
   const rows = new Map<string, Row>();
-  const keyOf = (r: { day: string; skuId: string; sellerId: string; storeId: string }) => `${r.day}|${r.skuId}|${r.sellerId}|${r.storeId}`;
+  const keyOf = (r: { day: string; skuId: string; sellerId: string; storeId: string | null }) => `${r.day}|${r.skuId}|${r.sellerId}|${r.storeId ?? 'open'}`;
   for (const r of sold) {
     rows.set(keyOf(r), {
       day: r.day, skuId: r.skuId, sellerId: r.sellerId, storeId: r.storeId,

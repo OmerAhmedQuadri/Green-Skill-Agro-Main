@@ -209,7 +209,7 @@ describe('what waits for a decision (ADR-0051, SYS-016)', () => {
     const other = await admin();
     const setup = await aSellingSeller(ctx, { creditMode: 'BILL_TO_BILL', creditLimit: '0.00' });
     expect(Object.keys(await waiting(ctx))).toEqual([
-      'DISCOUNTS', 'CHECK_INS', 'DISPATCH', 'STORES', 'SETTLEMENTS', 'TRANSFERS', 'LOST_CLAIMS', 'WRITE_OFFS', 'PURCHASE_ORDERS', 'CLOSING_VARIANCES',
+      'DISCOUNTS', 'OPEN_SALES', 'CHECK_INS', 'DISPATCH', 'STORES', 'SETTLEMENTS', 'TRANSFERS', 'LOST_CLAIMS', 'WRITE_OFFS', 'PURCHASE_ORDERS', 'CLOSING_VARIANCES',
     ]);
     expect(Object.values(await waiting(ctx)).every((n) => n === 0)).toBe(true);
 

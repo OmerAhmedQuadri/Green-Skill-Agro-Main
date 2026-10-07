@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { boolean, check, date, index, integer, numeric, pgTable, text, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { boolean, check, date, index, integer, numeric, pgTable, text, unique, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import { skus } from './catalogue';
 import { id, timestamptz } from './columns';
 import { users } from './identity';
@@ -22,7 +22,7 @@ export const salesDailyRollup = pgTable(
     day: date('day').notNull(),
     skuId: uuid('sku_id').notNull().references(() => skus.id),
     sellerId: uuid('seller_id').notNull().references(() => users.id),
-    storeId: uuid('store_id').notNull().references(() => stores.id),
+    storeId: uuid('store_id').references(() => stores.id), // null: open sales (ADR-0052), one line of their own
     packs: integer('packs').notNull(),
     revenue: numeric('revenue', { precision: 14, scale: 2 }).notNull(),
     /** RET-009: packs and value that came back, netted off in the month raised. */
@@ -32,7 +32,8 @@ export const salesDailyRollup = pgTable(
     builtAt: timestamptz('built_at').notNull().defaultNow(),
   },
   (t) => [
-    uniqueIndex('sales_daily_rollup_unique').on(t.day, t.skuId, t.sellerId, t.storeId),
+    // Open sales share one line per day, SKU and seller: no store, and two of those are the same (ADR-0052).
+    unique('sales_daily_rollup_unique').on(t.day, t.skuId, t.sellerId, t.storeId).nullsNotDistinct(),
     index('sales_daily_rollup_day_idx').on(t.day),
     index('sales_daily_rollup_sku_day_idx').on(t.skuId, t.day),
     index('sales_daily_rollup_seller_idx').on(t.sellerId, t.day),

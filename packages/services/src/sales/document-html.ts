@@ -9,7 +9,9 @@ import { sizeCode, type CountUnit, type Money, type PackSize, type Percent } fro
  */
 export type DocumentData = {
   readonly number: string; readonly issuedAt: Date;
-  readonly store: { readonly name: string; readonly ownerName: string; readonly contactNumber: string };
+  /** Null for an open sale (ADR-0052), whose paper is the simplified delivery record, with its buyer instead. */
+  readonly store: { readonly name: string; readonly ownerName: string; readonly contactNumber: string } | null;
+  readonly buyer: { readonly name: string | null; readonly phone: string | null } | null;
   readonly seller: string; readonly vehicle: string | null;
   readonly lines: readonly {
     readonly code: string; readonly productEn: string; readonly productAr: string; readonly varietyEn: string | null; readonly varietyAr: string | null;
@@ -45,6 +47,16 @@ function settlementText(s: DocumentData['settlement']): string {
   return s.method === 'CASH'
     ? both('Paid in full — cash', 'مدفوع بالكامل — نقدًا')
     : bothHtml(`Paid in full — bank transfer${ref}`, `مدفوع بالكامل — تحويل بنكي${ref}`);
+}
+
+/** Who the goods went to: the store, or an open sale's buyer as far as they said (SAL-017). */
+function partyHtml(data: DocumentData): string {
+  if (data.store) {
+    return `<div><h2>${both('Store', 'المتجر')}</h2><div class="name">${escape(data.store.name)}</div><div>${escape(data.store.ownerName)}</div><div><bdi dir="ltr">${escape(data.store.contactNumber)}</bdi></div></div>`;
+  }
+  const name = data.buyer?.name ? `<div class="name">${escape(data.buyer.name)}</div>` : '';
+  const phone = data.buyer?.phone ? `<div><bdi dir="ltr">${escape(data.buyer.phone)}</bdi></div>` : '';
+  return `<div><h2>${both('Buyer', 'المشتري')}</h2>${name || phone ? `${name}${phone}` : `<div>${both('Not given', 'لم يُذكر')}</div>`}</div>`;
 }
 
 export function deliveryDocumentHtml(data: DocumentData, opts: { readonly fontCss?: string } = {}): string {
@@ -92,12 +104,12 @@ td { padding: 6px; border-bottom: 1px solid #e7e5e4; vertical-align: top; }
 </style></head>
 <body>
 <header>
-  <div><div class="brand">${bothHtml('Green Skill Agro', 'غرين سكيل أغرو')}</div><div class="title">${both('Delivery document', 'سند تسليم')}</div></div>
+  <div><div class="brand">${bothHtml('Green Skill Agro', 'غرين سكيل أغرو')}</div><div class="title">${data.store ? both('Delivery document', 'سند تسليم') : both('Simplified delivery record', 'سند تسليم مبسّط')}</div></div>
   <div class="meta"><div class="number">${escape(data.number)}</div><div>${escape(issued.format(data.issuedAt))}</div></div>
 </header>
 <div class="notice">${both('This is not a tax invoice. It is an unofficial record of goods delivered.', 'هذه ليست فاتورة ضريبية، وإنما سجل غير رسمي بالبضاعة المسلّمة.')}</div>
 <section class="parties">
-  <div><h2>${both('Store', 'المتجر')}</h2><div class="name">${escape(data.store.name)}</div><div>${escape(data.store.ownerName)}</div><div><bdi dir="ltr">${escape(data.store.contactNumber)}</bdi></div></div>
+  ${partyHtml(data)}
   <div><h2>${both('Seller', 'المندوب')}</h2><div class="name">${escape(data.seller)}</div>${data.vehicle ? `<div>${both('Vehicle', 'المركبة')} <bdi>${escape(data.vehicle)}</bdi></div>` : `<div>${both('Dispatched from the warehouse', 'أُرسل من المستودع')}</div>`}</div>
 </section>
 <table>

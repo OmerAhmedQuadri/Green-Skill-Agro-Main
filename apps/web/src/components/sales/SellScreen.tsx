@@ -17,7 +17,7 @@ import { useErrorText, useOnceCommand } from '@/lib/hooks';
 import { keys } from '@/lib/query-keys';
 import { trimPercent } from './SaleLinesTable';
 import type { DispatchOrder } from '@/components/dispatch/types';
-import type { Sale, SaleOptions } from './types';
+import type { Sale, SaleItem, SaleOptions } from './types';
 
 const asPercent = (text: string): Percent | null => {
   const v = decimalText(text);
@@ -89,7 +89,6 @@ function SellForm({ storeId, options: o, from, missing, back }: {
     const ceiling = o.items.find((i) => i.skuId === l.skuId)?.ceiling ?? '0';
     return [l.skuId, trimPercent(dec(l.requestedDiscount).gt(dec(ceiling)) ? ceiling : l.requestedDiscount)];
   })));
-  const [every, setEvery] = useState('');
   const [reason, setReason] = useState('');
   const [paying, setPaying] = useState(false);
   const [draft, setDraft] = useState<PaymentDraft>(NO_PAYMENT);
@@ -100,20 +99,8 @@ function SellForm({ storeId, options: o, from, missing, back }: {
     },
   });
 
-  const lines = o.items.map((item) => {
-    const n = wholeNumber(packs[item.skuId] ?? '') ?? 0;
-    const d = o.canDiscount ? asPercent(discounts[item.skuId] ?? '') : ('0' as Percent);
-    const amounts = n > 0 && item.unitPrice && d !== null ? lineAmounts(item.unitPrice, n, d) : null;
-    const above = d !== null && dec(d).gt(dec(item.ceiling));
-    const overMax = d !== null && dec(d).gt(dec(o.limits.absoluteMaximum));
-    return { item, packs: n, discount: d, amounts, above, overMax, tooMany: n > item.sellablePacks };
-  });
-  const chosen = lines.filter((l) => l.packs > 0);
-  const total: Money = sumMoney(chosen.flatMap((l) => (l.amounts ? [l.amounts.total] : [])));
-  const gross: Money = sumMoney(chosen.flatMap((l) => (l.amounts ? [l.amounts.gross] : [])));
-  const discount: Money = sumMoney(chosen.flatMap((l) => (l.amounts ? [l.amounts.discountAmount] : [])));
+  const { lines, chosen, total, gross, discount, invalid } = typedLines(o, packs, discounts);
   const needsApproval = chosen.some((l) => l.above);
-  const invalid = chosen.length === 0 || chosen.some((l) => l.discount === null || l.overMax || l.tooMany || !l.item.unitPrice);
   const billToBill = o.store.creditMode === 'BILL_TO_BILL';
   // ADR-0047: money taken with the sale may settle older bills too, so it is held against all that is owed.
   const owed = sumMoney([o.store.credit.outstanding, total]);
@@ -136,48 +123,7 @@ function SellForm({ storeId, options: o, from, missing, back }: {
       <Card className="p-4"><CreditPanel credit={o.store.credit} /></Card>
       {o.store.credit.overrideAvailable ? <Alert tone="warning" data-testid="released">{t('releasedForOne')}</Alert> : null}
 
-      <Card>
-        <div className="border-b border-stone-200 p-4 font-semibold">{t('items')}</div>
-        {o.items.length === 0 ? <p className="p-4 text-sm text-stone-500">{t('noItems')}</p> : null}
-        <ul className="divide-y divide-stone-100">
-          {lines.map(({ item, amounts, above, overMax, tooMany, discount: d }) => (
-            <li key={item.skuId} className="space-y-2 p-4" data-testid={`item-${item.code}`}>
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <div className="font-medium">{format.name(item.product)}{item.variety ? ` — ${format.name(item.variety)}` : ''}</div>
-                  <div className="text-xs text-stone-500"><bdi dir="ltr">{item.code}</bdi>{` · ${format.size(item.size, item.countUnit)} · ${t('sellable', { count: item.sellablePacks })}`}</div>
-                </div>
-                <div className="text-end text-sm">{item.unitPrice ? format.money(item.unitPrice) : <Badge tone="danger">{t('noPrice')}</Badge>}</div>
-              </div>
-              {item.unitPrice ? (
-                <div className="grid grid-cols-2 gap-3">
-                  <Field id={`packs-${item.skuId}`} label={t('packsFor', { code: item.code })}>
-                    <Input id={`packs-${item.skuId}`} inputMode="numeric" dir="ltr" value={packs[item.skuId] ?? ''}
-                      onChange={(e) => setPacks({ ...packs, [item.skuId]: e.target.value })} />
-                  </Field>
-                  {o.canDiscount ? (
-                    <Field id={`disc-${item.skuId}`} label={t('discountFor', { code: item.code })} hint={t('ceilingNote', { ceiling: trimPercent(item.ceiling) })}>
-                      <Input id={`disc-${item.skuId}`} inputMode="decimal" dir="ltr" value={discounts[item.skuId] ?? ''}
-                        onChange={(e) => setDiscounts({ ...discounts, [item.skuId]: e.target.value })} />
-                    </Field>
-                  ) : null}
-                </div>
-              ) : null}
-              {tooMany ? <p className="text-sm text-red-700">{t('tooMany', { count: item.sellablePacks })}</p> : null}
-              {d === null ? <p className="text-sm text-red-700">{t('invalidDiscount')}</p> : null}
-              {overMax ? <p className="text-sm text-red-700">{t('aboveMaximum', { max: trimPercent(o.limits.absoluteMaximum) })}</p> : null}
-              {above && !overMax ? <Badge tone="warning" data-testid={`above-${item.code}`}>{t('aboveCeiling', { ceiling: trimPercent(item.ceiling) })}</Badge> : null}
-              {amounts ? <p className="text-end text-sm font-medium">{format.money(amounts.total)}</p> : null}
-            </li>
-          ))}
-        </ul>
-        {o.canDiscount && o.items.length > 1 ? (
-          <div className="flex items-end gap-2 border-t border-stone-200 p-4">
-            <Field id="every" label={t('sameDiscount')}><Input id="every" inputMode="decimal" dir="ltr" value={every} onChange={(e) => setEvery(e.target.value)} /></Field>
-            <Button variant="secondary" onClick={() => setDiscounts(Object.fromEntries(o.items.map((i) => [i.skuId, every])))}>{t('apply')}</Button>
-          </div>
-        ) : null}
-      </Card>
+      <ItemsCard o={o} lines={lines} packs={packs} setPacks={setPacks} discounts={discounts} setDiscounts={setDiscounts} above="request" />
 
       {chosen.length > 0 ? (
         <Card className="space-y-3 p-4" data-testid="sale-summary">
@@ -213,3 +159,98 @@ function SellForm({ storeId, options: o, from, missing, back }: {
     </div>
   );
 }
+
+/** One item on the vehicle, as the seller has typed it — packs, discount and what they come to. */
+export type TypedLine = {
+  readonly item: SaleItem; readonly packs: number; readonly discount: Percent | null;
+  readonly amounts: ReturnType<typeof lineAmounts> | null;
+  readonly above: boolean; readonly overMax: boolean; readonly tooMany: boolean;
+};
+
+/**
+ * PRC-004..016: the lines as typed — each against its ceiling, the absolute
+ * maximum and what the vehicle holds — and what they come to. Shared by a
+ * store's sale and an open one (ADR-0052).
+ */
+export function typedLines(
+  o: { readonly items: readonly SaleItem[]; readonly canDiscount: boolean; readonly limits: { readonly absoluteMaximum: Percent } },
+  packs: Readonly<Record<string, string>>, discounts: Readonly<Record<string, string>>,
+) {
+  const lines: TypedLine[] = o.items.map((item) => {
+    const n = wholeNumber(packs[item.skuId] ?? '') ?? 0;
+    const d = o.canDiscount ? asPercent(discounts[item.skuId] ?? '') : ('0' as Percent);
+    const amounts = n > 0 && item.unitPrice && d !== null ? lineAmounts(item.unitPrice, n, d) : null;
+    const above = d !== null && dec(d).gt(dec(item.ceiling));
+    const overMax = d !== null && dec(d).gt(dec(o.limits.absoluteMaximum));
+    return { item, packs: n, discount: d, amounts, above, overMax, tooMany: n > item.sellablePacks };
+  });
+  const chosen = lines.filter((l) => l.packs > 0);
+  const total: Money = sumMoney(chosen.flatMap((l) => (l.amounts ? [l.amounts.total] : [])));
+  const gross: Money = sumMoney(chosen.flatMap((l) => (l.amounts ? [l.amounts.gross] : [])));
+  const discount: Money = sumMoney(chosen.flatMap((l) => (l.amounts ? [l.amounts.discountAmount] : [])));
+  const invalid = chosen.length === 0 || chosen.some((l) => l.discount === null || l.overMax || l.tooMany || !l.item.unitPrice);
+  return { lines, chosen, total, gross, discount, invalid };
+}
+
+/**
+ * What is on the vehicle, one line per item: packs and a discount, each
+ * against its ceiling. Above the ceiling, a store's sale may ask for approval
+ * (`request`); an open sale may not (`refused`, ADR-0052).
+ */
+export function ItemsCard({ o, lines, packs, setPacks, discounts, setDiscounts, above: aboveMeans }: {
+  o: { readonly items: readonly SaleItem[]; readonly canDiscount: boolean; readonly limits: { readonly absoluteMaximum: Percent } };
+  lines: readonly TypedLine[];
+  packs: Readonly<Record<string, string>>; setPacks: (next: Record<string, string>) => void;
+  discounts: Readonly<Record<string, string>>; setDiscounts: (next: Record<string, string>) => void;
+  above: 'request' | 'refused';
+}) {
+  const t = useTranslations('sales');
+  const format = useFormat();
+  const [every, setEvery] = useState('');
+  return (
+    <Card>
+      <div className="border-b border-stone-200 p-4 font-semibold">{t('items')}</div>
+      {o.items.length === 0 ? <p className="p-4 text-sm text-stone-500">{t('noItems')}</p> : null}
+      <ul className="divide-y divide-stone-100">
+        {lines.map(({ item, amounts, above, overMax, tooMany, discount: d }) => (
+          <li key={item.skuId} className="space-y-2 p-4" data-testid={`item-${item.code}`}>
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <div className="font-medium">{format.name(item.product)}{item.variety ? ` — ${format.name(item.variety)}` : ''}</div>
+                <div className="text-xs text-stone-500"><bdi dir="ltr">{item.code}</bdi>{` · ${format.size(item.size, item.countUnit)} · ${t('sellable', { count: item.sellablePacks })}`}</div>
+              </div>
+              <div className="text-end text-sm">{item.unitPrice ? format.money(item.unitPrice) : <Badge tone="danger">{t('noPrice')}</Badge>}</div>
+            </div>
+            {item.unitPrice ? (
+              <div className="grid grid-cols-2 gap-3">
+                <Field id={`packs-${item.skuId}`} label={t('packsFor', { code: item.code })}>
+                  <Input id={`packs-${item.skuId}`} inputMode="numeric" dir="ltr" value={packs[item.skuId] ?? ''}
+                    onChange={(e) => setPacks({ ...packs, [item.skuId]: e.target.value })} />
+                </Field>
+                {o.canDiscount ? (
+                  <Field id={`disc-${item.skuId}`} label={t('discountFor', { code: item.code })} hint={t('ceilingNote', { ceiling: trimPercent(item.ceiling) })}>
+                    <Input id={`disc-${item.skuId}`} inputMode="decimal" dir="ltr" value={discounts[item.skuId] ?? ''}
+                      onChange={(e) => setDiscounts({ ...discounts, [item.skuId]: e.target.value })} />
+                  </Field>
+                ) : null}
+              </div>
+            ) : null}
+            {tooMany ? <p className="text-sm text-red-700">{t('tooMany', { count: item.sellablePacks })}</p> : null}
+            {d === null ? <p className="text-sm text-red-700">{t('invalidDiscount')}</p> : null}
+            {overMax ? <p className="text-sm text-red-700">{t('aboveMaximum', { max: trimPercent(o.limits.absoluteMaximum) })}</p> : null}
+            {above && !overMax && aboveMeans === 'request' ? <Badge tone="warning" data-testid={`above-${item.code}`}>{t('aboveCeiling', { ceiling: trimPercent(item.ceiling) })}</Badge> : null}
+            {above && !overMax && aboveMeans === 'refused' ? <p className="text-sm text-red-700" data-testid={`above-${item.code}`}>{t('open.withinCeiling', { ceiling: trimPercent(item.ceiling) })}</p> : null}
+            {amounts ? <p className="text-end text-sm font-medium">{format.money(amounts.total)}</p> : null}
+          </li>
+        ))}
+      </ul>
+      {o.canDiscount && o.items.length > 1 ? (
+        <div className="flex items-end gap-2 border-t border-stone-200 p-4">
+          <Field id="every" label={t('sameDiscount')}><Input id="every" inputMode="decimal" dir="ltr" value={every} onChange={(e) => setEvery(e.target.value)} /></Field>
+          <Button variant="secondary" onClick={() => setDiscounts(Object.fromEntries(o.items.map((i) => [i.skuId, every])))}>{t('apply')}</Button>
+        </div>
+      ) : null}
+    </Card>
+  );
+}
+

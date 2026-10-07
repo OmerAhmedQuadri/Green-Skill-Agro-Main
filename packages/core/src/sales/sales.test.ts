@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import type { DomainError } from '../errors';
 import type { Money, Percent, Quantity } from '../numeric';
 import { creditStatus } from '../stores/credit';
-import { allocateSale, assertSaleCredit, decideDiscount, lineAmounts, priceSale, transitionSale, type SaleTerms } from './sales';
+import {
+  allocateSale, assertPaidInFull, assertSaleCredit, decideDiscount, lineAmounts, openSaleGrounds, priceSale, transitionSale, type SaleTerms,
+} from './sales';
 
 const code = (fn: () => unknown) => { try { fn(); return 'NO_ERROR'; } catch (e) { return (e as DomainError).code; } };
 const m = (v: string) => v as Money;
@@ -166,5 +168,22 @@ describe('credit at the point of sale (SAL-001, SAL-002, SAL-009, CRD-004..007, 
 
   it('STO-009: an inactive store cannot be sold to, override or not', () => {
     expect(code(() => assertSaleCredit(status({ store: 'INACTIVE', override: true }), 'WEEKLY', m('10.00')))).toBe('STORE_NOT_ACTIVE');
+  });
+});
+
+describe('open sales (ADR-0052)', () => {
+  it('SAL-015, SAL-016: switched on and within the limit, an open sale goes through; otherwise it says why it waits', () => {
+    const on = { switchedOn: true, limit: m('500.00') };
+    expect(openSaleGrounds(m('500.00'), on)).toEqual([]); // the limit itself is within it
+    expect(openSaleGrounds(m('500.01'), on)).toEqual(['ABOVE_LIMIT']);
+    expect(openSaleGrounds(m('10.00'), { ...on, switchedOn: false })).toEqual(['SWITCHED_OFF']);
+    expect(openSaleGrounds(m('900.00'), { switchedOn: false, limit: m('500.00') })).toEqual(['SWITCHED_OFF', 'ABOVE_LIMIT']);
+    expect(openSaleGrounds(m('0.01'), { switchedOn: true, limit: m('0.00') })).toEqual(['ABOVE_LIMIT']); // a limit of 0: every one waits
+  });
+
+  it('SAL-013: paid in full means the exact total', () => {
+    expect(code(() => assertPaidInFull(m('180.00'), m('180.00')))).toBe('NO_ERROR');
+    expect(code(() => assertPaidInFull(m('180.00'), m('180.0')))).toBe('NO_ERROR');
+    for (const paid of [null, m('179.99'), m('180.01'), m('0.00')]) expect(code(() => assertPaidInFull(m('180.00'), paid))).toBe('OPEN_SALE_PAID_IN_FULL');
   });
 });
