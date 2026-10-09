@@ -11,10 +11,12 @@ import { api } from '@/lib/api';
 import { useFormat } from '@/lib/format';
 import { useErrorText } from '@/lib/hooks';
 import { keys } from '@/lib/query-keys';
+import { partyName } from './party';
 import { SALE_TONE, type Page, type SaleSummary } from './types';
 
 const STATUSES = ['PENDING_DISCOUNT_APPROVAL', 'DISCOUNT_APPROVED', 'COMPLETED', 'CANCELLED'] as const;
-const FILTERS = ['', 'AWAITING', ...STATUSES] as const;
+/** `OPEN`: open sales only (ADR-0052). */
+const FILTERS = ['', 'AWAITING', 'OPEN', ...STATUSES] as const;
 type Filter = (typeof FILTERS)[number];
 
 /** PRC-012, RPT-009: requests waiting for a decision first, then every sale the viewer may see. */
@@ -27,7 +29,7 @@ export function SalesPage({ canDecide, initialFilter = '' }: { canDecide: boolea
   const [filter, setFilter] = useState<Filter>(() => FILTERS.find((f) => f === initialFilter) ?? '');
   const list = useQuery({
     queryKey: keys.sales({ filter }),
-    queryFn: () => api<Page<SaleSummary>>(filter === 'AWAITING' ? '/sales?awaitingDecision=true' : filter ? `/sales?status=${filter}` : '/sales'),
+    queryFn: () => api<Page<SaleSummary>>(filter === 'AWAITING' ? '/sales?awaitingDecision=true' : filter === 'OPEN' ? '/sales?open=true' : filter ? `/sales?status=${filter}` : '/sales'),
     refetchInterval: filter === 'AWAITING' ? 15_000 : false,
   });
   return (
@@ -39,6 +41,7 @@ export function SalesPage({ canDecide, initialFilter = '' }: { canDecide: boolea
             onChange={(e) => setFilter(FILTERS.find((s) => s === e.target.value) ?? '')}>
             <option value="">{tc('all')}</option>
             {canDecide ? <option value="AWAITING">{t('awaitingDecision')}</option> : null}
+            <option value="OPEN">{t('open.filter')}</option>
             {STATUSES.map((s) => <option key={s} value={s}>{t(`statuses.${s}`)}</option>)}
           </Select>
         </div>
@@ -47,9 +50,9 @@ export function SalesPage({ canDecide, initialFilter = '' }: { canDecide: boolea
         {list.data && list.data.items.length > 0 ? (
           <Table head={[t('when'), t('store'), t('seller'), t('total'), tc('status'), t('document')]}>
             {list.data.items.map((s) => (
-              <tr key={s.id} data-testid={`row-${s.store.name}`}>
+              <tr key={s.id} data-testid={`row-${partyName(s.store, s.buyerName, t)}`}>
                 <Cell><Link href={`/console/sales/${s.id}`} className="font-medium text-brand-800 hover:underline">{format.dateTime(s.completedAt ?? s.createdAt)}</Link></Cell>
-                <Cell>{s.store.name}</Cell>
+                <Cell>{partyName(s.store, s.buyerName, t)}</Cell>
                 <Cell>{s.seller.name}</Cell>
                 <Cell>{format.money(s.total)}{s.discount === '0.00' ? null : <div className="text-xs text-stone-500">{t('discountOf', { amount: format.money(s.discount) })}</div>}</Cell>
                 <Cell>

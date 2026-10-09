@@ -95,14 +95,21 @@ export type PaymentInput = {
  * voucher (ADR-0047) and — for cash — the collector's cash in hand (CSH-001,
  * ADR-0037); for a bank transfer, word to whoever confirms transfers
  * (ADR-0046). Money taken with a sale or a delivery comes through here too.
+ *
+ * ADR-0052: an open sale's payment has no store — no ledger credit, nothing
+ * to settle; the rest is the same.
  */
-export async function takePayment(tx: Tx, ctx: Ctx, input: PaymentInput & { storeId: string }): Promise<{ id: string; number: string; reference: string | null; voucher: VoucherRef }> {
+export async function takePayment(
+  tx: Tx, ctx: Ctx, input: PaymentInput & { storeId: string | null },
+): Promise<{ id: string; number: string; reference: string | null; voucher: VoucherRef }> {
   const reference = input.reference?.trim() || null;
   if (input.method === 'BANK_TRANSFER' && !reference) throw new DomainError('REASON_REQUIRED', { field: 'reference' });
   const voucher = { number: voucherNumber(input.voucher.number), photoId: input.voucher.photoId };
   await assertOwnEvidence(tx, ctx, voucher.photoId, 'PAYMENT_VOUCHER');
   const id = newId();
-  const { entryId } = await postStoreCredit(tx, ctx, { storeId: input.storeId, entryType: 'PAYMENT', amount: input.amount, referenceType: 'PAYMENT', referenceId: id });
+  const entryId = input.storeId
+    ? (await postStoreCredit(tx, ctx, { storeId: input.storeId, entryType: 'PAYMENT', amount: input.amount, referenceType: 'PAYMENT', referenceId: id })).entryId
+    : null;
   const number = await nextDocumentNumber(tx, 'PM', ctx.now);
   // A voucher number is used once in the whole business; the index is the real guarantee.
   await mapUniqueViolations(tx.insert(payments).values({

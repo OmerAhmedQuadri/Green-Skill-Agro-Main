@@ -1,9 +1,10 @@
 import {
-  analyticsRange, DomainError, packsHeld, quantity, type CountUnit, type CreditMode, type DeliveryDocumentStatus, type DiscountRequestStatus,
-  type DocumentSendChannel, type Money, type PackSize, type Percent, type SaleCancelReason, type SaleChannel, type SaleStatus,
+  analyticsRange, DomainError, packsHeld, quantity, type ApprovalKind, type CountUnit, type CreditMode, type DeliveryDocumentStatus,
+  type DiscountRequestStatus, type DocumentSendChannel, type Money, type OpenSaleGround, type PackSize, type Percent, type SaleCancelReason,
+  type SaleChannel, type SaleStatus,
 } from '@gsa/core';
 import { schema } from '@gsa/db';
-import { aliasedTable, and, asc, desc, eq, gte, inArray, lt, or, sql, type SQL } from 'drizzle-orm';
+import { aliasedTable, and, asc, desc, eq, gte, inArray, isNull, lt, or, sql, type SQL } from 'drizzle-orm';
 import { sizeOf } from '../catalogue';
 import type { Ctx } from '../context';
 import { decodeCursor, encodeCursor, inOrder, pageLimit, type Executor } from '../platform';
@@ -28,6 +29,8 @@ export type SaleLine = {
 
 export type DiscountRequest = {
   readonly id: string; readonly status: DiscountRequestStatus; readonly reason: string;
+  /** ADR-0052: a discount above the ceiling, or an open sale — and, for an open sale, why it waits. */
+  readonly kind: ApprovalKind; readonly grounds: readonly OpenSaleGround[];
   readonly requestedAt: Date; readonly expiresAt: Date; readonly decidedAt: Date | null; readonly decidedBy: Person | null;
   readonly comment: string | null; readonly closedAt: Date | null;
 };
@@ -43,7 +46,9 @@ export type Sale = {
   readonly id: string; readonly status: SaleStatus; readonly businessDate: string;
   /** ADR-0038: from the vehicle, or dispatched from the warehouse. */ readonly channel: SaleChannel;
   /** Who raised it — the seller, or a manager on their behalf (DSP-015). */ readonly raisedBy: string | null;
-  readonly store: { readonly id: string; readonly name: string; readonly ownerName: string; readonly contactNumber: string; readonly creditMode: CreditMode };
+  /** Null for an open sale (ADR-0052), which has its buyer and place instead. */
+  readonly store: { readonly id: string; readonly name: string; readonly ownerName: string; readonly contactNumber: string; readonly creditMode: CreditMode } | null;
+  readonly open: OpenSaleInfo | null;
   readonly seller: Person; readonly vehicle: { readonly id: string; readonly registration: string } | null;
   /** The dispatch order carrying it, if any. */ readonly dispatchOrder: { readonly id: string; readonly number: string } | null;
   readonly gross: Money; readonly discount: Money; readonly total: Money;
@@ -61,8 +66,17 @@ export type Sale = {
   readonly version: number;
 };
 
+/** SAL-012: an open sale's buyer, as given, and where it was made. */
+export type OpenSaleInfo = {
+  readonly buyerName: string | null; readonly buyerPhone: string | null;
+  readonly location: { readonly lat: number; readonly lng: number; readonly accuracyM: number | null };
+};
+
 export type SaleSummary = {
-  readonly id: string; readonly status: SaleStatus; readonly channel: SaleChannel; readonly store: { readonly id: string; readonly name: string }; readonly seller: Person;
+  readonly id: string; readonly status: SaleStatus; readonly channel: SaleChannel;
+  /** Null for an open sale, whose buyer's name — if given — is in `buyerName` (ADR-0052). */
+  readonly store: { readonly id: string; readonly name: string } | null; readonly open: boolean; readonly buyerName: string | null;
+  readonly seller: Person;
   readonly total: Money; readonly discount: Money; readonly createdAt: Date; readonly completedAt: Date | null;
   readonly documentNumber: string | null; readonly approvalStatus: DiscountRequestStatus | null; readonly expiresAt: Date | null;
   readonly cancelReason: SaleCancelReason | null;
@@ -77,9 +91,20 @@ export type SaleSummary = {
 function visibility(ctx: Ctx): SQL | undefined {
   if (ctx.permissions.has('sales.view_all')) return undefined;
   const own = or(eq(sales.sellerId, ctx.user.id), eq(sales.createdBy, ctx.user.id));
-  if (!ctx.permissions.has('sales.approve_discount')) return own;
-  return or(own, sql`exists (select 1 from ${discountApprovalRequests} where ${discountApprovalRequests.saleId} = ${sales.id})`);
+  // ADR-0052: each approver, the requests of the kinds they decide.
+  const decides = [
+    ...(ctx.permissions.has('sales.approve_discount') ? ['DISCOUNT' as const] : []),
+    ...(ctx.permissions.has('sales.approve_open_sale') ? ['OPEN_SALE' as const] : []),
+  ];
+  if (decides.length === 0) return own;
+  return or(own, sql`exists (select 1 from ${discountApprovalRequests} where ${discountApprovalRequests.saleId} = ${sales.id} and ${inArray(discountApprovalRequests.kind, decides)})`);
 }
+
+/** SAL-012: what a sale row says about its open buyer, if it has none of a store's. */
+const openOf = (s: typeof sales.$inferSelect): OpenSaleInfo | null => (s.storeId === null && s.latitude !== null && s.longitude !== null ? {
+  buyerName: s.buyerName, buyerPhone: s.buyerPhone,
+  location: { lat: Number(s.latitude), lng: Number(s.longitude), accuracyM: s.locationAccuracyM },
+} : null);
 
 const seller = aliasedTable(users, 'seller');
 const decider = aliasedTable(users, 'decider');
@@ -92,7 +117,7 @@ export async function loadSale(db: Executor, ctx: Ctx, id: string): Promise<Sale
     s: sales, storeName: stores.name, ownerName: stores.ownerName, contactNumber: stores.contactNumber, creditMode: stores.creditMode,
     sellerName: seller.name, registration: vehicles.registration, orderId: dispatchOrders.id, orderNumber: dispatchOrders.number,
   }).from(sales)
-    .innerJoin(stores, eq(stores.id, sales.storeId)).innerJoin(seller, eq(seller.id, sales.sellerId)).leftJoin(vehicles, eq(vehicles.id, sales.vehicleId))
+    .leftJoin(stores, eq(stores.id, sales.storeId)).innerJoin(seller, eq(seller.id, sales.sellerId)).leftJoin(vehicles, eq(vehicles.id, sales.vehicleId))
     .leftJoin(dispatchOrders, eq(dispatchOrders.saleId, sales.id))
     .where(and(eq(sales.id, id), visibility(ctx)));
   if (!row) throw new DomainError('NOT_FOUND', { entity: 'sale', id });
@@ -123,7 +148,10 @@ export async function loadSale(db: Executor, ctx: Ctx, id: string): Promise<Sale
 
   return {
     id: s.id, status: s.status, businessDate: s.businessDate, channel: s.channel, raisedBy: s.createdBy,
-    store: { id: s.storeId, name: row.storeName, ownerName: row.ownerName, contactNumber: row.contactNumber, creditMode: row.creditMode },
+    store: s.storeId && row.storeName !== null && row.ownerName !== null && row.contactNumber !== null && row.creditMode !== null
+      ? { id: s.storeId, name: row.storeName, ownerName: row.ownerName, contactNumber: row.contactNumber, creditMode: row.creditMode }
+      : null,
+    open: openOf(s),
     seller: { id: s.sellerId, name: row.sellerName },
     vehicle: s.vehicleId && row.registration ? { id: s.vehicleId, registration: row.registration } : null,
     dispatchOrder: row.orderId && row.orderNumber ? { id: row.orderId, number: row.orderNumber } : null,
@@ -143,7 +171,8 @@ export async function loadSale(db: Executor, ctx: Ctx, id: string): Promise<Sale
       };
     }),
     approval: request ? {
-      id: request.r.id, status: request.r.status, reason: request.r.reason, requestedAt: request.r.requestedAt, expiresAt: request.r.expiresAt,
+      id: request.r.id, status: request.r.status, reason: request.r.reason, kind: request.r.kind, grounds: request.r.grounds ?? [],
+      requestedAt: request.r.requestedAt, expiresAt: request.r.expiresAt,
       decidedAt: request.r.decidedAt, decidedBy: request.r.decidedBy && request.deciderName ? { id: request.r.decidedBy, name: request.deciderName } : null,
       comment: request.r.comment, closedAt: request.r.closedAt,
     } : null,
@@ -166,6 +195,7 @@ export type SaleFilter = {
   /** ADR-0048: completed within these Riyadh days, both included — given together. */
   readonly from?: string | undefined; readonly to?: string | undefined;
   readonly vehicleId?: string | undefined; readonly channel?: SaleChannel | undefined;
+  /** ADR-0052: open sales only. */ readonly open?: boolean | undefined;
   /** ADR-0048: sales with at least one line of this product, or of this category. */
   readonly productId?: string | undefined; readonly categoryId?: string | undefined;
   readonly cursor?: string | undefined; readonly limit?: number | undefined;
@@ -185,6 +215,7 @@ export async function querySales(db: Executor, ctx: Ctx, filter: SaleFilter): Pr
   }
   if (filter.vehicleId) where.push(eq(sales.vehicleId, filter.vehicleId));
   if (filter.channel) where.push(eq(sales.channel, filter.channel));
+  if (filter.open) where.push(isNull(sales.storeId));
   if (filter.productId || filter.categoryId) {
     where.push(sql`exists (select 1 from ${saleLines} join ${skus} on ${skus.id} = ${saleLines.skuId} join ${products} on ${products.id} = ${skus.productId}
       where ${saleLines.saleId} = ${sales.id}${filter.productId ? sql` and ${skus.productId} = ${filter.productId}` : sql``}${filter.categoryId ? sql` and ${products.categoryId} = ${filter.categoryId}` : sql``})`);
@@ -198,7 +229,7 @@ export async function querySales(db: Executor, ctx: Ctx, filter: SaleFilter): Pr
     approvalStatus: discountApprovalRequests.status, expiresAt: discountApprovalRequests.expiresAt, dispatchOrderId: dispatchOrders.id,
     registration: vehicles.registration,
   }).from(sales)
-    .innerJoin(stores, eq(stores.id, sales.storeId)).innerJoin(seller, eq(seller.id, sales.sellerId))
+    .leftJoin(stores, eq(stores.id, sales.storeId)).innerJoin(seller, eq(seller.id, sales.sellerId))
     .leftJoin(deliveryDocuments, eq(deliveryDocuments.saleId, sales.id)).leftJoin(discountApprovalRequests, eq(discountApprovalRequests.saleId, sales.id))
     .leftJoin(dispatchOrders, eq(dispatchOrders.saleId, sales.id)).leftJoin(vehicles, eq(vehicles.id, sales.vehicleId))
     .where(and(...where)).orderBy(desc(sales.createdAt), desc(sales.id)).limit(limit + 1);
@@ -206,7 +237,9 @@ export async function querySales(db: Executor, ctx: Ctx, filter: SaleFilter): Pr
   const last = page.at(-1);
   return {
     items: page.map((r) => ({
-      id: r.s.id, status: r.s.status, channel: r.s.channel, store: { id: r.s.storeId, name: r.storeName }, seller: { id: r.s.sellerId, name: r.sellerName },
+      id: r.s.id, status: r.s.status, channel: r.s.channel,
+      store: r.s.storeId && r.storeName !== null ? { id: r.s.storeId, name: r.storeName } : null, open: r.s.storeId === null, buyerName: r.s.buyerName,
+      seller: { id: r.s.sellerId, name: r.sellerName },
       total: r.s.total as Money, discount: r.s.discount as Money, createdAt: r.s.createdAt, completedAt: r.s.completedAt,
       documentNumber: r.documentNumber, approvalStatus: r.approvalStatus, expiresAt: r.expiresAt, cancelReason: r.s.cancelReason,
       dispatchOrderId: r.dispatchOrderId,

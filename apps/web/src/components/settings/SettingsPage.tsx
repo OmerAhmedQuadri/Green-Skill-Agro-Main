@@ -15,14 +15,14 @@ import { CeilingsSection, CommissionSection } from './LimitsSections';
 import { ProductTypesSection } from './ProductTypesSection';
 import { ZonesSection } from './ZonesSection';
 
-export type SettingsCan = { configure: boolean; templates: boolean; limits: boolean; returns: boolean; commission: boolean };
+export type SettingsCan = { configure: boolean; templates: boolean; limits: boolean; returns: boolean; commission: boolean; /** ADR-0052 */ openSales: boolean };
 
 export function SettingsPage({ can }: { can: SettingsCan }) {
   const t = useTranslations();
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       <PageHeader title={t('settings.title')} subtitle={t('settings.subtitle')} />
-      {can.configure || can.returns || can.limits ? <GeneralSettings /> : null}
+      {can.configure || can.returns || can.limits || can.openSales ? <GeneralSettings /> : null}
       {can.configure ? <TogglesSection /> : null}
       {can.configure ? <ZonesSection /> : null}
       {can.templates ? <ProductTypesSection /> : null}

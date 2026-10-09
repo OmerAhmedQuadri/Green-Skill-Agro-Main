@@ -63,7 +63,7 @@ async function committedByStore(db: Executor, storeIds: readonly string[]): Prom
       inArray(sales.status, ['PENDING_DISCOUNT_APPROVAL', 'DISCOUNT_APPROVED', 'PENDING_DELIVERY']),
     ))
     .groupBy(sales.storeId);
-  return new Map(rows.map((r) => [r.storeId, r.total as Money]));
+  return new Map(rows.flatMap((r) => (r.storeId ? [[r.storeId, r.total as Money] as const] : [])));
 }
 
 /** CRD-004..006: every store's credit status, derived now. */

@@ -105,12 +105,14 @@ export async function dispatchOptions(ctx: Ctx, storeId: string): Promise<Dispat
 export async function openOrder(tx: Tx, ctx: Ctx, saleId: string): Promise<string> {
   const [sale] = await tx.select().from(sales).where(eq(sales.id, saleId));
   if (!sale) throw new Error('sale missing for its order');
-  const [store] = await tx.select({ name: schema.stores.name }).from(schema.stores).where(eq(schema.stores.id, sale.storeId));
+  const storeId = sale.storeId;
+  if (!storeId) throw new Error('an open sale is never dispatched'); // SAL-018
+  const [store] = await tx.select({ name: schema.stores.name }).from(schema.stores).where(eq(schema.stores.id, storeId));
   const id = newId();
   const number = await nextDocumentNumber(tx, 'DO', ctx.now);
   const raisedBy = sale.createdBy ?? ctx.user.id;
   await tx.insert(dispatchOrders).values({
-    id, number, saleId, storeId: sale.storeId, sellerId: sale.sellerId, raisedBy, warehouseId: (await warehouseAccount(tx)).warehouseId,
+    id, number, saleId, storeId, sellerId: sale.sellerId, raisedBy, warehouseId: (await warehouseAccount(tx)).warehouseId,
     branchId: ctx.branchId, createdAt: ctx.now, createdBy: ctx.user.id, updatedAt: ctx.now, updatedBy: ctx.user.id,
   });
   const lines = await tx.select({ id: saleLines.id, packs: saleLines.packs }).from(saleLines).where(eq(saleLines.saleId, saleId));
@@ -119,7 +121,7 @@ export async function openOrder(tx: Tx, ctx: Ctx, saleId: string): Promise<strin
   const params = { number, store: store?.name ?? '' };
   await notify(tx, ctx, { permission: 'sales.fulfil_dispatch' }, 'DISPATCH_REQUESTED', params, `/console/dispatch/${id}`, id);
   if (raisedBy !== sale.sellerId) await notify(tx, ctx, { users: [sale.sellerId] }, 'DISPATCH_CREATED_FOR_YOU', params, `/field/orders/${id}`);
-  await audit(tx, ctx, { action: 'dispatch.raised', entityType: 'dispatch_order', entityId: id, after: { number, saleId, storeId: sale.storeId, sellerId: sale.sellerId, raisedBy } });
+  await audit(tx, ctx, { action: 'dispatch.raised', entityType: 'dispatch_order', entityId: id, after: { number, saleId, storeId, sellerId: sale.sellerId, raisedBy } });
   return id;
 }
 
@@ -189,9 +191,10 @@ export async function dispatchApprovedSale(ctx: Ctx, saleId: string, input: { ve
   authorizeAny(ctx, ['sales.request_dispatch', 'sales.create_order_for_seller']);
   return inTx(ctx, async (tx) => {
     const row = await lockOwnSale(tx, ctx, saleId, input.version);
-    if (row.channel !== 'DISPATCH') throw new DomainError('INVALID_TRANSITION', { from: row.status, action: 'dispatch' });
+    const storeId = row.storeId;
+    if (row.channel !== 'DISPATCH' || !storeId) throw new DomainError('INVALID_TRANSITION', { from: row.status, action: 'dispatch' });
     const status = transitionSale(row.status, 'dispatch');
-    const store = await loadStore(tx, readingAsManager(ctx), row.storeId);
+    const store = await loadStore(tx, readingAsManager(ctx), storeId);
     const { usesOverride } = assertSaleCredit(store.credit, store.creditMode, row.total as Money, { committed: await committedToDispatch(tx, store.id, saleId) });
     const creditOverrideId = usesOverride && !row.creditOverrideId ? await consumeCreditOverride(tx, ctx, store.id, saleId) : row.creditOverrideId;
     await tx.update(sales).set({ status, creditOverrideId, updatedAt: ctx.now, updatedBy: ctx.user.id, version: row.version + 1 }).where(eq(sales.id, saleId));

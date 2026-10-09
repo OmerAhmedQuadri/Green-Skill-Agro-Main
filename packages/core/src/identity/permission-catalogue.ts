@@ -70,6 +70,8 @@ export const PERMISSION_MATRIX = [
   ['sales.create_order_for_seller',   F, F,  OFF, NO],
   ['sales.confirm_dispatch_receipt',  F, F,  F,   F],
   ['sales.approve_lost_order',        F, F,  OFF, NO],
+  ['sales.manage_open_sales',         F, F,  OFF, NO],   // ADR-0052: switch open sales on or off
+  ['sales.approve_open_sale',         F, F,  OFF, NO],   // ADR-0052: approve an open sale that waits
   // Returns, cash, attendance, targets, reports
   ['returns.process',                 F, F,  OFF, ON],   // workflow L
   ['returns.set_rules',               F, F,  OFF, NO],

@@ -3,6 +3,7 @@ import type { sales } from '@gsa/services';
 export type Sale = sales.SaleView;
 export type SaleSummary = sales.SaleSummary;
 export type SaleOptions = sales.SaleOptions;
+export type OpenSaleOptions = sales.OpenSaleOptions;
 export type SaleItem = sales.SaleItem;
 export type Page<T> = { items: T[]; nextCursor: string | null };
 

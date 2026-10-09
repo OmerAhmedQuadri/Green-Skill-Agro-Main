@@ -13,16 +13,17 @@ const errorCode = (fn: () => void) => { try { fn(); } catch (e) { return (e as D
 
 describe('permission catalogue', () => {
   // A count on purpose: a permission added by accident should fail here.
-  // 63 since ADR-0049 added storage management and keeping a file forever.
-  it('USR-009: 63 unique module.action codes', () => {
-    expect(PERMISSION_CODES).toHaveLength(63);
-    expect(new Set(PERMISSION_CODES).size).toBe(63);
+  // 63 since ADR-0049 added storage management and keeping a file forever;
+  // 65 since ADR-0052 added switching open sales and approving one.
+  it('USR-009: 65 unique module.action codes', () => {
+    expect(PERMISSION_CODES).toHaveLength(65);
+    expect(new Set(PERMISSION_CODES).size).toBe(65);
     for (const code of PERMISSION_CODES) expect(code).toMatch(/^[a-z]+\.[a-z_]+$/);
   });
 
   it('USR-002: Super Admin holds every matrix permission, but not field self-service', () => {
     const sa = effectivePermissions('SUPER_ADMIN', none);
-    expect(sa.size).toBe(59); // 56, plus vendors.view_names (ADR-0045) and the two storage permissions (ADR-0049)
+    expect(sa.size).toBe(61); // 56, plus vendors.view_names (ADR-0045), the two storage permissions (ADR-0049) and the two open-sale permissions (ADR-0052)
     for (const code of FIELD) expect(sa.has(code)).toBe(false);
   });
 

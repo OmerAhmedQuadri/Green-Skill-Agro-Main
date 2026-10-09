@@ -125,7 +125,8 @@
         "LOST_CLAIMS": "Lost-order claims",
         "WRITE_OFFS": "Write-offs",
         "PURCHASE_ORDERS": "Purchase orders to approve",
-        "CLOSING_VARIANCES": "Closing-stock differences to review"
+        "CLOSING_VARIANCES": "Closing-stock differences to review",
+        "OPEN_SALES": "Open sales waiting for approval"
       }
     }
   },
@@ -354,7 +355,9 @@
       "fulfil_dispatch": "Fulfil dispatch orders",
       "create_order_for_seller": "Create orders for a seller",
       "confirm_dispatch_receipt": "Confirm receipt of a dispatch",
-      "approve_lost_order": "Approve lost-order claims"
+      "approve_lost_order": "Approve lost-order claims",
+      "manage_open_sales": "Switch open sales on or off",
+      "approve_open_sale": "Approve open sales that wait"
     },
     "returns": {
       "process": "Process returns and replacements",
@@ -520,7 +523,10 @@
     "VENDOR_REQUIRED": "Choose a vendor before approving this order.",
     "INVALID_VOUCHER_NUMBER": "That voucher number isn't valid — type it as printed, in letters and digits.",
     "DUPLICATE_VOUCHER": "That voucher number has been used already — check the number on the slip.",
-    "RANGE_TOO_LONG": "A period can be a year at most."
+    "RANGE_TOO_LONG": "A period can be a year at most.",
+    "OPEN_SALE_PAID_IN_FULL": "An open sale is paid in full as it is made — take the whole total.",
+    "OPEN_SALE_NOT_RETURNABLE": "An open sale cannot be returned.",
+    "OPEN_SALE_NEEDS_APPROVAL": "This open sale needs approval. Give a reason to ask for it."
   },
   "format": {
     "grams": "{value} g",
@@ -680,7 +686,8 @@
       "credit": "Credit",
       "documents": "Delivery documents",
       "targets": "Targets and commission",
-      "storage": "Storage"
+      "storage": "Storage",
+      "sales": "Open sales"
     },
     "fields": {
       "discount": {
@@ -749,6 +756,10 @@
         "budget_gb": "File storage budget (GB)",
         "backup_retention_days": "Keep backups for (days)",
         "backups_paused_until": "Nightly backups paused through"
+      },
+      "sales": {
+        "open_sales_on": "Open sales are switched on",
+        "open_sale_limit": "An open sale above this needs approval (SAR)"
       }
     },
     "choices": {
@@ -1281,7 +1292,11 @@
       "TARGET_MISSED": "{name, select, undefined {You} other {{name}}} did not reach the target for {period}.",
       "PERIOD_CLOSED": "{period} is final. The commission figure will not change.",
       "TRANSFER_RECORDED": "A bank transfer of {amount} ({number}) is waiting for you to confirm it arrived.",
-      "TRANSFER_NOT_RECEIVED": "Bank transfer {number} ({amount}) never arrived — the store owes it again. Reason: {reason}"
+      "TRANSFER_NOT_RECEIVED": "Bank transfer {number} ({amount}) never arrived — the store owes it again. Reason: {reason}",
+      "OPEN_SALE_REQUESTED": "{seller} asks to make an open sale of {total} SAR and is waiting.",
+      "OPEN_SALE_APPROVED": "Your open sale of {total} SAR was approved — complete it, paid in full.",
+      "OPEN_SALE_REJECTED": "Your open sale of {total} SAR was rejected.",
+      "OPEN_SALE_EXPIRED": "Your pending open sale expired and its items were released."
     },
     "resolvedLine": "{outcome} · {time}",
     "resolved": {
@@ -1608,10 +1623,11 @@
     "owedHint": "The store owes {amount} in all.",
     "moreThanOwed": "More than the store owes ({amount}).",
     "voucherNumber": "Voucher number",
-    "voucherHint": "As printed on the voucher you hand to the store.",
+    "voucherHint": "As printed on the voucher you hand over.",
     "voucherPhoto": "Photo of the voucher",
     "voucherIs": "Voucher {number}",
-    "takePaymentAtDelivery": "Take a payment now"
+    "takePaymentAtDelivery": "Take a payment now",
+    "paidInFullAmount": "Paid in full: {amount}"
   },
   "sales": {
     "title": "Sales",
@@ -1749,7 +1765,42 @@
     "documentDeleted": "This delivery document was deleted on {date} under the storage policy.",
     "documentKept": "Kept forever.",
     "keepDocument": "Keep forever",
-    "releaseDocument": "Stop keeping forever"
+    "releaseDocument": "Stop keeping forever",
+    "open": {
+      "title": "Open sale",
+      "titleWith": "Open sale — {buyer}",
+      "new": "New open sale",
+      "newHint": "For a buyer who is not one of your stores.",
+      "intro": "For a buyer who is not one of your stores: paid in full now, with a simplified delivery record.",
+      "switchedOff": "Open sales are switched off — this one will wait for approval.",
+      "limitNote": "Above {limit}, an open sale waits for approval.",
+      "buyerTitle": "The buyer, if they say",
+      "buyerName": "Name",
+      "buyerPhone": "Phone",
+      "whereTitle": "Where",
+      "withinCeiling": "An open sale stays within the {ceiling}% ceiling",
+      "requestTitle": "This open sale needs approval",
+      "requestReason": "Why this open sale?",
+      "grounds": {
+        "SWITCHED_OFF": "Open sales are switched off.",
+        "ABOVE_LIMIT": "It is above the open-sale limit."
+      },
+      "waitingTitle": "Waiting for approval of this open sale",
+      "approvedTitle": "Approved — complete it, paid in full.",
+      "buyer": "Buyer",
+      "noBuyer": "Not given",
+      "where": "Where it was made",
+      "onMap": "Show on a map",
+      "notReturnable": "An open sale cannot be returned.",
+      "rejectedTitle": "The open sale was rejected.",
+      "filter": "Open sales",
+      "approveOpen": "Approve the open sale",
+      "decideHintOpen": "Approve it as it stands, or reject it with a comment. The seller is told at once.",
+      "openSales": "Open sales",
+      "documentTitle": "Simplified delivery record",
+      "whyWaiting": "Why it waits",
+      "commentHint": "Needed to reject."
+    }
   },
   "audit": {
     "title": "Audit log",
@@ -2037,7 +2088,8 @@
     "ownTransfer": "You recorded this — someone else confirms it.",
     "moreTransfers": "{count, plural, one {# more transfer is} other {# more transfers are}} waiting after these.",
     "voucher": "Voucher",
-    "viewPhoto": "View"
+    "viewPhoto": "View",
+    "openSale": "Open sale"
   },
   "audits": {
     "loading": "Loading…",
@@ -2343,6 +2395,7 @@
         "DAYS_61_90": "61–90 days",
         "OVER_90": "Over 90 days"
       }
-    }
+    },
+    "openSales": "Open sales"
   }
 }

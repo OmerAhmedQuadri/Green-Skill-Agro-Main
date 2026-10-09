@@ -8,6 +8,7 @@ import { Section } from '@/components/common/Section';
 /** Each queue opens its list, filtered to what waits (ADR-0051). */
 const WHERE = {
   DISCOUNTS: '/console/sales?status=AWAITING',
+  OPEN_SALES: '/console/sales?status=AWAITING',
   CHECK_INS: '/console/attendance?attention=true',
   DISPATCH: '/console/dispatch?status=REQUESTED',
   STORES: '/console/stores?status=PENDING_APPROVAL',

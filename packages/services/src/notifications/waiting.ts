@@ -24,12 +24,17 @@ export async function waitingForDecision(ctx: Ctx): Promise<WaitingQueue[]> {
   // Some records were created by nobody in particular (imported, or by the system).
   const notMine = (column: AnyColumn): SQL => sql`${column} is distinct from ${ctx.user.id}`;
   const count = async (rows: Promise<{ n: number }[]>) => (await rows)[0]?.n ?? 0;
+  // As the sales list's "awaiting a decision"; past its time, nobody can decide it.
+  const requests = (kind: 'DISCOUNT' | 'OPEN_SALE') => count(db.select({ n }).from(discountApprovalRequests)
+    .innerJoin(sales, eq(sales.id, discountApprovalRequests.saleId)).where(and(
+      eq(discountApprovalRequests.kind, kind), eq(discountApprovalRequests.status, 'PENDING'), gt(discountApprovalRequests.expiresAt, ctx.now),
+      notMine(sales.sellerId), notMine(sales.createdBy),
+    )));
 
   const counters: Record<DecisionQueue, () => Promise<number>> = {
-    // As the sales list's "awaiting a decision"; past its time, nobody can decide it.
-    DISCOUNTS: () => count(db.select({ n }).from(discountApprovalRequests).innerJoin(sales, eq(sales.id, discountApprovalRequests.saleId)).where(and(
-      eq(discountApprovalRequests.status, 'PENDING'), gt(discountApprovalRequests.expiresAt, ctx.now), notMine(sales.sellerId), notMine(sales.createdBy),
-    ))),
+    DISCOUNTS: () => requests('DISCOUNT'),
+    // ADR-0052: the same requests, of the other kind.
+    OPEN_SALES: () => requests('OPEN_SALE'),
     CHECK_INS: () => count(db.select({ n }).from(attendanceSessions).where(eq(attendanceSessions.status, 'AWAITING_AUTHORISATION'))),
     DISPATCH: () => count(db.select({ n }).from(dispatchOrders).where(eq(dispatchOrders.status, 'REQUESTED'))),
     STORES: () => count(db.select({ n }).from(stores).where(and(eq(stores.status, 'PENDING_APPROVAL'), notMine(stores.createdBy)))),

@@ -17,6 +17,8 @@ export const discountRequestStatus = pgEnum('discount_request_status', ['PENDING
 export const deliveryDocumentStatus = pgEnum('delivery_document_status', ['PENDING', 'READY', 'FAILED']);
 export const documentSendChannel = pgEnum('document_send_channel', ['SHARE', 'EMAIL']);
 export const cashLedgerEntryType = pgEnum('cash_ledger_entry_type', ['COLLECTION', 'SETTLEMENT_APPROVED', 'DISCREPANCY', 'REFUND']);
+export const approvalKind = pgEnum('approval_kind', ['DISCOUNT', 'OPEN_SALE']);
+export const openSaleGround = pgEnum('open_sale_ground', ['SWITCHED_OFF', 'ABOVE_LIMIT']);
 
 const money = (name: string) => numeric(name, { precision: 14, scale: 2 });
 const percent = (name: string) => numeric(name, { precision: 6, scale: 3 });
@@ -25,12 +27,16 @@ const percent = (name: string) => numeric(name, { precision: 6, scale: 3 });
  * SAL-001..011, STATE-MACHINES §2. A vehicle sale within its ceilings is
  * created COMPLETED in one request; only a sale awaiting a discount decision
  * lives on in progress (ADR-0037).
+ *
+ * ADR-0052: an open sale has no store. It keeps the buyer's name and phone
+ * if given, and always where it was made; it is a vehicle sale, paid in full,
+ * and posts nothing to a store ledger.
  */
 export const sales = pgTable(
   'sales',
   {
     id: id(),
-    storeId: uuid('store_id').notNull().references(() => stores.id),
+    storeId: uuid('store_id').references(() => stores.id),                // null for an open sale (ADR-0052)
     sellerId: uuid('seller_id').notNull().references(() => users.id),
     channel: saleChannel('channel').notNull().default('VEHICLE'),       // ADR-0038: from the vehicle, or dispatched from the warehouse
     vehicleId: uuid('vehicle_id').references(() => vehicles.id),       // vehicle sales only
@@ -45,6 +51,13 @@ export const sales = pgTable(
     completedAt: timestamptz('completed_at'),
     cancelledAt: timestamptz('cancelled_at'),
     cancelReason: saleCancelReason('cancel_reason'),
+    /** SAL-012: an open sale's buyer, as given — either, both or neither. */
+    buyerName: text('buyer_name'),
+    buyerPhone: text('buyer_phone'),
+    /** SAL-012: where an open sale was made, as the phone reported it. */
+    latitude: numeric('latitude', { precision: 9, scale: 6 }),
+    longitude: numeric('longitude', { precision: 9, scale: 6 }),
+    locationAccuracyM: integer('location_accuracy_m'),
     branchId: uuid('branch_id').notNull().references(() => branches.id),
     ...mutable(),
   },
@@ -58,10 +71,14 @@ export const sales = pgTable(
     index('sales_ledger_entry_id_idx').on(t.ledgerEntryId),
     index('sales_payment_id_idx').on(t.paymentId),
     index('sales_credit_override_id_idx').on(t.creditOverrideId),
-    check('sales_completed', sql`(${t.status} = 'COMPLETED') = (${t.completedAt} is not null and ${t.ledgerEntryId} is not null)`),
+    // A store's sale completes onto its ledger; an open sale, paid in full instead (ADR-0052).
+    check('sales_completed', sql`(${t.status} = 'COMPLETED') = (${t.completedAt} is not null and (${t.ledgerEntryId} is not null or (${t.storeId} is null and ${t.paymentId} is not null)))`),
     check('sales_cancelled', sql`(${t.status} = 'CANCELLED') = (${t.cancelledAt} is not null and ${t.cancelReason} is not null)`),
     check('sales_total', sql`${t.total} = ${t.gross} - ${t.discount} and ${t.total} > 0`),
     check('sales_channel_vehicle', sql`(${t.channel} = 'VEHICLE') = (${t.vehicleId} is not null)`),
+    // ADR-0052: an open sale is made from a vehicle, where it is; only an open sale has a buyer or a place.
+    check('sales_open', sql`${t.storeId} is not null or (${t.channel} = 'VEHICLE' and ${t.latitude} is not null and ${t.longitude} is not null and ${t.ledgerEntryId} is null)`),
+    check('sales_open_only', sql`${t.storeId} is null or (${t.buyerName} is null and ${t.buyerPhone} is null and ${t.latitude} is null and ${t.longitude} is null and ${t.locationAccuracyM} is null)`),
   ],
 );
 
@@ -119,6 +136,10 @@ export const discountApprovalRequests = pgTable(
   {
     id: id(),
     saleId: uuid('sale_id').notNull().unique().references(() => sales.id),
+    /** ADR-0052: a discount above the ceiling, or an open sale — which permission decides it. */
+    kind: approvalKind('kind').notNull().default('DISCOUNT'),
+    /** SAL-016: why an open sale waits; none for a discount. */
+    grounds: openSaleGround('grounds').array(),
     status: discountRequestStatus('status').notNull().default('PENDING'),
     reason: text('reason').notNull(),
     requestedAt: timestamptz('requested_at').notNull(),
@@ -135,6 +156,8 @@ export const discountApprovalRequests = pgTable(
     index('discount_approval_requests_pending_idx').on(t.expiresAt).where(sql`${t.status} = 'PENDING'`),
     index('discount_approval_requests_decided_by_idx').on(t.decidedBy),
     check('discount_approval_requests_decided', sql`(${t.status} in ('APPROVED', 'REDUCED', 'REJECTED')) = (${t.decidedAt} is not null and ${t.decidedBy} is not null)`),
+    // An open sale is approved or rejected, never approved lower; it always says why it waited.
+    check('discount_approval_requests_open_sale', sql`(${t.kind} = 'OPEN_SALE') = (${t.grounds} is not null and cardinality(${t.grounds}) > 0) and (${t.kind} = 'DISCOUNT' or ${t.status} <> 'REDUCED')`),
   ],
 );
 

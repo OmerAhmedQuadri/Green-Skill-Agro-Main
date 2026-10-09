@@ -1,4 +1,4 @@
-import { analyticsRange, Dec, dec, rangePeriods, toMoney, type AnalyticsRange, type Money } from '@gsa/core';
+import { analyticsRange, Dec, dec, OPEN_SALES_KEY, rangePeriods, toMoney, type AnalyticsRange, type Money } from '@gsa/core';
 import { schema } from '@gsa/db';
 import { and, asc, eq, gte, inArray, lt, ne, sql, type SQL } from 'drizzle-orm';
 import { authorize, type Ctx } from '../context';
@@ -63,7 +63,9 @@ type Cut = { readonly sold: SQL; readonly returned: SQL };
 
 const CUTS = {
   seller: { sold: sql`${sales.sellerId}`, returned: sql`${returns.sellerId}` },
-  store: { sold: sql`${sales.storeId}`, returned: sql`${returns.storeId}` },
+  // SAL-019 (ADR-0052): open sales have no store, and one line of their own. They are never returned.
+  // A literal, not a parameter: selected and grouped by, it must be the same expression twice over.
+  store: { sold: sql`coalesce(${sales.storeId}::text, ${sql.raw(`'${OPEN_SALES_KEY}'`)})`, returned: sql`${returns.storeId}` },
   product: { sold: sql`${skus.productId}`, returned: sql`${skus.productId}` },
   category: { sold: sql`${products.categoryId}`, returned: sql`${products.categoryId}` },
   channel: { sold: sql`${sales.channel}`, returned: sql`${sales.channel}` },
@@ -146,7 +148,8 @@ export async function salesAnalytics(ctx: Ctx, filter: AnalyticsFilter): Promise
 
   const ids = (m: Map<string, Figures>) => [...m.keys()];
   const sellerNames = bySeller.size ? await db.select({ id: users.id, name: users.name }).from(users).where(inArray(users.id, ids(bySeller))) : [];
-  const storeNames = byStore.size ? await db.select({ id: stores.id, name: stores.name }).from(stores).where(inArray(stores.id, ids(byStore))) : [];
+  const storeIds = ids(byStore).filter((id) => id !== OPEN_SALES_KEY);
+  const storeNames = storeIds.length ? await db.select({ id: stores.id, name: stores.name }).from(stores).where(inArray(stores.id, storeIds)) : [];
   const productNames = byProduct.size
     ? await db.select({ id: products.id, nameEn: products.nameEn, nameAr: products.nameAr }).from(products).where(inArray(products.id, ids(byProduct))) : [];
   const categoryNames = byCategory.size

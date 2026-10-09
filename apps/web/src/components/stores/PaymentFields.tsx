@@ -46,9 +46,12 @@ export function paymentBody(draft: PaymentDraft, owed: Money): PaymentBody | nul
  * the number printed on the slip, and a photo of it from the live camera.
  * Takes the state setter itself, so a photo that finishes uploading after
  * more was typed never puts back what the form held before.
+ *
+ * `fullAmount` (ADR-0052): an open sale is paid exactly in full, so there is
+ * no amount to type — the caller builds the body with that sum.
  */
-export function PaymentFields({ id, owed, value, onChange }: {
-  id: string; owed: Money; value: PaymentDraft; onChange: Dispatch<SetStateAction<PaymentDraft>>;
+export function PaymentFields({ id, owed, value, onChange, fullAmount }: {
+  id: string; owed: Money; value: PaymentDraft; onChange: Dispatch<SetStateAction<PaymentDraft>>; fullAmount?: Money | undefined;
 }) {
   const t = useTranslations('stores');
   const format = useFormat();
@@ -57,12 +60,14 @@ export function PaymentFields({ id, owed, value, onChange }: {
   const tooMuch = MONEY.test(typed) && dec(typed).gt(dec(owed));
   return (
     <div className="space-y-3" data-testid={`${id}-payment`}>
-      <Field
-        id={`${id}-amount`} label={t('amount')} hint={t('owedHint', { amount: format.money(owed) })}
-        error={tooMuch ? t('moreThanOwed', { amount: format.money(owed) }) : undefined}
-      >
-        <Input id={`${id}-amount`} inputMode="decimal" dir="ltr" value={value.amount} onChange={(e) => set({ amount: e.target.value })} />
-      </Field>
+      {fullAmount ? <p className="text-sm font-medium" data-testid={`${id}-full-amount`}>{t('paidInFullAmount', { amount: format.money(fullAmount) })}</p> : (
+        <Field
+          id={`${id}-amount`} label={t('amount')} hint={t('owedHint', { amount: format.money(owed) })}
+          error={tooMuch ? t('moreThanOwed', { amount: format.money(owed) }) : undefined}
+        >
+          <Input id={`${id}-amount`} inputMode="decimal" dir="ltr" value={value.amount} onChange={(e) => set({ amount: e.target.value })} />
+        </Field>
+      )}
       <Field id={`${id}-method`} label={t('method')}>
         <Select id={`${id}-method`} value={value.method} onChange={(e) => set({ method: e.target.value === 'BANK_TRANSFER' ? 'BANK_TRANSFER' : 'CASH' })}>
           <option value="CASH">{t('methods.CASH')}</option>

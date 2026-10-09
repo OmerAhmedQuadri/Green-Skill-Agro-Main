@@ -1,5 +1,5 @@
 import {
-  applicableItemCeiling, dec, isDomainError, packCount, percent, toBaseUnits, type CountUnit, type CreditMode, type CreditStatus,
+  applicableItemCeiling, dec, DomainError, isDomainError, money, packCount, percent, toBaseUnits, type CountUnit, type CreditMode, type CreditStatus,
   type DocumentSendingMode, type ErrorCode, type Money, type PackSize, type Percent, type SaleBatch, type SaleTerms, type StoreStatus,
 } from '@gsa/core';
 import { schema } from '@gsa/db';
@@ -80,6 +80,17 @@ export type SaleItem = {
   /** PRC-006: the tighter of the item's and the order's ceiling. */ readonly ceiling: Percent;
 };
 
+/** ADR-0052: what the open-sale screen needs — the vehicle at base prices, and whether an open sale will wait. */
+export type OpenSaleOptions = {
+  readonly notWorking: ErrorCode | null;
+  readonly vehicle: { readonly id: string } | null;
+  readonly items: readonly SaleItem[];
+  readonly limits: SaleLimits;
+  readonly canDiscount: boolean;
+  /** SAL-015, SAL-016: switched on, and the sum above which one waits anyway. */
+  readonly openSales: { readonly switchedOn: boolean; readonly limit: Money };
+};
+
 export type SaleOptions = {
   readonly store: { readonly id: string; readonly name: string; readonly status: StoreStatus; readonly creditMode: CreditMode; readonly credit: CreditStatus };
   /** ATT-010: why the seller cannot sell now, if they cannot — shown before anything else. */
@@ -111,12 +122,45 @@ export async function saleOptions(ctx: Ctx, storeId: string): Promise<SaleOption
     store: { id: store.id, name: store.name, status: store.status, creditMode: store.creditMode, credit: store.credit },
     notWorking, vehicle: vehicleId ? { id: vehicleId } : null, limits, canDiscount: ctx.permissions.has('sales.apply_discount'),
   };
-  if (!vehicleId) return { ...base, items: [] };
+  return { ...base, items: vehicleId ? await itemsOn(db, vehicleId, store.priceList.id, limits) : [] };
+}
 
+/** ADR-0052: the base price list — what an open sale is priced from. */
+export async function basePriceListId(db: Executor): Promise<string> {
+  const [base] = await db.select({ id: priceLists.id }).from(priceLists).where(eq(priceLists.isBase, true));
+  if (!base) throw new DomainError('NOT_FOUND', { entity: 'price_list' });
+  return base.id;
+}
+
+/**
+ * SAL-012..016 (ADR-0052): the open-sale screen — what is on the vehicle at
+ * the base list's prices, and whether an open sale goes through or waits.
+ */
+export async function openSaleOptions(ctx: Ctx): Promise<OpenSaleOptions> {
+  authorize(ctx, 'sales.record');
+  const db = ctx.tx ?? getDb();
+  const [limits, settings] = [await saleLimits(db), await readSettings(db)];
+  let vehicleId: string | null = null;
+  let notWorking: ErrorCode | null = null;
+  try {
+    vehicleId = (await sellerVehicleAccount(db, ctx)).vehicleId;
+  } catch (error) {
+    if (!isDomainError(error)) throw error;
+    notWorking = error.code;
+  }
+  return {
+    notWorking, vehicle: vehicleId ? { id: vehicleId } : null, limits, canDiscount: ctx.permissions.has('sales.apply_discount'),
+    openSales: { switchedOn: settings['sales.open_sales_on'], limit: money(settings['sales.open_sale_limit']) },
+    items: vehicleId ? await itemsOn(db, vehicleId, await basePriceListId(db), limits) : [],
+  };
+}
+
+/** What can be sold from a vehicle now, priced from a list (falling back to the base list) and capped by the ceilings. */
+async function itemsOn(db: Executor, vehicleId: string, priceListId: string, limits: SaleLimits): Promise<SaleItem[]> {
   const lines = await vehicleBatches(db, [vehicleId]);
   const skuIds = [...new Set(lines.map((l) => l.skuId))];
-  const terms = await saleTerms(db, store.priceList.id, skuIds);
-  const items = skuIds.map((skuId): SaleItem => {
+  const terms = await saleTerms(db, priceListId, skuIds);
+  return skuIds.map((skuId): SaleItem => {
     const own = lines.filter((l) => l.skuId === skuId);
     const first = own[0];
     if (!first) throw new Error('sku without batches');
@@ -127,5 +171,4 @@ export async function saleOptions(ctx: Ctx, storeId: string): Promise<SaleOption
       unitPrice: term?.unitPrice ?? null, ceiling: applicableItemCeiling(limits.orderCeiling, term?.itemCeiling ?? limits.orderCeiling),
     };
   }).filter((i) => i.sellablePacks > 0);
-  return { ...base, items };
 }
