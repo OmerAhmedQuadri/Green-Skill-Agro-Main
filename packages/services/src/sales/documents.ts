@@ -25,8 +25,9 @@ export interface PdfRenderer {
  * ADR-0019: the number is allocated in the sale's transaction from the locked
  * counter — gapless — and the PENDING row is the worker's render job.
  */
-export async function createDeliveryDocument(tx: Tx, ctx: Ctx, saleId: string): Promise<string> {
-  const number = await nextDocumentNumber(tx, 'DN', ctx.now, 6);
+export async function createDeliveryDocument(tx: Tx, ctx: Ctx, saleId: string, opts: { readonly open?: boolean } = {}): Promise<string> {
+  // ADR-0052 (SAL-017): an open sale's simplified delivery record is numbered on its own.
+  const number = await nextDocumentNumber(tx, opts.open ? 'OS' : 'DN', ctx.now, 6);
   await tx.insert(deliveryDocuments).values({ saleId, number, branchId: ctx.branchId, createdAt: ctx.now, nextAttemptAt: ctx.now });
   return number;
 }
@@ -34,7 +35,7 @@ export async function createDeliveryDocument(tx: Tx, ctx: Ctx, saleId: string): 
 /** DOC-001: everything the document shows, read from the committed sale. */
 async function documentData(db: Executor, saleId: string, number: string): Promise<DocumentData> {
   const [row] = await db.select({ s: sales, store: stores, seller: users.name, vehicle: vehicles.registration })
-    .from(sales).innerJoin(stores, eq(stores.id, sales.storeId)).innerJoin(users, eq(users.id, sales.sellerId)).leftJoin(vehicles, eq(vehicles.id, sales.vehicleId))
+    .from(sales).leftJoin(stores, eq(stores.id, sales.storeId)).innerJoin(users, eq(users.id, sales.sellerId)).leftJoin(vehicles, eq(vehicles.id, sales.vehicleId))
     .where(eq(sales.id, saleId));
   if (!row) throw new Error(`sale ${saleId} missing for its document`);
   const [lines, [payment], [debit]] = await inOrder([
@@ -47,7 +48,8 @@ async function documentData(db: Executor, saleId: string, number: string): Promi
   ]);
   return {
     number, issuedAt: row.s.completedAt ?? row.s.createdAt,
-    store: { name: row.store.name, ownerName: row.store.ownerName, contactNumber: row.store.contactNumber },
+    store: row.store ? { name: row.store.name, ownerName: row.store.ownerName, contactNumber: row.store.contactNumber } : null,
+    buyer: row.store ? null : { name: row.s.buyerName, phone: row.s.buyerPhone },
     seller: row.seller, vehicle: row.vehicle,
     lines: lines.map((l) => ({
       code: l.sku.code, productEn: l.productEn, productAr: l.productAr, varietyEn: l.varietyEn, varietyAr: l.varietyAr,
@@ -143,7 +145,10 @@ export async function emailDeliveryDocument(ctx: Ctx, saleId: string, input: { t
     const { sale, documentId, number, storageKey } = await sendable(tx, ctx, saleId);
     await enqueueEmail(tx, {
       to, template: 'delivery-document', locale: ctx.locale, branchId: ctx.branchId,
-      params: { number, store: sale.store.name, seller: sale.seller.name, total: sale.total, attachmentKey: storageKey, attachmentName: `${number}.pdf` },
+      params: {
+        number, store: sale.store?.name ?? sale.open?.buyerName ?? '', open: sale.open ? 'yes' : '', seller: sale.seller.name, total: sale.total,
+        attachmentKey: storageKey, attachmentName: `${number}.pdf`,
+      },
     }, ctx.now);
     await tx.insert(deliveryDocumentSends).values({ documentId, channel: 'EMAIL', toAddress: to, sentAt: ctx.now, sentBy: ctx.user.id, branchId: ctx.branchId, createdAt: ctx.now });
     await audit(tx, ctx, { action: 'sales.document_emailed', entityType: 'sale', entityId: saleId, after: { number, to } });

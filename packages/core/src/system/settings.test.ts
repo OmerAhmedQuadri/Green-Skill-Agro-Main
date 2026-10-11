@@ -27,6 +27,10 @@ describe('settings register (ADR-0024)', () => {
     expect(code(() => parseSetting('discount.order_ceiling', '101'))).toBe('INVALID_SETTING');
     expect(code(() => parseSetting('returns.defective_window_days', 0))).toBe('INVALID_SETTING');
     expect(code(() => parseSetting('returns.defective_allowed', 'yes'))).toBe('INVALID_SETTING');
+    // ADR-0052: a sum of money travels as a decimal string, never a JS number, and stays in range.
+    expect(parseSetting('sales.open_sale_limit', '750')).toBe('750.00');
+    expect(parseSetting('sales.open_sale_limit', '0.00')).toBe('0.00');
+    for (const bad of [750, '-1.00', '100000.01', '12.345', 'lots']) expect(code(() => parseSetting('sales.open_sale_limit', bad))).toBe('INVALID_SETTING');
     expect(code(() => parseSetting('expiry.rate_basis', 'WEEKLY'))).toBe('INVALID_SETTING');
   });
 

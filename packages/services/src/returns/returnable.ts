@@ -30,8 +30,11 @@ export type ReturnPlace =
   | { readonly kind: 'VEHICLE'; readonly notWorking: ErrorCode | null; readonly cashInHand: Money }
   | { readonly kind: 'WAREHOUSE'; readonly warehouses: readonly { readonly id: string; readonly name: Named }[] };
 
+/** A sale that can be returned is a store's: an open sale cannot (SAL-018). */
+export type StoreSale = Sale & { readonly store: NonNullable<Sale['store']> };
+
 export type Returnable = {
-  readonly sale: Sale;
+  readonly sale: StoreSale;
   /** RET-002, OQ-020: still owed on this sale, and by the store besides. */ readonly unpaid: Money; readonly otherDebts: Money;
   /** RET-002..006: each condition now — its window and why it cannot be used, if it cannot. */ readonly conditions: readonly ConditionState[];
   readonly lines: readonly ReturnableLine[];
@@ -48,9 +51,15 @@ export async function returnRules(db: Executor): Promise<ReturnRules> {
 }
 
 /** The completed sale a return is raised against — the seller's own on the phone (RET-001). */
-export async function returnableSale(db: Executor, ctx: Ctx, saleId: string): Promise<{ sale: Sale; ledgerEntryId: string; completedAt: Date; disputable: boolean }> {
-  const sale = await loadSale(db, ctx, saleId);
-  if (ctx.user.role === 'SELLER' && sale.seller.id !== ctx.user.id) throw new DomainError('NOT_FOUND', { entity: 'sale', id: saleId });
+export async function returnableSale(
+  db: Executor, ctx: Ctx, saleId: string,
+): Promise<{ sale: StoreSale; ledgerEntryId: string; completedAt: Date; disputable: boolean }> {
+  const loaded = await loadSale(db, ctx, saleId);
+  if (ctx.user.role === 'SELLER' && loaded.seller.id !== ctx.user.id) throw new DomainError('NOT_FOUND', { entity: 'sale', id: saleId });
+  // SAL-018: an open sale has no store to credit, and its buyer is gone.
+  const { store } = loaded;
+  if (!store) throw new DomainError('OPEN_SALE_NOT_RETURNABLE', { saleId });
+  const sale = { ...loaded, store };
   const [row] = await db.select({ ledgerEntryId: sales.ledgerEntryId, completedAt: sales.completedAt, mode: dispatchOrders.confirmationMode })
     .from(sales).leftJoin(dispatchOrders, eq(dispatchOrders.saleId, sales.id)).where(eq(sales.id, saleId));
   if (sale.status !== 'COMPLETED' || !row?.ledgerEntryId || !row.completedAt) throw new DomainError('SALE_NOT_COMPLETED', { status: sale.status });

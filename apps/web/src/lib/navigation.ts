@@ -26,7 +26,8 @@ export const canSeeVehicles = any('vehicles.manage', 'inventory.issue_to_vehicle
 export const canSeeAttendance = any('attendance.view', 'attendance.manage');
 export const canSeeClosingStock = any('inventory.audit_vehicle');
 export const canSeeStores = any('stores.view_all', 'stores.approve');
-export const canSeeSales = any('sales.view_all', 'sales.approve_discount');
+// ADR-0052: whoever approves open sales decides them from the Sales page too.
+export const canSeeSales = any('sales.view_all', 'sales.approve_discount', 'sales.approve_open_sale');
 export const canSeeDispatch = any('sales.fulfil_dispatch', 'sales.create_order_for_seller', 'sales.approve_lost_order');
 export const canSeeCash = any('cash.view_cash_in_hand', 'cash.approve_settlement');
 export const canSeeAudits = any('inventory.audit_vehicle', 'inventory.approve_write_off', 'inventory.view_all_stock');
@@ -35,7 +36,8 @@ export const canSeeReports = any('reports.view_trends', 'reports.view_forecast')
 export const canSeeAuditLog = any('system.view_audit_log');
 /** ADR-0049: the Super Admin's alone. */
 export const canSeeStorage = any('system.manage_storage');
-export const canSeeSettings = any('system.configure', 'system.manage_templates', 'system.set_limits', 'returns.set_rules', 'targets.manage');
+// ADR-0052: a manager given the open-sales switch finds it under Settings.
+export const canSeeSettings = any('system.configure', 'system.manage_templates', 'system.set_limits', 'returns.set_rules', 'targets.manage', 'sales.manage_open_sales');
 
 export const CONSOLE_NAV: readonly NavItem[] = [
   { href: '/console/dashboard', key: 'dashboard', icon: 'dashboard', visible: () => true },

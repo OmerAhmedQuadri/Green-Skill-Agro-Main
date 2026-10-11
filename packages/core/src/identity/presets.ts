@@ -15,7 +15,7 @@ export const PRESET_DEFAULTS = {
   SALES_MANAGER: [
     'catalogue.view', 'inventory.view_all_stock', 'inventory.audit_vehicle', 'inventory.approve_write_off',
     'vehicles.manage', 'stores.view_all', 'stores.approve', 'stores.edit_terms', 'stores.reassign',
-    'stores.override_credit_block', 'sales.view_all', 'sales.approve_discount',
+    'stores.override_credit_block', 'sales.view_all', 'sales.approve_discount', 'sales.approve_open_sale', // ADR-0052: decides open sales as discounts
     'sales.create_order_for_seller', 'sales.approve_lost_order', 'returns.process',
     'cash.view_cash_in_hand', 'cash.approve_settlement', 'attendance.view', 'attendance.manage',
     'targets.view_commission', 'reports.view_trends',

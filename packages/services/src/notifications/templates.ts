@@ -38,20 +38,21 @@ const PASSWORD_RESET = {
  * DOC-003: the store may read either language, so both are in every copy —
  * the sender's first. Words only; the document itself is the attachment.
  */
+// ADR-0052: an open sale's paper is a simplified delivery record (`open`), and its buyer may have given no name.
 const DELIVERY_DOCUMENT = {
   en: {
-    subject: (n: string) => `Delivery document ${n}`,
+    subject: (n: string, open: boolean) => `${open ? 'Simplified delivery record' : 'Delivery document'} ${n}`,
     lines: (p: Readonly<Record<string, string>>) => [
-      `Hello ${p.store ?? ''},`,
-      `Attached is delivery document ${p.number ?? ''} from Green Skill Agro for goods delivered by ${p.seller ?? ''}, totalling ${p.total ?? ''} SAR.`,
+      p.store ? `Hello ${p.store},` : 'Hello,',
+      `Attached is ${p.open ? 'simplified delivery record' : 'delivery document'} ${p.number ?? ''} from Green Skill Agro for goods delivered by ${p.seller ?? ''}, totalling ${p.total ?? ''} SAR.`,
       'This is not a tax invoice. It is an unofficial record of goods delivered.',
     ],
   },
   ar: {
-    subject: (n: string) => `سند تسليم ${n}`,
+    subject: (n: string, open: boolean) => `${open ? 'سند تسليم مبسّط' : 'سند تسليم'} ${n}`,
     lines: (p: Readonly<Record<string, string>>) => [
-      `مرحباً ${p.store ?? ''}،`,
-      `مرفق سند التسليم ${p.number ?? ''} من غرين سكيل أغرو للبضاعة التي سلّمها ${p.seller ?? ''}، بإجمالي ${p.total ?? ''} ر.س.`,
+      p.store ? `مرحباً ${p.store}،` : 'مرحباً،',
+      `مرفق ${p.open ? 'سند التسليم المبسّط' : 'سند التسليم'} ${p.number ?? ''} من غرين سكيل أغرو للبضاعة التي سلّمها ${p.seller ?? ''}، بإجمالي ${p.total ?? ''} ر.س.`,
       'هذه ليست فاتورة ضريبية، وإنما سجل غير رسمي بالبضاعة المسلّمة.',
     ],
   },
@@ -89,7 +90,7 @@ export function renderEmail(template: EmailTemplate, locale: Locale, params: Rea
       const html = order.map((l) => `<div dir="${l === 'ar' ? 'rtl' : 'ltr'}" lang="${l}" style="text-align:start;margin-bottom:16px">${
         DELIVERY_DOCUMENT[l].lines(params).map((line, i) => `<p${i === 2 ? ' style="font-weight:bold;color:#b91c1c"' : ''}>${escape(line)}</p>`).join('')}</div>`).join('<hr style="border:none;border-top:1px solid #e7e5e4">');
       return {
-        subject: `${DELIVERY_DOCUMENT[order[0] ?? 'en'].subject(number)} · ${DELIVERY_DOCUMENT[order[1] ?? 'ar'].subject(number)}`,
+        subject: `${DELIVERY_DOCUMENT[order[0] ?? 'en'].subject(number, Boolean(params.open))} · ${DELIVERY_DOCUMENT[order[1] ?? 'ar'].subject(number, Boolean(params.open))}`,
         text: order.map((l) => DELIVERY_DOCUMENT[l].lines(params).join('\n\n')).join('\n\n—\n\n'),
         html: layout(locale, html),
         attachments: params.attachmentKey ? [{ filename: params.attachmentName ?? `${number}.pdf`, storageKey: params.attachmentKey, contentType: 'application/pdf' }] : [],

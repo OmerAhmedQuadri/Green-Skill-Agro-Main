@@ -59,7 +59,8 @@ export function DeliveryDocumentPanel({ sale, canSend, canKeep = false, onChange
     <div className="space-y-3" data-testid="delivery-document">
       <div className="flex flex-wrap items-center gap-2">
         <FileText className="size-5 text-stone-500" aria-hidden />
-        <span className="font-semibold">{t('documentTitle')}</span>
+        {/* SAL-017: an open sale's paper is the simplified delivery record. */}
+        <span className="font-semibold">{sale.open ? t('open.documentTitle') : t('documentTitle')}</span>
         <bdi dir="ltr" className="text-sm" data-testid="document-number">{doc.number}</bdi>
         <Badge tone="danger">{t('notTaxInvoice')}</Badge>
       </div>

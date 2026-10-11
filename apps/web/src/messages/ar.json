@@ -125,7 +125,8 @@
         "LOST_CLAIMS": "مطالبات الطلبات المفقودة",
         "WRITE_OFFS": "طلبات الشطب",
         "PURCHASE_ORDERS": "أوامر شراء بانتظار الاعتماد",
-        "CLOSING_VARIANCES": "فروقات مخزون نهاية اليوم بانتظار المراجعة"
+        "CLOSING_VARIANCES": "فروقات مخزون نهاية اليوم بانتظار المراجعة",
+        "OPEN_SALES": "عمليات بيع مفتوح بانتظار الموافقة"
       }
     }
   },
@@ -354,7 +355,9 @@
       "fulfil_dispatch": "تنفيذ أوامر الإرسال",
       "create_order_for_seller": "إنشاء طلب نيابة عن المندوب",
       "confirm_dispatch_receipt": "تأكيد استلام أمر الإرسال",
-      "approve_lost_order": "اعتماد مطالبات الطلبات المفقودة"
+      "approve_lost_order": "اعتماد مطالبات الطلبات المفقودة",
+      "manage_open_sales": "تشغيل البيع المفتوح أو إيقافه",
+      "approve_open_sale": "اعتماد عمليات البيع المفتوح المعلّقة"
     },
     "returns": {
       "process": "معالجة المرتجعات والاستبدال",
@@ -520,7 +523,10 @@
     "VENDOR_REQUIRED": "اختر المورد قبل اعتماد هذا الأمر.",
     "INVALID_VOUCHER_NUMBER": "رقم سند القبض غير صالح — اكتبه كما هو مطبوع، حروفًا وأرقامًا.",
     "DUPLICATE_VOUCHER": "رقم سند القبض هذا مستخدم من قبل — تحقق من الرقم المطبوع على السند.",
-    "RANGE_TOO_LONG": "لا تتجاوز الفترة سنة واحدة."
+    "RANGE_TOO_LONG": "لا تتجاوز الفترة سنة واحدة.",
+    "OPEN_SALE_PAID_IN_FULL": "يُدفع البيع المفتوح بالكامل عند إتمامه — استلم الإجمالي كاملًا.",
+    "OPEN_SALE_NOT_RETURNABLE": "لا يمكن إرجاع البيع المفتوح.",
+    "OPEN_SALE_NEEDS_APPROVAL": "يحتاج هذا البيع المفتوح إلى موافقة. اذكر سببًا لطلبها."
   },
   "format": {
     "grams": "{value} جم",
@@ -680,7 +686,8 @@
       "credit": "الائتمان",
       "documents": "سندات التسليم",
       "targets": "الأهداف والعمولة",
-      "storage": "التخزين"
+      "storage": "التخزين",
+      "sales": "البيع المفتوح"
     },
     "fields": {
       "discount": {
@@ -749,6 +756,10 @@
         "budget_gb": "ميزانية تخزين الملفات (غيغابايت)",
         "backup_retention_days": "مدة الاحتفاظ بالنسخ الاحتياطية (بالأيام)",
         "backups_paused_until": "النسخ الاحتياطي الليلي متوقف مؤقتًا حتى"
+      },
+      "sales": {
+        "open_sales_on": "البيع المفتوح مُفعَّل",
+        "open_sale_limit": "يحتاج البيع المفتوح فوق هذا المبلغ إلى موافقة (ر.س)"
       }
     },
     "choices": {
@@ -1281,7 +1292,11 @@
       "TARGET_MISSED": "{name, select, undefined {لم تبلغ} other {لم يبلغ {name}}} هدف شهر {period}.",
       "PERIOD_CLOSED": "شهر {period} نهائي، ولن يتغير رقم العمولة.",
       "TRANSFER_RECORDED": "تحويل بنكي بمبلغ {amount} ({number}) بانتظار تأكيدك لوصوله.",
-      "TRANSFER_NOT_RECEIVED": "لم يصل التحويل البنكي {number} ({amount}) — أصبح المبلغ مستحقًا على المتجر من جديد. السبب: {reason}"
+      "TRANSFER_NOT_RECEIVED": "لم يصل التحويل البنكي {number} ({amount}) — أصبح المبلغ مستحقًا على المتجر من جديد. السبب: {reason}",
+      "OPEN_SALE_REQUESTED": "يطلب {seller} بيعًا مفتوحًا بقيمة {total} ر.س وينتظر القرار.",
+      "OPEN_SALE_APPROVED": "تمت الموافقة على بيعك المفتوح بقيمة {total} ر.س — أتمّه مدفوعًا بالكامل.",
+      "OPEN_SALE_REJECTED": "رُفض بيعك المفتوح بقيمة {total} ر.س.",
+      "OPEN_SALE_EXPIRED": "انتهت مهلة بيعك المفتوح المعلّق وتحرّرت أصنافه."
     },
     "resolvedLine": "{outcome} · {time}",
     "resolved": {
@@ -1608,10 +1623,11 @@
     "owedHint": "المستحق على المتجر إجمالًا: {amount}.",
     "moreThanOwed": "أكثر مما على المتجر ({amount}).",
     "voucherNumber": "رقم سند القبض",
-    "voucherHint": "كما هو مطبوع على السند الذي تسلّمه للمتجر.",
+    "voucherHint": "كما هو مطبوع على السند الذي تسلّمه.",
     "voucherPhoto": "صورة سند القبض",
     "voucherIs": "سند القبض {number}",
-    "takePaymentAtDelivery": "استلام دفعة الآن"
+    "takePaymentAtDelivery": "استلام دفعة الآن",
+    "paidInFullAmount": "يُدفع بالكامل: {amount}"
   },
   "sales": {
     "title": "المبيعات",
@@ -1749,7 +1765,42 @@
     "documentDeleted": "حُذف سند التسليم هذا في {date} وفق سياسة التخزين.",
     "documentKept": "محفوظ دائمًا.",
     "keepDocument": "احفظه دائمًا",
-    "releaseDocument": "أوقف الحفظ الدائم"
+    "releaseDocument": "أوقف الحفظ الدائم",
+    "open": {
+      "title": "بيع مفتوح",
+      "titleWith": "بيع مفتوح — {buyer}",
+      "new": "بيع مفتوح جديد",
+      "newHint": "لمشترٍ ليس من متاجرك.",
+      "intro": "لمشترٍ ليس من متاجرك: يُدفع بالكامل الآن، مع سند تسليم مبسّط.",
+      "switchedOff": "البيع المفتوح متوقف — سينتظر هذا البيع الموافقة.",
+      "limitNote": "فوق {limit} ينتظر البيع المفتوح الموافقة.",
+      "buyerTitle": "المشتري، إن ذكر",
+      "buyerName": "الاسم",
+      "buyerPhone": "الهاتف",
+      "whereTitle": "المكان",
+      "withinCeiling": "يبقى البيع المفتوح ضمن سقف {ceiling}%",
+      "requestTitle": "يحتاج هذا البيع المفتوح إلى موافقة",
+      "requestReason": "لماذا هذا البيع المفتوح؟",
+      "grounds": {
+        "SWITCHED_OFF": "البيع المفتوح متوقف.",
+        "ABOVE_LIMIT": "يتجاوز حد البيع المفتوح."
+      },
+      "waitingTitle": "بانتظار الموافقة على هذا البيع المفتوح",
+      "approvedTitle": "تمت الموافقة — أتمّه مدفوعًا بالكامل.",
+      "buyer": "المشتري",
+      "noBuyer": "لم يُذكر",
+      "where": "مكان البيع",
+      "onMap": "عرض على الخريطة",
+      "notReturnable": "لا يمكن إرجاع البيع المفتوح.",
+      "rejectedTitle": "رُفض البيع المفتوح.",
+      "filter": "البيع المفتوح",
+      "approveOpen": "اعتماد البيع المفتوح",
+      "decideHintOpen": "اعتمده كما هو، أو ارفضه مع تعليق. يُبلَّغ المندوب فورًا.",
+      "openSales": "البيع المفتوح",
+      "documentTitle": "سند تسليم مبسّط",
+      "whyWaiting": "سبب الانتظار",
+      "commentHint": "مطلوب عند الرفض."
+    }
   },
   "audit": {
     "title": "سجل التدقيق",
@@ -2037,7 +2088,8 @@
     "ownTransfer": "سجّلت هذا التحويل بنفسك — يؤكده شخص آخر.",
     "moreTransfers": "{count, plural, one {تحويل واحد آخر بالانتظار} two {تحويلان آخران بالانتظار} few {# تحويلات أخرى بالانتظار} many {# تحويلًا آخر بالانتظار} other {# تحويل آخر بالانتظار}} بعد هذه.",
     "voucher": "سند القبض",
-    "viewPhoto": "عرض"
+    "viewPhoto": "عرض",
+    "openSale": "بيع مفتوح"
   },
   "audits": {
     "loading": "جارٍ التحميل…",
@@ -2343,6 +2395,7 @@
         "DAYS_61_90": "61–90 يومًا",
         "OVER_90": "أكثر من 90 يومًا"
       }
-    }
+    },
+    "openSales": "البيع المفتوح"
   }
 }

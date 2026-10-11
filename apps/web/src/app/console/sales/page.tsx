@@ -7,5 +7,5 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ s
   const ctx = await requireSession();
   if (!canSeeSales(ctx.permissions)) notFound();
   const { status } = await searchParams;
-  return <SalesPage canDecide={ctx.permissions.has('sales.approve_discount')} initialFilter={status ?? ''} />;
+  return <SalesPage canDecide={ctx.permissions.has('sales.approve_discount') || ctx.permissions.has('sales.approve_open_sale')} initialFilter={status ?? ''} />;
 }

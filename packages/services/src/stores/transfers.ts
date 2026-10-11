@@ -7,12 +7,12 @@ import { audit, inTx, type Executor, type Tx } from '../platform';
 import { getDb } from '../runtime';
 import { postStoreDebit } from './credit';
 
-const { payments, paymentAllocations, storeLedgerEntries, stores, transferDecisions, users } = schema;
+const { payments, paymentAllocations, sales, storeLedgerEntries, stores, transferDecisions, users } = schema;
 
 export type AwaitingTransfer = {
   readonly id: string; readonly number: string; readonly amount: Money; readonly reference: string; readonly receivedAt: Date;
   /** ADR-0047: the voucher handed over for it, to check with the statement. */ readonly voucher: { readonly number: string; readonly photoId: string } | null;
-  readonly store: { readonly id: string; readonly name: string };
+  /** Null for an open sale's transfer (ADR-0052). */ readonly store: { readonly id: string; readonly name: string } | null;
   readonly seller: { readonly id: string; readonly name: string };
   /** False for a transfer the caller recorded themselves: someone else decides it (four eyes). */
   readonly decidable: boolean;
@@ -35,7 +35,7 @@ export async function listAwaitingTransfers(ctx: Ctx, filter: { limit?: number |
     voucherNumber: payments.voucherNumber, voucherPhotoId: payments.voucherPhotoId,
     storeId: stores.id, storeName: stores.name, sellerId: users.id, sellerName: users.name,
   }).from(payments)
-    .innerJoin(stores, eq(stores.id, payments.storeId))
+    .leftJoin(stores, eq(stores.id, payments.storeId))
     .innerJoin(users, eq(users.id, payments.receivedBy))
     .leftJoin(transferDecisions, eq(transferDecisions.paymentId, payments.id))
     .where(awaiting)
@@ -47,7 +47,8 @@ export async function listAwaitingTransfers(ctx: Ctx, filter: { limit?: number |
     items: rows.map((r) => ({
       id: r.id, number: r.number, amount: r.amount as Money, reference: r.reference ?? '', receivedAt: r.receivedAt,
       voucher: r.voucherNumber && r.voucherPhotoId ? { number: r.voucherNumber, photoId: r.voucherPhotoId } : null,
-      store: { id: r.storeId, name: r.storeName }, seller: { id: r.sellerId, name: r.sellerName }, decidable: r.sellerId !== ctx.user.id,
+      store: r.storeId && r.storeName !== null ? { id: r.storeId, name: r.storeName } : null,
+      seller: { id: r.sellerId, name: r.sellerName }, decidable: r.sellerId !== ctx.user.id,
     })),
     total: count?.n ?? 0,
   };
@@ -120,11 +121,18 @@ export async function decideTransfer(
     });
     await endRequest(tx, 'TRANSFER_RECORDED', [paymentId], input.outcome, ctx.user.id, ctx.now);
     if (input.outcome === 'NOT_RECEIVED') {
-      await reinstateDebts(tx, ctx, payment, reason ?? '');
       const [recorder] = await tx.select({ role: users.role }).from(users).where(eq(users.id, payment.receivedBy));
       const area = recorder?.role === 'SELLER' ? 'field' : 'console';
-      await notify(tx, ctx, { users: [payment.receivedBy] }, 'TRANSFER_NOT_RECEIVED',
-        { number: payment.number, amount: payment.amount, reason }, `/${area}/stores/${payment.storeId}`);
+      let link: string;
+      if (payment.storeId && payment.ledgerEntryId) {
+        await reinstateDebts(tx, ctx, { id: payment.id, storeId: payment.storeId, ledgerEntryId: payment.ledgerEntryId }, reason ?? '');
+        link = `/${area}/stores/${payment.storeId}`;
+      } else {
+        // ADR-0052: an open sale's transfer — no store to owe it; the sale shows it unpaid, and the seller is told.
+        const [sale] = await tx.select({ id: sales.id }).from(sales).where(eq(sales.paymentId, payment.id));
+        link = sale ? `/${area}/sales/${sale.id}` : `/${area}/cash`;
+      }
+      await notify(tx, ctx, { users: [payment.receivedBy] }, 'TRANSFER_NOT_RECEIVED', { number: payment.number, amount: payment.amount, reason }, link);
     }
     await audit(tx, ctx, {
       action: input.outcome === 'CONFIRMED' ? 'cash.transfer_confirmed' : 'cash.transfer_not_received',

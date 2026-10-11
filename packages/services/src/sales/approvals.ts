@@ -12,7 +12,7 @@ const { sales, saleLines, discountApprovalRequests, users } = schema;
 
 /** A seller's own sales; with `sales.view_all`, everyone's; an approver, the requests (RPT-009, PRC-012). */
 export async function listSales(ctx: Ctx, filter: SaleFilter): Promise<{ items: SaleSummary[]; nextCursor: string | null }> {
-  authorizeAny(ctx, ['sales.record', 'sales.view_all', 'sales.approve_discount']);
+  authorizeAny(ctx, ['sales.record', 'sales.view_all', 'sales.approve_discount', 'sales.approve_open_sale']);
   return querySales(ctx.tx ?? getDb(), ctx, filter);
 }
 
@@ -26,9 +26,12 @@ export type DecideDiscountInput = {
  * PRC-012, PRC-013, PRC-017: approve as requested, approve lower, or reject.
  * The first decision wins — anyone after is told who decided — a request past
  * its time is expired, not decided, and nobody decides their own sale.
+ *
+ * SAL-016 (ADR-0052): an open sale's request is decided here too, by whoever
+ * approves open sales — approved as it stands, or rejected; never lower.
  */
 export async function decideDiscountRequest(ctx: Ctx, saleId: string, input: DecideDiscountInput): Promise<SaleView> {
-  authorize(ctx, 'sales.approve_discount');
+  authorizeAny(ctx, ['sales.approve_discount', 'sales.approve_open_sale']);
   return inTx(ctx, async (tx) => {
     const [row] = await tx.select().from(sales).where(eq(sales.id, saleId)).for('update');
     const [request] = row
@@ -36,6 +39,9 @@ export async function decideDiscountRequest(ctx: Ctx, saleId: string, input: Dec
         .leftJoin(users, eq(users.id, discountApprovalRequests.decidedBy)).where(eq(discountApprovalRequests.saleId, saleId))
       : [];
     if (!row || !request) throw new DomainError('NOT_FOUND', { entity: 'sale', id: saleId });
+    const open = request.r.kind === 'OPEN_SALE';
+    authorize(ctx, open ? 'sales.approve_open_sale' : 'sales.approve_discount');
+    if (open && input.lines?.length) throw new DomainError('INVALID_TRANSITION', { from: row.status, action: 'reduce' });
     if (row.status !== 'PENDING_DISCOUNT_APPROVAL' || request.r.status !== 'PENDING') {
       throw new DomainError('ALREADY_DECIDED', { status: request.r.status, by: request.decider, at: request.r.decidedAt ?? request.r.closedAt });
     }
@@ -73,10 +79,18 @@ export async function decideDiscountRequest(ctx: Ctx, saleId: string, input: Dec
       await tx.update(discountApprovalRequests).set({ status: decision.outcome, ...common }).where(eq(discountApprovalRequests.id, request.r.id));
     }
 
-    await endRequest(tx, 'DISCOUNT_APPROVAL_REQUESTED', [saleId], decision.outcome, ctx.user.id, ctx.now);
     const sale = await viewSale(tx, ctx, saleId);
+    if (open) {
+      const outcome = decision.outcome === 'REJECTED' ? 'REJECTED' : 'APPROVED';
+      await endRequest(tx, 'OPEN_SALE_REQUESTED', [saleId], outcome, ctx.user.id, ctx.now);
+      await notify(tx, ctx, { users: [row.sellerId] }, outcome === 'REJECTED' ? 'OPEN_SALE_REJECTED' : 'OPEN_SALE_APPROVED',
+        { total: sale.total, buyer: sale.open?.buyerName ?? '', comment }, `/field/sales/${saleId}`);
+      await audit(tx, ctx, { action: 'sales.open_sale_decided', entityType: 'sale', entityId: saleId, after: { outcome, comment, total: sale.total } });
+      return sale;
+    }
+    await endRequest(tx, 'DISCOUNT_APPROVAL_REQUESTED', [saleId], decision.outcome, ctx.user.id, ctx.now);
     const kind = decision.outcome === 'REJECTED' ? 'DISCOUNT_REJECTED' : decision.outcome === 'REDUCED' ? 'DISCOUNT_REDUCED' : 'DISCOUNT_APPROVED';
-    await notify(tx, ctx, { users: [row.sellerId] }, kind, { store: sale.store.name, total: sale.total, comment }, `/field/sales/${saleId}`);
+    await notify(tx, ctx, { users: [row.sellerId] }, kind, { store: sale.store?.name ?? '', total: sale.total, comment }, `/field/sales/${saleId}`);
     await audit(tx, ctx, {
       action: 'sales.discount_decided', entityType: 'sale', entityId: saleId,
       before: { lines: lines.map((l) => ({ lineId: l.id, requested: l.requestedDiscount })), total: row.total },

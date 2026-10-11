@@ -16,6 +16,7 @@ import { useErrorText, useOnceCommand } from '@/lib/hooks';
 import { keys } from '@/lib/query-keys';
 import { SaleReturns } from '@/components/returns/SaleReturns';
 import { DeliveryDocumentPanel } from './DeliveryDocumentPanel';
+import { partyOf } from './party';
 import { SaleLinesTable } from './SaleLinesTable';
 import { SALE_TONE, type Sale } from './types';
 
@@ -45,11 +46,12 @@ export function FieldSaleScreen({ id, canReturn = false }: { id: string; canRetu
   });
   // ADR-0047: what the store owes besides, for money taken as an approved sale completes.
   const completing = sale.data?.status === 'DISCOUNT_APPROVED' && sale.data.channel === 'VEHICLE';
-  const storeId = sale.data?.store.id ?? '';
-  const store = useQuery({ queryKey: keys.store(storeId), queryFn: () => api<Store>(`/stores/${storeId}`), enabled: completing });
+  const storeId = sale.data?.store?.id ?? '';
+  const store = useQuery({ queryKey: keys.store(storeId), queryFn: () => api<Store>(`/stores/${storeId}`), enabled: completing && Boolean(storeId) });
   const refresh = (s: Sale) => {
     queryClient.setQueryData(keys.sale(id), s);
-    for (const k of [keys.sales(), keys.myVehicle, keys.cashInHand, keys.store(s.store.id), keys.saleOptions(s.store.id)]) void queryClient.invalidateQueries({ queryKey: k });
+    const own = s.store ? [keys.store(s.store.id), keys.saleOptions(s.store.id)] : [keys.openSaleOptions];
+    for (const k of [keys.sales(), keys.myVehicle, keys.cashInHand, ...own]) void queryClient.invalidateQueries({ queryKey: k });
   };
   const act = useOnceCommand((body: { action: 'complete' | 'withdraw'; version: number; payment?: unknown }, key) =>
     api<Sale>(`/sales/${id}/${body.action}`, { method: 'POST', body: { version: body.version, ...(body.payment ? { payment: body.payment } : {}) }, idempotencyKey: key }), { onSuccess: refresh });
@@ -61,15 +63,17 @@ export function FieldSaleScreen({ id, canReturn = false }: { id: string; canRetu
   if (sale.isPending) return <p className="text-sm text-stone-500">{t('loading')}</p>;
   if (sale.error) return <Alert>{errorText(sale.error)}</Alert>;
   const s = sale.data;
-  const billToBill = s.store.creditMode === 'BILL_TO_BILL';
+  // ADR-0052: an open sale has no store — it is paid in full as it completes, and never returned.
+  const open = s.open !== null;
+  const billToBill = s.store?.creditMode === 'BILL_TO_BILL';
   const owed = sumMoney([store.data?.credit.outstanding ?? ('0.00' as Money), s.total]);
-  const payment = paying ? paymentBody(draft, owed) : null;
+  const payment = open ? paymentBody({ ...draft, amount: s.total }, s.total) : paying ? paymentBody(draft, owed) : null;
   const a = s.approval;
   const mustSend = s.sendingMode === 'COMPULSORY' && (s.document?.sends.length ?? 0) === 0 && s.document?.status !== 'FAILED';
 
   return (
     <div className="space-y-4 pb-6">
-      <PageHeader title={s.store.name} back={{ href: '/field/sales', label: t('mySales') }} />
+      <PageHeader title={partyOf(s, t)} back={{ href: '/field/sales', label: t('mySales') }} />
       <div className="flex flex-wrap items-center gap-2">
         <Badge tone={SALE_TONE[s.status]} data-testid="sale-status">{t(`statuses.${s.status}`)}</Badge>
         {s.cancelReason ? <Badge>{t(`cancelReasons.${s.cancelReason}`)}</Badge> : null}
@@ -78,27 +82,36 @@ export function FieldSaleScreen({ id, canReturn = false }: { id: string; canRetu
 
       {s.status === 'PENDING_DISCOUNT_APPROVAL' && a ? (
         <Alert tone="warning" data-testid="waiting">
-          <div className="font-semibold">{t('waitingTitle')}</div>
+          <div className="font-semibold">{open ? t('open.waitingTitle') : t('waitingTitle')}</div>
           <div>{t('waitingHint', { time: format.dateTime(a.expiresAt) })}</div>
         </Alert>
       ) : null}
       {s.status === 'DISCOUNT_APPROVED' && a ? (
         <Alert tone="success" data-testid="approved">
-          <div className="font-semibold">{a.status === 'REDUCED' ? t('reducedTitle') : t('approvedTitle')}</div>
+          <div className="font-semibold">{open ? t('open.approvedTitle') : a.status === 'REDUCED' ? t('reducedTitle') : t('approvedTitle')}</div>
           {a.comment ? <div>{t('decisionComment', { comment: a.comment })}</div> : null}
         </Alert>
       ) : null}
       {s.status === 'CANCELLED' ? (
         <Alert tone={s.cancelReason === 'WITHDRAWN' ? 'info' : 'warning'} data-testid="cancelled">
-          <div className="font-semibold">{t(`cancelledTitles.${s.cancelReason ?? 'WITHDRAWN'}`)}</div>
+          <div className="font-semibold">{open && s.cancelReason === 'REJECTED' ? t('open.rejectedTitle') : t(`cancelledTitles.${s.cancelReason ?? 'WITHDRAWN'}`)}</div>
           {a?.comment && s.cancelReason === 'REJECTED' ? <div>{t('decisionComment', { comment: a.comment })}</div> : null}
           <div>{t('released')}</div>
           {s.cancelReason !== 'WITHDRAWN' ? (
-            <Link href={`/field/sell/${s.store.id}?from=${s.id}`} className="mt-2 inline-block font-medium underline">{t('freshSale')}</Link>
+            <Link href={s.store ? `/field/sell/${s.store.id}?from=${s.id}` : '/field/sell/open'} className="mt-2 inline-block font-medium underline">
+              {s.store ? t('freshSale') : t('open.new')}
+            </Link>
           ) : null}
         </Alert>
       ) : null}
 
+      {s.open ? (
+        <Card className="space-y-1 p-4 text-sm" data-testid="open-buyer">
+          <div className="text-stone-500">{t('open.buyer')}</div>
+          <div className="font-medium">{s.open.buyerName ?? t('open.noBuyer')}</div>
+          {s.open.buyerPhone ? <div><bdi dir="ltr">{s.open.buyerPhone}</bdi></div> : null}
+        </Card>
+      ) : null}
       <Card><SaleLinesTable sale={s} /></Card>
       {s.payment ? (
         <p className="text-sm text-stone-600" data-testid="paid">
@@ -117,12 +130,16 @@ export function FieldSaleScreen({ id, canReturn = false }: { id: string; canRetu
       {s.status === 'DISCOUNT_APPROVED' && s.channel === 'VEHICLE' ? (
         <Card className="space-y-3 p-4">
           {billToBill && store.data ? <p className="text-sm text-stone-600">{t('billToBillNote', { amount: format.money(store.data.credit.available) })}</p> : null}
-          <label htmlFor="take-payment" className="flex items-center gap-2 text-sm font-medium">
-            <Checkbox id="take-payment" checked={paying} onChange={(e) => setPaying(e.target.checked)} />
-            {t('takePayment')}
-          </label>
-          {paying ? <PaymentFields id="complete" owed={owed} value={draft} onChange={setDraft} /> : null}
-          <Button block disabled={act.isPending || (paying && !payment)} onClick={() => act.run({ action: 'complete', version: s.version, payment: payment ?? undefined })}>
+          {open ? <PaymentFields id="complete" owed={s.total} value={draft} onChange={setDraft} fullAmount={s.total} /> : (
+            <>
+              <label htmlFor="take-payment" className="flex items-center gap-2 text-sm font-medium">
+                <Checkbox id="take-payment" checked={paying} onChange={(e) => setPaying(e.target.checked)} />
+                {t('takePayment')}
+              </label>
+              {paying ? <PaymentFields id="complete" owed={owed} value={draft} onChange={setDraft} /> : null}
+            </>
+          )}
+          <Button block disabled={act.isPending || ((paying || open) && !payment)} onClick={() => act.run({ action: 'complete', version: s.version, payment: payment ?? undefined })}>
             {act.isPending ? t('saving') : t('complete')}
           </Button>
         </Card>
@@ -142,8 +159,8 @@ export function FieldSaleScreen({ id, canReturn = false }: { id: string; canRetu
       {s.status === 'COMPLETED' ? (
         <Card className="space-y-4 p-4">
           <DeliveryDocumentPanel sale={s} canSend onChanged={refresh} />
-          {/* RET-001: returns start from the sale. */}
-          <SaleReturns saleId={s.id} surface="field" canReturn={canReturn} />
+          {/* RET-001: returns start from the sale — never an open sale's (SAL-018). */}
+          {open ? <p className="text-sm text-stone-500">{t('open.notReturnable')}</p> : <SaleReturns saleId={s.id} surface="field" canReturn={canReturn} />}
           {mustSend ? <Alert tone="warning" data-testid="must-send">{t('sendRequired')}</Alert> : null}
           {/* DOC-004: when sending is compulsory, the seller leaves the sale only once it is sent. */}
           {mustSend ? null : (

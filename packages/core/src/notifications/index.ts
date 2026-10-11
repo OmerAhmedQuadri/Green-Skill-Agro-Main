@@ -15,6 +15,7 @@ export const NOTIFICATION_KINDS = [
   'SETTLEMENT_SUBMITTED', 'SETTLEMENT_APPROVED', 'SETTLEMENT_REJECTED', 'CEILING_BREACHED',
   'TRANSFER_RECORDED', 'TRANSFER_NOT_RECEIVED',
   'TARGET_SET', 'TARGET_BEHIND_PACE', 'TARGET_MISSED', 'PERIOD_CLOSED',
+  'OPEN_SALE_REQUESTED', 'OPEN_SALE_APPROVED', 'OPEN_SALE_REJECTED', 'OPEN_SALE_EXPIRED',
 ] as const;
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
 
@@ -41,6 +42,7 @@ export const REQUEST_ENDS = {
   CHECK_IN_AWAITING_AUTHORISATION: ['AUTHORISED', 'WITHDRAWN'],
   LOST_CLAIM_RAISED: ['APPROVED', 'REJECTED'],
   DISPATCH_REQUESTED: ['TAKEN', 'RELEASED', 'CANCELLED'],
+  OPEN_SALE_REQUESTED: ['APPROVED', 'REJECTED', 'EXPIRED', 'WITHDRAWN'],
 } as const satisfies Partial<Record<NotificationKind, readonly RequestOutcome[]>>;
 export type RequestKind = keyof typeof REQUEST_ENDS;
 export type RequestOutcomes = { readonly [K in RequestKind]: (typeof REQUEST_ENDS)[K][number] };
@@ -63,6 +65,8 @@ export const isRequestKind = (kind: NotificationKind): kind is RequestKind => (R
  */
 export const DECISION_QUEUES = {
   DISCOUNTS: 'sales.approve_discount',
+  // ADR-0052: as urgent — the buyer is standing there too.
+  OPEN_SALES: 'sales.approve_open_sale',
   CHECK_INS: 'attendance.manage',
   DISPATCH: 'sales.fulfil_dispatch',
   STORES: 'stores.approve',

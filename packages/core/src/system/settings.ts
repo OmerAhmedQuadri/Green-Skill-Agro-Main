@@ -1,6 +1,6 @@
 import { DomainError } from '../errors';
 import type { PermissionCode } from '../identity';
-import { dec, percent } from '../numeric';
+import { dec, money, percent, toMoney } from '../numeric';
 import { isCalendarDate } from '../time';
 
 /**
@@ -17,11 +17,13 @@ type Spec =
   // A retention period (ADR-0049): whole months within the range, or 'FOREVER' where the kind allows it.
   | { readonly kind: 'months'; readonly min: number; readonly max: number; readonly forever: boolean; readonly default: number | 'FOREVER' }
   // A calendar date, `YYYY-MM-DD`, or none.
-  | { readonly kind: 'date'; readonly default: null };
+  | { readonly kind: 'date'; readonly default: null }
+  // A sum of money, a decimal string within the range (ADR-0003).
+  | { readonly kind: 'money'; readonly min: string; readonly max: string; readonly default: string };
 
 type Entry = Spec & { readonly permission: PermissionCode; readonly group: SettingGroup };
 
-export const SETTING_GROUPS = ['discounts', 'documents', 'returns', 'expiry', 'operations', 'attendance', 'stores', 'credit', 'limits', 'targets', 'storage'] as const;
+export const SETTING_GROUPS = ['discounts', 'sales', 'documents', 'returns', 'expiry', 'operations', 'attendance', 'stores', 'credit', 'limits', 'targets', 'storage'] as const;
 export type SettingGroup = (typeof SETTING_GROUPS)[number];
 
 export const SETTINGS = {
@@ -30,6 +32,9 @@ export const SETTINGS = {
   'discount.item_ceiling': { kind: 'percent', default: '5', permission: 'pricing.set_discount_ceilings', group: 'discounts' },
   'discount.absolute_maximum': { kind: 'percent', default: '25', permission: 'pricing.set_discount_ceilings', group: 'discounts' },
   'discount.approval_expiry_minutes': { kind: 'integer', min: 5, max: 240, default: 30, permission: 'pricing.set_discount_ceilings', group: 'discounts' },
+  // SAL-015, SAL-016 (ADR-0052): open sales on or off — the Admin's, grantable to a manager — and the sum above which one waits for approval anyway.
+  'sales.open_sales_on': { kind: 'boolean', default: true, permission: 'sales.manage_open_sales', group: 'sales' },
+  'sales.open_sale_limit': { kind: 'money', min: '0.00', max: '100000.00', default: '500.00', permission: 'system.configure', group: 'sales' },
   // DOC-004: whether the seller must send the delivery document, may, or cannot — a copy is kept regardless (DOC-005)
   'documents.sending': { kind: 'choice', options: ['OPTIONAL', 'COMPULSORY', 'DISABLED'], default: 'OPTIONAL', permission: 'system.configure', group: 'documents' },
   // RET-002..006, SYS-003
@@ -95,7 +100,8 @@ type ValueOf<S> = S extends { kind: 'percent' } ? string
       : S extends { kind: 'choice'; options: readonly (infer O)[] } ? O
         : S extends { kind: 'months' } ? number | 'FOREVER'
           : S extends { kind: 'date' } ? string | null
-            : never;
+            : S extends { kind: 'money' } ? string
+              : never;
 export type SettingValue<K extends SettingKey> = ValueOf<(typeof SETTINGS)[K]>;
 export type Settings = { readonly [K in SettingKey]: SettingValue<K> };
 
@@ -127,6 +133,14 @@ export function parseSetting<K extends SettingKey>(key: K, raw: unknown): Settin
       if (raw === null) return raw as SettingValue<K>;
       if (typeof raw !== 'string' || !isCalendarDate(raw)) throw invalid();
       return raw as SettingValue<K>;
+    case 'money': {
+      if (typeof raw !== 'string') throw invalid();
+      let value: string;
+      // Canonical form, two places, so '750' and '750.00' are the same value.
+      try { value = toMoney(dec(money(raw.trim()))); } catch { throw invalid(); }
+      if (dec(value).lt(dec(spec.min)) || dec(value).gt(dec(spec.max))) throw invalid();
+      return value as SettingValue<K>;
+    }
   }
 }
 

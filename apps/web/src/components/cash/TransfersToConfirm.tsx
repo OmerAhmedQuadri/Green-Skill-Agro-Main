@@ -53,7 +53,7 @@ function TransferRow({ transfer }: { transfer: AwaitingTransfer }) {
   return (
     <tr data-testid={`transfer-${transfer.number}`}>
       <Cell className="whitespace-nowrap"><bdi dir="ltr">{transfer.number}</bdi></Cell>
-      <Cell>{transfer.store.name}</Cell>
+      <Cell>{transfer.store?.name ?? t('openSale')}</Cell>
       <Cell>{transfer.seller.name}</Cell>
       <Cell className="whitespace-nowrap"><bdi dir="ltr">{transfer.reference}</bdi></Cell>
       <Cell className="whitespace-nowrap">

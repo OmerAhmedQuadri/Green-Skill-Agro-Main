@@ -10,6 +10,7 @@ import { useFormat } from '@/lib/format';
 import { useErrorText } from '@/lib/hooks';
 import { keys } from '@/lib/query-keys';
 import type { SalesMonth } from '@/components/returns/types';
+import { partyName } from './party';
 import { SALE_TONE, type Page, type SaleSummary } from './types';
 
 /** The seller's own sales, newest first — waiting ones stand out (PRC-010). */
@@ -31,6 +32,10 @@ export function FieldSalesScreen() {
         </Card>
       ) : null}
       <p className="text-sm text-stone-600">{t('startFromStore')} <Link href="/field/stores" className="font-medium text-brand-800 underline">{t('toStores')}</Link></p>
+      {/* ADR-0052: a buyer who is not a store. */}
+      <Link href="/field/sell/open" className="flex items-center justify-between gap-3 rounded-md border border-stone-300 bg-white p-4 text-sm" data-testid="new-open-sale">
+        <span><span className="block font-medium">{t('open.new')}</span><span className="text-stone-500">{t('open.newHint')}</span></span>
+      </Link>
       {list.error ? <Alert>{errorText(list.error)}</Alert> : null}
       {list.data?.items.length === 0 ? <p className="text-sm text-stone-500">{t('noSales')}</p> : null}
       <ul className="space-y-2">
@@ -39,7 +44,7 @@ export function FieldSalesScreen() {
             <Link href={s.dispatchOrderId && s.status !== 'DISCOUNT_APPROVED' && s.status !== 'PENDING_DISCOUNT_APPROVAL' ? `/field/orders/${s.dispatchOrderId}` : `/field/sales/${s.id}`} className="block">
               <Card className="flex items-center justify-between gap-3 p-4" data-testid={`sale-${s.id}`}>
                 <div className="min-w-0">
-                  <div className="truncate font-medium">{s.store.name}</div>
+                  <div className="truncate font-medium">{partyName(s.store, s.buyerName, t)}</div>
                   <div className="text-xs text-stone-500">{format.dateTime(s.completedAt ?? s.createdAt)}{s.documentNumber ? <>{' · '}<bdi dir="ltr">{s.documentNumber}</bdi></> : null}</div>
                 </div>
                 <div className="text-end">
