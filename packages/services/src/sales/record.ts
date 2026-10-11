@@ -1,14 +1,15 @@
 import {
-  allocateSale, assertLocation, assertPaidInFull, assertSaleCredit, businessDate, dec, DomainError, money, normaliseContactNumber, openSaleGrounds,
+  allocateSale, assertLocation, assertPaidInFull, assertSaleCredit, businessDate, CUSTOMER_CODE_PREFIX, customerCode, dec, DomainError, money,
+  normaliseContactNumber, openSaleGrounds,
   percent, priceSale, toBaseUnits, transfer, transitionSale, type Money, type OpenSaleGround, type PricedSale, type Quantity, type SkuUnits,
 } from '@gsa/core';
 import { newId, schema } from '@gsa/db';
-import { and, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, isNotNull, sql } from 'drizzle-orm';
 import { sellerVehicleAccount } from '../attendance';
 import { authorize, type Ctx } from '../context';
 import { batchRefs, postStockMovements } from '../inventory';
 import { endRequest, notify } from '../notifications';
-import { audit, inTx, type Tx } from '../platform';
+import { audit, inTx, nextInSeries, type Tx } from '../platform';
 import { getDb } from '../runtime';
 import { consumeCreditOverride, loadStore, postStoreDebit, takePayment, type PaymentInput } from '../stores';
 import { readSettings } from '../system';
@@ -206,13 +207,14 @@ export async function recordOpenSale(ctx: Ctx, input: RecordOpenSaleInput): Prom
     }), batches);
 
     const id = newId();
+    const buyerCode = await openBuyerCode(tx, buyer.phone);
     const posted = pending ? null : await settle(tx, ctx, { id, storeId: null, vehicleId: account.vehicleId, total: priced.total },
       allocated.flatMap((a) => a.allocations), { usesOverride: false, payment: input.payment });
     await tx.insert(sales).values({
       id, storeId: null, sellerId: ctx.user.id, vehicleId: account.vehicleId, status: pending ? 'PENDING_DISCOUNT_APPROVAL' : 'COMPLETED',
       businessDate: businessDate(ctx.now), gross: priced.gross, discount: priced.discount, total: priced.total,
       ledgerEntryId: null, paymentId: posted?.paymentId ?? null, completedAt: pending ? null : ctx.now,
-      buyerName: buyer.name, buyerPhone: buyer.phone, latitude: where.lat.toFixed(6), longitude: where.lng.toFixed(6), locationAccuracyM: accuracyM,
+      buyerName: buyer.name, buyerPhone: buyer.phone, buyerCode, latitude: where.lat.toFixed(6), longitude: where.lng.toFixed(6), locationAccuracyM: accuracyM,
       branchId: ctx.branchId, createdAt: ctx.now, createdBy: ctx.user.id, updatedAt: ctx.now, updatedBy: ctx.user.id,
     });
     await insertLines(tx, id, priced, units, allocated);
@@ -228,6 +230,20 @@ export async function recordOpenSale(ctx: Ctx, input: RecordOpenSaleInput): Prom
     }
     return viewSale(tx, ctx, id);
   });
+}
+
+/**
+ * DOC-009 (ADR-0053): an open sale's buyer's Customer ID — the one they had
+ * before if the same phone has bought before, the next in the series if not,
+ * or if they gave no phone.
+ */
+async function openBuyerCode(tx: Tx, phone: string | null): Promise<string> {
+  if (phone) {
+    const [before] = await tx.select({ code: sales.buyerCode }).from(sales)
+      .where(and(eq(sales.buyerPhone, phone), isNotNull(sales.buyerCode))).orderBy(asc(sales.createdAt)).limit(1);
+    if (before?.code) return before.code;
+  }
+  return customerCode('BUYER', await nextInSeries(tx, CUSTOMER_CODE_PREFIX.BUYER));
 }
 
 /**

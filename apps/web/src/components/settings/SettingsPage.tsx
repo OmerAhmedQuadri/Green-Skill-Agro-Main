@@ -8,7 +8,7 @@ import { Alert, Button, Checkbox, Field, Input, Select } from '@gsa/ui';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Section } from '@/components/common/Section';
 import { api } from '@/lib/api';
-import { decimalText, formText, wholeNumber } from '@/lib/forms';
+import { decimalText, formText, latinDigits, wholeNumber } from '@/lib/forms';
 import { useCommand, useErrorText } from '@/lib/hooks';
 import { keys } from '@/lib/query-keys';
 import { CeilingsSection, CommissionSection } from './LimitsSections';
@@ -59,6 +59,8 @@ function GeneralSettings() {
     const f = new FormData(event.currentTarget);
     const changes = groups.flatMap((g) => g.keys).map((k) => {
       const spec = SETTINGS[k];
+      // Text keeps its spaces and punctuation — only the digits are made Latin (ADR-0026).
+      if (spec.kind === 'text') return { key: k, value: latinDigits(formText(f, k)) };
       const raw = decimalText(formText(f, k));
       const value = spec.kind === 'boolean' ? f.get(k) === 'on' : spec.kind === 'integer' ? (wholeNumber(raw) ?? Number.NaN) : raw;
       return { key: k, value };
@@ -85,11 +87,16 @@ function GeneralSettings() {
   );
 }
 
+/** The settings with a line of help under them. */
+const HINTED = ['company.vat_number', 'company.other_id', 'vat.rate'] as const satisfies readonly SettingKey[];
+const isHinted = (k: SettingKey): k is (typeof HINTED)[number] => (HINTED as readonly SettingKey[]).includes(k);
+
 function SettingField({ settingKey, value }: { settingKey: SettingKey; value: string | number | boolean | undefined }) {
   const t = useTranslations('settings');
   const spec = SETTINGS[settingKey];
   const id = `setting-${settingKey}`;
   const label = t(`fields.${settingKey}`);
+  const hint = isHinted(settingKey) ? t(`hints.${settingKey}`) : undefined;
   if (spec.kind === 'boolean') {
     return (
       <label htmlFor={id} className="flex items-start gap-3 rounded-md border border-stone-200 p-3 text-sm">
@@ -107,8 +114,17 @@ function SettingField({ settingKey, value }: { settingKey: SettingKey; value: st
       </Field>
     );
   }
+  if (spec.kind === 'text') {
+    // ADR-0053: the company's details as the delivery document prints them; the Arabic ones typed right to left.
+    return (
+      <Field id={id} label={label} hint={hint}>
+        <Input id={id} name={settingKey} dir={settingKey.endsWith('_ar') ? 'rtl' : 'ltr'} maxLength={spec.maxLength}
+          {...(settingKey === 'company.vat_number' ? { inputMode: 'numeric' as const } : {})} defaultValue={String(value ?? spec.default)} />
+      </Field>
+    );
+  }
   return (
-    <Field id={id} label={label} hint={spec.kind === 'integer' ? t('range', { min: spec.min, max: spec.max }) : undefined}>
+    <Field id={id} label={label} hint={spec.kind === 'integer' ? t('range', { min: spec.min, max: spec.max }) : hint}>
       <Input id={id} name={settingKey} dir="ltr" inputMode={spec.kind === 'integer' ? 'numeric' : 'decimal'}
         {...(spec.kind === 'integer' ? { type: 'number', min: spec.min, max: spec.max } : {})} defaultValue={String(value ?? spec.default)} />
     </Field>

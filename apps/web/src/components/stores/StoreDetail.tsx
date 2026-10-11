@@ -89,6 +89,7 @@ export function StoreDetail({ id, can }: { id: string; can: Can }) {
 
         <Section title={t('details')}>
           <Facts items={[
+            { label: t('customerId'), value: <bdi dir="ltr" data-testid="customer-id">{s.code}</bdi> },
             { label: t('seller'), value: s.seller?.name ?? '—' },
             { label: t('contactNumber'), value: <bdi dir="ltr">{s.contactNumber}</bdi> },
             { label: t('category'), value: s.category ?? '—' },

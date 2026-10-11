@@ -109,6 +109,7 @@ export function FieldSaleScreen({ id, canReturn = false }: { id: string; canRetu
         <Card className="space-y-1 p-4 text-sm" data-testid="open-buyer">
           <div className="text-stone-500">{t('open.buyer')}</div>
           <div className="font-medium">{s.open.buyerName ?? t('open.noBuyer')}</div>
+          <div className="text-stone-500"><bdi dir="ltr">{s.open.buyerCode}</bdi></div>
           {s.open.buyerPhone ? <div><bdi dir="ltr">{s.open.buyerPhone}</bdi></div> : null}
         </Card>
       ) : null}

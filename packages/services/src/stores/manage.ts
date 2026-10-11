@@ -23,7 +23,8 @@ export async function listStores(
   if (filter.status) where.push(eq(stores.status, filter.status));
   if (filter.search?.trim()) {
     const q = likePattern(filter.search.trim());
-    where.push(or(ilike(stores.name, q), ilike(stores.ownerName, q), ilike(stores.contactNumber, q)) as SQL);
+    // DOC-009: the Customer ID on a paper finds its store.
+    where.push(or(ilike(stores.name, q), ilike(stores.ownerName, q), ilike(stores.contactNumber, q), ilike(stores.code, q)) as SQL);
   }
   if (!seesAllStores(ctx)) where.push(eq(storeAssignments.sellerId, ctx.user.id));
   else if (filter.sellerId) where.push(eq(storeAssignments.sellerId, filter.sellerId));

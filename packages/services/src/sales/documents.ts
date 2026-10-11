@@ -1,17 +1,23 @@
-import { businessDate, DOCUMENT_RENDER_MAX_ATTEMPTS, documentRenderBackoffMs, DomainError, normaliseEmail, type Money, type Percent } from '@gsa/core';
+import {
+  amountInWords, businessDate, Dec, dec, DOCUMENT_RENDER_MAX_ATTEMPTS, documentFigures, documentQrText, documentRenderBackoffMs, DomainError,
+  normaliseEmail, percent, toMoney, type Money,
+} from '@gsa/core';
 import { schema } from '@gsa/db';
-import { and, asc, eq, lte } from 'drizzle-orm';
+import { and, asc, eq, lte, sql } from 'drizzle-orm';
+import QRCode from 'qrcode';
 import { sizeOf } from '../catalogue';
 import { authorize, type Ctx } from '../context';
 import { enqueueEmail } from '../notifications';
 import { audit, inOrder, inTx, nextDocumentNumber, type Executor, type Tx } from '../platform';
 import { getBlobStore, getDb } from '../runtime';
+import { readSettings } from '../system';
 import { loadSale, type Sale } from './access';
 import { deliveryDocumentHtml, type DocumentData } from './document-html';
 import { saleLimits } from './options';
 
 const {
   deliveryDocuments, deliveryDocumentSends, sales, saleLines, stores, users, vehicles, skus, products, varieties, productTypes, payments, storeLedgerEntries,
+  paymentAllocations,
 } = schema;
 
 /** Prints HTML to PDF — headless Chromium in the worker (ADR-0019), a fake in tests. */
@@ -28,38 +34,82 @@ export interface PdfRenderer {
 export async function createDeliveryDocument(tx: Tx, ctx: Ctx, saleId: string, opts: { readonly open?: boolean } = {}): Promise<string> {
   // ADR-0052 (SAL-017): an open sale's simplified delivery record is numbered on its own.
   const number = await nextDocumentNumber(tx, opts.open ? 'OS' : 'DN', ctx.now, 6);
-  await tx.insert(deliveryDocuments).values({ saleId, number, branchId: ctx.branchId, createdAt: ctx.now, nextAttemptAt: ctx.now });
+  // DOC-006 (ADR-0053): the VAT rate its prices include as it is issued — kept, so a later change never rewrites it.
+  const vatRate = (await readSettings(tx))['vat.rate'];
+  await tx.insert(deliveryDocuments).values({ saleId, number, vatRate, branchId: ctx.branchId, createdAt: ctx.now, nextAttemptAt: ctx.now });
   return number;
 }
 
-/** DOC-001: everything the document shows, read from the committed sale. */
-async function documentData(db: Executor, saleId: string, number: string): Promise<DocumentData> {
-  const [row] = await db.select({ s: sales, store: stores, seller: users.name, vehicle: vehicles.registration })
+/**
+ * DOC-001, DOC-007..010 (ADR-0053): everything the document shows, read from
+ * the committed sale — the company and the buyer, each line with the VAT its
+ * price included, the totals and what was paid towards them, the terms, the
+ * total in words, and the QR code.
+ */
+async function documentData(db: Executor, doc: { saleId: string; number: string; vatRate: string | null; createdAt: Date }): Promise<DocumentData> {
+  const [row] = await db.select({ s: sales, store: stores, salesperson: users.name, vehicle: vehicles.registration })
     .from(sales).leftJoin(stores, eq(stores.id, sales.storeId)).innerJoin(users, eq(users.id, sales.sellerId)).leftJoin(vehicles, eq(vehicles.id, sales.vehicleId))
-    .where(eq(sales.id, saleId));
-  if (!row) throw new Error(`sale ${saleId} missing for its document`);
-  const [lines, [payment], [debit]] = await inOrder([
+    .where(eq(sales.id, doc.saleId));
+  if (!row) throw new Error(`sale ${doc.saleId} missing for its document`);
+  const settings = await readSettings(db);
+  const rate = percent(doc.vatRate ?? settings['vat.rate']);
+  const [lines, [payment], [debit], [allocated]] = await inOrder([
     db.select({ l: saleLines, sku: skus, productEn: products.nameEn, productAr: products.nameAr, varietyEn: varieties.nameEn, varietyAr: varieties.nameAr, countUnit: productTypes.countUnit })
       .from(saleLines).innerJoin(skus, eq(skus.id, saleLines.skuId)).innerJoin(products, eq(products.id, skus.productId))
       .innerJoin(productTypes, eq(productTypes.id, products.productTypeId)).leftJoin(varieties, eq(varieties.id, skus.varietyId))
-      .where(eq(saleLines.saleId, saleId)).orderBy(asc(skus.code)),
+      .where(eq(saleLines.saleId, doc.saleId)).orderBy(asc(skus.code)),
     row.s.paymentId ? db.select().from(payments).where(eq(payments.id, row.s.paymentId)) : Promise.resolve([]),
     row.s.ledgerEntryId ? db.select({ dueOn: storeLedgerEntries.dueOn }).from(storeLedgerEntries).where(eq(storeLedgerEntries.id, row.s.ledgerEntryId)) : Promise.resolve([]),
+    // What was paid towards this sale when it was issued — oldest bills are settled first (CRD-003) —
+    // so that printing it again later, after a failure, tells the same story.
+    row.s.ledgerEntryId
+      ? db.select({ amount: sql<string>`coalesce(sum(${paymentAllocations.amount}), 0)::numeric(14,2)::text` }).from(paymentAllocations)
+        .innerJoin(storeLedgerEntries, eq(storeLedgerEntries.id, paymentAllocations.creditEntryId))
+        .where(and(eq(paymentAllocations.debitEntryId, row.s.ledgerEntryId), eq(storeLedgerEntries.entryType, 'PAYMENT'), lte(storeLedgerEntries.occurredAt, doc.createdAt)))
+      : Promise.resolve([]),
   ]);
+  const figures = documentFigures(lines.map((l) => ({ gross: l.l.gross as Money, discountAmount: l.l.discountAmount as Money, total: l.l.total as Money })), rate);
+  const total = row.s.total as Money;
+  // An open sale is paid in full (SAL-013); a store's, as far as payments reached it.
+  const paid = row.store ? toMoney(Dec.min(dec(allocated?.amount ?? '0'), dec(total))) : (payment ? total : ('0.00' as Money));
+  const issuedAt = row.s.completedAt ?? row.s.createdAt;
+  const seller = {
+    nameEn: settings['company.name_en'] || 'Green Skill Agro', nameAr: settings['company.name_ar'] || 'غرين سكيل أغرو',
+    addressEn: settings['company.address_en'], addressAr: settings['company.address_ar'],
+    vatNumber: settings['company.vat_number'], otherId: settings['company.other_id'],
+  };
+  const open = !row.store;
+  const qrText = documentQrText({
+    seller: seller.nameEn, title: open ? 'Simplified delivery record' : 'Delivery document', number: doc.number,
+    issued: `${riyadhDay.format(issuedAt)} ${riyadhTime.format(issuedAt)}`, total, vat: figures.totals.vat, vatRate: rate,
+  });
   return {
-    number, issuedAt: row.s.completedAt ?? row.s.createdAt,
-    store: row.store ? { name: row.store.name, ownerName: row.store.ownerName, contactNumber: row.store.contactNumber } : null,
-    buyer: row.store ? null : { name: row.s.buyerName, phone: row.s.buyerPhone },
-    seller: row.seller, vehicle: row.vehicle,
-    lines: lines.map((l) => ({
-      code: l.sku.code, productEn: l.productEn, productAr: l.productAr, varietyEn: l.varietyEn, varietyAr: l.varietyAr,
-      size: sizeOf(l.sku), countUnit: l.countUnit, packs: l.l.packs, unitPrice: l.l.unitPrice as Money, discount: l.l.discount as Percent,
+    open, number: doc.number, issuedAt, suppliedAt: issuedAt, seller,
+    buyer: row.store
+      ? {
+        code: row.store.code, name: row.store.name, contact: row.store.ownerName, phone: row.store.contactNumber,
+        address: [row.store.address, row.store.nationalAddress].filter((a): a is string => Boolean(a)).join(' — ') || null, vatNumber: row.store.vatNumber,
+      }
+      : { code: row.s.buyerCode ?? '', name: row.s.buyerName, contact: null, phone: row.s.buyerPhone, address: null, vatNumber: null },
+    salesperson: row.salesperson, vehicle: row.vehicle, vatRate: rate,
+    lines: lines.map((l, i) => ({
+      productEn: l.productEn, productAr: l.productAr, varietyEn: l.varietyEn, varietyAr: l.varietyAr,
+      size: sizeOf(l.sku), countUnit: l.countUnit, packs: l.l.packs, unitPrice: l.l.unitPrice as Money,
       discountAmount: l.l.discountAmount as Money, total: l.l.total as Money,
+      taxable: figures.lines[i]?.taxable ?? (l.l.total as Money), vat: figures.lines[i]?.vat ?? ('0.00' as Money),
     })),
-    gross: row.s.gross as Money, discount: row.s.discount as Money, total: row.s.total as Money,
-    settlement: payment ? { kind: 'PAID', method: payment.method, reference: payment.reference } : { kind: 'ON_ACCOUNT', dueOn: debit?.dueOn ?? row.s.businessDate },
+    totals: { ...figures.totals, paid, due: toMoney(Dec.max(dec(total).minus(dec(paid)), 0)) },
+    words: { en: amountInWords(total, 'en'), ar: amountInWords(total, 'ar') },
+    terms: open
+      ? { kind: 'PAID_IN_FULL', days: null, dueOn: null, method: payment?.method ?? null }
+      : { kind: row.store?.creditMode ?? 'BILL_TO_BILL', days: row.store?.creditCycleDays ?? null, dueOn: dec(paid).gte(dec(total)) ? null : (debit?.dueOn ?? row.s.businessDate), method: payment?.method ?? null },
+    qrSvg: await QRCode.toString(qrText, { type: 'svg', errorCorrectionLevel: 'M', margin: 0 }),
   };
 }
+
+// The QR's date and time, Riyadh's (ADR-0026: Latin digits, the Gregorian calendar).
+const riyadhDay = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Riyadh', year: 'numeric', month: '2-digit', day: '2-digit' });
+const riyadhTime = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Riyadh', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
 
 /**
  * The worker's pass (ADR-0019, ADR-0037): claims due documents — two workers
@@ -77,7 +127,7 @@ export async function renderPendingDocuments(renderer: PdfRenderer, now: Date, b
     for (const doc of due) {
       const attempt = doc.attempts + 1;
       try {
-        const html = deliveryDocumentHtml(await documentData(tx, doc.saleId, doc.number), { fontCss: renderer.fontCss });
+        const html = deliveryDocumentHtml(await documentData(tx, doc), { fontCss: renderer.fontCss });
         const pdf = new Uint8Array(await renderer.render(html));
         const key = `delivery-documents/${doc.number.slice(3, 7)}/${doc.number}.pdf`;
         await getBlobStore().put(key, pdf, 'application/pdf');

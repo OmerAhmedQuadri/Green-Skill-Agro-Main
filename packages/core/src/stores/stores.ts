@@ -110,3 +110,10 @@ export function boundingBox(p: GeoPoint, radiusM: number): { minLat: number; max
   const dLng = radiusM / (111_195 * Math.max(Math.cos((p.lat * Math.PI) / 180), 0.01));
   return { minLat: p.lat - dLat, maxLat: p.lat + dLat, minLng: p.lng - dLng, maxLng: p.lng + dLng };
 }
+
+/**
+ * DOC-009 (ADR-0053): who the goods went to, as the document names them — a
+ * store (S) or an open sale's buyer (C), numbered in the order they came.
+ */
+export const CUSTOMER_CODE_PREFIX = { STORE: 'GSA-S', BUYER: 'GSA-C' } as const;
+export const customerCode = (kind: keyof typeof CUSTOMER_CODE_PREFIX, n: number): string => `${CUSTOMER_CODE_PREFIX[kind]}-${String(n).padStart(4, '0')}`;

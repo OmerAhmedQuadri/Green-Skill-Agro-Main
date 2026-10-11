@@ -17,3 +17,14 @@ export async function nextDocumentNumber(db: Executor, prefix: string, now: Date
     .returning({ value: documentSequences.value });
   return `${key}-${String(row?.value ?? 1).padStart(digits, '0')}`;
 }
+
+/**
+ * A running number with no year — a Customer ID, GSA-S-0001 (ADR-0053).
+ * Gapless as the documents are: locked to the caller's transaction.
+ */
+export async function nextInSeries(db: Executor, key: string): Promise<number> {
+  const [row] = await db.insert(documentSequences).values({ key, value: 1 })
+    .onConflictDoUpdate({ target: documentSequences.key, set: { value: sql`${documentSequences.value} + 1` } })
+    .returning({ value: documentSequences.value });
+  return row?.value ?? 1;
+}

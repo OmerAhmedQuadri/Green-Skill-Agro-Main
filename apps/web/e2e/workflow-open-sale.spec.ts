@@ -53,6 +53,8 @@ for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
     await expect(phone).toHaveURL(/\/field\/sales\/[0-9a-f-]{36}$/);
     await expect(phone.getByRole('heading', { name: fill(m.sales.open.titleWith, { buyer: 'Abu Khalid' }) })).toBeVisible();
     await expect(phone.getByTestId('sale-status')).toHaveText(m.sales.statuses.COMPLETED);
+    // DOC-009: the buyer's Customer ID.
+    await expect(phone.getByTestId('open-buyer')).toContainText(/GSA-C-\d{4}/);
     // SAL-017, SAL-018: its paper is the simplified record, and it is never returned.
     await expect(phone.getByText(m.sales.open.documentTitle, { exact: true })).toBeVisible();
     await expect(phone.getByText(m.sales.open.notReturnable)).toBeVisible();
@@ -75,6 +77,7 @@ for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
     await expect(admin).toHaveURL(/\/console\/sales\?status=AWAITING$/);
     await admin.goto(`/console/sales/${saleId}`);
     await expect(admin.getByTestId('open-grounds')).toContainText(m.sales.open.grounds.SWITCHED_OFF);
+    await expect(admin.getByTestId('customer-id')).toHaveText(/^GSA-C-\d{4}$/);
     await admin.getByRole('button', { name: m.sales.open.approveOpen }).click();
     await expect(admin.getByTestId('sale-status')).toHaveText(m.sales.statuses.DISCOUNT_APPROVED);
 
