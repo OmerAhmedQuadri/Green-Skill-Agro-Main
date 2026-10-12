@@ -5,10 +5,10 @@ import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-qu
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import type { ReactNode } from 'react';
 import { Alert, Button, Card, cn, Field, Input, Select } from '@gsa/ui';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Section } from '@/components/common/Section';
+import { Tile } from '@/components/common/Tile';
 import { Cell, Table } from '@/components/common/Table';
 import { partyName } from '@/components/sales/party';
 import type { SaleSummary } from '@/components/sales/types';
@@ -165,16 +165,6 @@ function Choice({ id, label, value, onChange, options, all }: {
         {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
       </Select>
     </Field>
-  );
-}
-
-function Tile({ label, value, hint, testId, lead = false }: { label: string; value: string; hint?: ReactNode; testId: string; lead?: boolean }) {
-  return (
-    <Card className="p-4">
-      <div className="text-sm text-stone-600">{label}</div>
-      <div className={cn('mt-1 font-semibold text-stone-900', lead ? 'text-3xl' : 'text-xl')} data-testid={testId}>{value}</div>
-      {hint ? <div className="mt-1 text-xs text-stone-500">{hint}</div> : null}
-    </Card>
   );
 }
 

@@ -29,6 +29,7 @@ export function useFormat() {
     // Calendar dates (expiry, arrival) are dates, not instants: format them as UTC so no zone shifts the day.
     const dateFormat = new Intl.DateTimeFormat(tag, { dateStyle: 'medium', timeZone: 'UTC' });
     const dateTimeFormat = new Intl.DateTimeFormat(tag, { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Riyadh' });
+    const timeFormat = new Intl.DateTimeFormat(tag, { timeStyle: 'short', timeZone: 'Asia/Riyadh' });
     const monthFormat = new Intl.DateTimeFormat(tag, { month: 'long', year: 'numeric', timeZone: 'UTC' });
     const shortMonthFormat = new Intl.DateTimeFormat(tag, { month: 'short', timeZone: 'UTC' });
     const dayFormat = new Intl.DateTimeFormat(tag, { day: 'numeric', month: 'short', timeZone: 'UTC' });
@@ -64,6 +65,8 @@ export function useFormat() {
       },
       /** An instant, shown on Riyadh time (CONVENTIONS §4). */
       dateTime: (instant: string | Date) => dateTimeFormat.format(new Date(instant)),
+      /** The time of day of an instant, on Riyadh time — for something that happened today. */
+      time: (instant: string | Date) => timeFormat.format(new Date(instant)),
       /** ADR-0015: grams are stored; a whole number of kilograms reads as kilograms. */
       size: (size: Size, countUnit: 'SEED' | 'PIECE') => {
         if (size.measure === 'COUNT') return t(countUnit === 'SEED' ? 'seeds' : 'pieces', { count: size.packCount });

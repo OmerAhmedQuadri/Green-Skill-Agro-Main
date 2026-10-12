@@ -5,3 +5,4 @@ export * from './performance';
 export * from './analytics';
 export * from './collections';
 export * from './sellers';
+export * from './dashboard';

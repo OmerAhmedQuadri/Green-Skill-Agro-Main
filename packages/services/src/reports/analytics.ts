@@ -1,4 +1,6 @@
-import { analyticsRange, Dec, dec, OPEN_SALES_KEY, rangePeriods, toMoney, type AnalyticsRange, type Money } from '@gsa/core';
+import {
+  analyticsRange, businessDate, DASHBOARD_LIST_LENGTH, Dec, dec, glanceDays, OPEN_SALES_KEY, percentChange, rangePeriods, toMoney, type AnalyticsRange, type Money,
+} from '@gsa/core';
 import { schema } from '@gsa/db';
 import { and, asc, eq, gte, inArray, lt, ne, sql, type SQL } from 'drizzle-orm';
 import { authorize, type Ctx } from '../context';
@@ -170,6 +172,69 @@ export async function salesAnalytics(ctx: Ctx, filter: AnalyticsFilter): Promise
     byStore: rows(byStore, oneForm(storeNames)),
     byProduct: rows(byProduct, new Map(productNames.map((p) => [p.id, { nameEn: p.nameEn, nameAr: p.nameAr }]))),
     byCategory: rows(byCategory, new Map(categoryNames.map((c) => [c.id, { nameEn: c.nameEn, nameAr: c.nameAr }]))),
+  };
+}
+
+export type SalesGlance = {
+  readonly today: Figures;
+  /** This month so far; the average is sold per sale, before returns. */ readonly month: Figures & { readonly average: Money | null };
+  /** The same days of last month. */ readonly lastMonth: Figures;
+  /** This month's net against those days', in per cent to one place; null when they sold nothing. */ readonly change: string | null;
+  /** The last thirty days, day by day, at zero where nothing sold. */ readonly series: readonly { readonly period: string; readonly net: Money; readonly sales: number }[];
+  /** This month's best, by net. */ readonly topSellers: readonly BreakdownRow[]; readonly topProducts: readonly BreakdownRow[];
+};
+
+const totalOf = (figures: Map<string, Figures>): Figures => {
+  const all = [...figures.values()];
+  const sum = (pick: (f: Figures) => string) => toMoney(all.reduce((t, f) => t.plus(dec(pick(f))), new Dec(0)));
+  return {
+    sold: sum((f) => f.sold), returned: sum((f) => f.returned), net: sum((f) => f.net),
+    sales: all.reduce((n, f) => n + f.sales, 0), packs: all.reduce((n, f) => n + f.packs, 0),
+  };
+};
+
+/**
+ * RPT-012 (ADR-0054): the dashboard's sales — today, this month so far against
+ * the same days of last month, the last thirty days day by day, and who and
+ * what sold most this month — from the same figures as the analytics (net of
+ * credit notes), read live.
+ */
+export async function salesGlance(ctx: Ctx): Promise<SalesGlance> {
+  authorize(ctx, 'reports.view_trends');
+  const db = ctx.tx ?? getDb();
+  const today = businessDate(ctx.now);
+  const days = glanceDays(today);
+  const [chart, month, lastMonth] = [days.chart, days.month, days.lastMonth].map((d) => analyticsRange(d.from, d.to)) as [AnalyticsRange, AnalyticsRange, AnalyticsRange];
+  const all = (range: AnalyticsRange) => ({ from: range.from, to: range.to });
+
+  // One after another: `db` may be a transaction, and one connection takes one query at a time.
+  const byDay = await figuresBy(db, chart, all(chart), periodCut('DAY'));
+  // Every sale and every credit note has its seller, so the sellers' figures add up to the month's.
+  const bySeller = await figuresBy(db, month, all(month), CUTS.seller);
+  const byProduct = await figuresBy(db, month, all(month), CUTS.product);
+  const before = await figuresBy(db, lastMonth, all(lastMonth), CUTS.seller);
+
+  const best = (figures: Map<string, Figures>) => [...figures].sort(([, a], [, b]) => dec(b.net).comparedTo(dec(a.net))).slice(0, DASHBOARD_LIST_LENGTH);
+  const leadingSellers = best(bySeller);
+  const leadingProducts = best(byProduct);
+  const sellerNames = leadingSellers.length
+    ? await db.select({ id: users.id, name: users.name }).from(users).where(inArray(users.id, leadingSellers.map(([id]) => id))) : [];
+  const productNames = leadingProducts.length
+    ? await db.select({ id: products.id, nameEn: products.nameEn, nameAr: products.nameAr }).from(products).where(inArray(products.id, leadingProducts.map(([id]) => id))) : [];
+
+  const monthTotal = totalOf(bySeller);
+  const lastMonthTotal = totalOf(before);
+  return {
+    today: byDay.get(today) ?? NOTHING,
+    month: { ...monthTotal, average: monthTotal.sales > 0 ? toMoney(dec(monthTotal.sold).div(monthTotal.sales)) : null },
+    lastMonth: lastMonthTotal,
+    change: percentChange(monthTotal.net, lastMonthTotal.net),
+    series: rangePeriods(chart).map((period) => {
+      const f = byDay.get(period) ?? NOTHING;
+      return { period, net: f.net, sales: f.sales };
+    }),
+    topSellers: rows(new Map(leadingSellers), oneForm(sellerNames)),
+    topProducts: rows(new Map(leadingProducts), new Map(productNames.map((p) => [p.id, { nameEn: p.nameEn, nameAr: p.nameAr }]))),
   };
 }
 
