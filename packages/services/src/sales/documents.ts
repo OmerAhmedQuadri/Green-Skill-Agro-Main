@@ -24,6 +24,8 @@ const {
 export interface PdfRenderer {
   /** @font-face rules embedding the document's fonts, so no server font is needed (ADR-0037). */
   readonly fontCss: string;
+  /** ADR-0057: Green Agro's logo as a data URL for the header — or null, and the header shows the sprout and the names. */
+  readonly logo: string | null;
   render(html: string): Promise<Uint8Array>;
 }
 
@@ -130,7 +132,7 @@ export async function renderPendingDocuments(renderer: PdfRenderer, now: Date, b
     for (const doc of due) {
       const attempt = doc.attempts + 1;
       try {
-        const html = deliveryDocumentHtml(await documentData(tx, doc), { fontCss: renderer.fontCss });
+        const html = deliveryDocumentHtml(await documentData(tx, doc), { fontCss: renderer.fontCss, logo: renderer.logo });
         const pdf = new Uint8Array(await renderer.render(html));
         const key = `delivery-documents/${doc.number.slice(3, 7)}/${doc.number}.pdf`;
         await getBlobStore().put(key, pdf, 'application/pdf');

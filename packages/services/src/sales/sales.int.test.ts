@@ -321,6 +321,30 @@ describe('the delivery document (DOC-001..010, ADR-0019, ADR-0053)', () => {
     expect((await getSale(seller.ctx, sale.id)).document?.status).toBe('READY');
   });
 
+  it('DOC-001 (ADR-0057): the header carries Green Agro\'s logo inline; without a usable logo, the names beside the sprout', async () => {
+    const ctx = await admin();
+    const sprout = '<svg viewBox="0 0 24 24"';
+    for (const [logo, shown] of [
+      ['data:image/webp;base64,UklGRhAAAABXRUJQVlA4IAQAAAA=', true],
+      [null, false],
+      ['data:image/webp;base64,x" onerror="alert(1)', false], // never written into the page as it stands
+    ] as const) {
+      const { seller, store, bag } = await aSellingSeller(ctx);
+      await recordSale(seller.ctx, { storeId: store.id, lines: [{ skuId: bag.id, packs: 1 }] });
+      const renderer = aPdfRenderer({ logo });
+      await renderPendingDocuments(renderer, new Date());
+      const html = renderer.printed[0] ?? '';
+      if (shown) {
+        expect(html).toContain(`<img class="logo-img" src="${logo ?? ''}" alt="Green Skill Agro">`);
+        expect(html).not.toContain(sprout);
+      } else {
+        expect(html).not.toContain('<img');
+        expect(html).toContain(sprout);
+        expect(html).toContain('غرين سكيل أغرو');
+      }
+    }
+  });
+
   it('DOC-006..010 (ADR-0053): the VAT inside each price at the rate of the day, the company and the Customer ID, what was paid by then, the total in words, a QR code', async () => {
     const ctx = await admin();
     await updateSettings(ctx, [

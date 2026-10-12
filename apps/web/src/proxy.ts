@@ -119,5 +119,6 @@ export default function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|icons/|manifest.webmanifest).*)'],
+  // Static files pass untouched — the app icons (ADR-0057) too, which the sign-in page shows before any session.
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|icon.png|apple-icon.png|icons/|manifest.webmanifest).*)'],
 };

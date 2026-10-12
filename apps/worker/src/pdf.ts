@@ -28,6 +28,19 @@ function embeddedFonts(): string {
 }
 
 /**
+ * ADR-0057: Green Agro's logo for the document's header, inline like the
+ * fonts. Without its file the header falls back to the sprout and the names.
+ */
+function embeddedLogo(): string | null {
+  try {
+    return `data:image/webp;base64,${readFileSync(new URL('../assets/document-logo.webp', import.meta.url)).toString('base64')}`;
+  } catch {
+    console.warn('[worker] no document logo in apps/worker/assets — delivery documents show the sprout');
+    return null;
+  }
+}
+
+/**
  * ADR-0019: HTML → PDF in headless Chromium, which shapes Arabic correctly.
  * The browser starts when there is something to print and is closed after
  * each pass. The page runs no script and may fetch nothing — everything it
@@ -36,8 +49,10 @@ function embeddedFonts(): string {
 export function chromiumRenderer(): sales.PdfRenderer & { close(): Promise<void> } {
   let browser: Browser | null = null;
   const fontCss = embeddedFonts();
+  const logo = embeddedLogo();
   return {
     fontCss,
+    logo,
     async render(html) {
       // --no-sandbox: the worker runs as root under pm2 (ADR-0035), where Chromium's sandbox will not start.
       browser ??= await chromium.launch({ args: ['--no-sandbox', '--disable-dev-shm-usage'] });
