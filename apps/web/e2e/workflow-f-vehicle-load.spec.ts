@@ -157,5 +157,10 @@ for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
     await sellerB.page.goto('/field/vehicle');
     await expect(sellerB.page.getByTestId(`batch-${early}`)).toBeVisible();
     expect(await batchPositions(admin, skuId, early)).toEqual({ warehouse: 6, vehicles: 4, total: 10 });
+    // Each phone shows who holds it now: seller B has it, seller A has none.
+    await sellerB.page.goto('/field/today');
+    await expect(sellerB.page.getByTestId('vehicle-card')).toContainText(registration);
+    await phoneA.goto('/field/today');
+    await expect(phoneA.getByTestId('vehicle-card')).toContainText(m.field.noVehicle);
   });
 }

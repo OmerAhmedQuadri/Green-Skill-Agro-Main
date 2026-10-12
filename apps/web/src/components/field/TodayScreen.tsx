@@ -16,6 +16,7 @@ import { useCommand, useErrorText } from '@/lib/hooks';
 import { keys } from '@/lib/query-keys';
 import type { StoreSummary } from '@/components/stores/types';
 import { CaptureForm } from './CaptureForm';
+import { FIELD_REFRESH_MS } from './refresh';
 import type { Handover, Load, MyVehicle, Today } from './types';
 
 /**
@@ -34,10 +35,11 @@ export function TodayScreen({ name }: { name: string }) {
   const errorText = useErrorText();
   const queryClient = useQueryClient();
   const [capturing, setCapturing] = useState<'in' | 'out' | null>(null);
-  const today = useQuery({ queryKey: keys.today, queryFn: () => api<Today>('/attendance/today'), refetchInterval: 60_000 });
-  const vehicle = useQuery({ queryKey: keys.myVehicle, queryFn: () => api<MyVehicle>('/stock/my-vehicle') });
-  const loads = useQuery({ queryKey: keys.loads({ status: 'ISSUED' }), queryFn: () => api<Load[]>('/vehicle-loads?status=ISSUED') });
-  const handovers = useQuery({ queryKey: keys.handovers, queryFn: () => api<Handover[]>('/vehicle-handovers') });
+  // The day and the vehicle ask again together, so a vehicle a manager takes back or assigns shows on both (ADR-0056).
+  const today = useQuery({ queryKey: keys.today, queryFn: () => api<Today>('/attendance/today'), refetchInterval: FIELD_REFRESH_MS });
+  const vehicle = useQuery({ queryKey: keys.myVehicle, queryFn: () => api<MyVehicle>('/stock/my-vehicle'), refetchInterval: FIELD_REFRESH_MS });
+  const loads = useQuery({ queryKey: keys.loads({ status: 'ISSUED' }), queryFn: () => api<Load[]>('/vehicle-loads?status=ISSUED'), refetchInterval: FIELD_REFRESH_MS });
+  const handovers = useQuery({ queryKey: keys.handovers, queryFn: () => api<Handover[]>('/vehicle-handovers'), refetchInterval: FIELD_REFRESH_MS });
   const cash = useQuery({ queryKey: keys.cashInHand, queryFn: () => api<{ cashInHand: string }>('/cash/me') });
   const portfolio = useQuery({ queryKey: keys.stores(), queryFn: () => api<StoreSummary[]>('/stores') });
   // TGT-004: the seller's own month, in real time, beside the cash they are holding.

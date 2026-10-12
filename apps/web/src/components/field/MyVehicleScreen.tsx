@@ -12,6 +12,7 @@ import { formText } from '@/lib/forms';
 import { useCommand, useErrorText } from '@/lib/hooks';
 import { keys } from '@/lib/query-keys';
 import { FieldWriteOff } from './FieldWriteOff';
+import { FIELD_REFRESH_MS } from './refresh';
 import type { Handover, Load, MyVehicle, MyVehicleBatch, Today } from './types';
 
 /**
@@ -26,10 +27,10 @@ export function MyVehicleScreen({ userId, canWriteOff, canConvert }: { userId: s
   const queryClient = useQueryClient();
   const [acting, setActing] = useState<{ batchId: string; action: 'writeOff' | 'convert' } | null>(null);
   const [disputing, setDisputing] = useState<string | null>(null);
-  const vehicle = useQuery({ queryKey: keys.myVehicle, queryFn: () => api<MyVehicle>('/stock/my-vehicle') });
-  const loads = useQuery({ queryKey: keys.loads({ mine: true }), queryFn: () => api<Load[]>('/vehicle-loads?open=true') });
-  const handovers = useQuery({ queryKey: keys.handovers, queryFn: () => api<Handover[]>('/vehicle-handovers') });
-  const today = useQuery({ queryKey: keys.today, queryFn: () => api<Today>('/attendance/today') });
+  const vehicle = useQuery({ queryKey: keys.myVehicle, queryFn: () => api<MyVehicle>('/stock/my-vehicle'), refetchInterval: FIELD_REFRESH_MS });
+  const loads = useQuery({ queryKey: keys.loads({ mine: true }), queryFn: () => api<Load[]>('/vehicle-loads?open=true'), refetchInterval: FIELD_REFRESH_MS });
+  const handovers = useQuery({ queryKey: keys.handovers, queryFn: () => api<Handover[]>('/vehicle-handovers'), refetchInterval: FIELD_REFRESH_MS });
+  const today = useQuery({ queryKey: keys.today, queryFn: () => api<Today>('/attendance/today'), refetchInterval: FIELD_REFRESH_MS });
   const refresh = () => {
     for (const key of [keys.myVehicle, keys.loads(), keys.handovers, keys.today]) void queryClient.invalidateQueries({ queryKey: key });
   };

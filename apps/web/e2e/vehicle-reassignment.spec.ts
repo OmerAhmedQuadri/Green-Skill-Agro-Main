@@ -106,4 +106,75 @@ for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
     await expect(day).toContainText(first.registration);
     await expect(day).toContainText(second.registration);
   });
+
+  test(`Vehicle reassignment (${locale}) — VEH-002, VEH-016, ATT-014: the seller's phone shows the vehicle they hold — unassigned, reassigned after that, reassigned directly — and catches up by itself`, async ({ browser, baseURL }) => {
+    test.setTimeout(300_000);
+    const origin = baseURL ?? '';
+    const stamp = String(Date.now()).slice(-6);
+    const admin = await sessionPage(browser, 'admin@dev.local', locale, origin);
+    const seller = await freshSeller(browser, admin, origin, locale, `S Seller ${locale} ${stamp}`);
+    const other = await freshSeller(browser, admin, origin, locale, `S Other ${locale} ${stamp}`);
+    const v1 = await aVehicle(admin, origin, 50_000);
+    const v2 = await aVehicle(admin, origin, 60_000);
+    const phone = seller.page;
+    const vehicleCard = (p: Page) => p.getByTestId('vehicle-card');
+    const headers = { origin, 'idempotency-key': crypto.randomUUID() };
+    /** The seller's own vehicle screen: its name and what it carries — or that they have none. */
+    const myVehicle = async (p: Page, registration: string | null) => {
+      await p.goto('/field/vehicle');
+      await expect(p.getByRole('heading', { level: 1 })).toHaveText(registration ?? m.field.yourVehicle);
+      if (!registration) await expect(p.getByText(m.field.noVehicle)).toBeVisible();
+    };
+
+    // Assigned: the phone shows it.
+    await post(admin, origin, `/vehicles/${v1.id}/assign`, { sellerId: seller.id });
+    await phone.goto('/field/today');
+    await expect(vehicleCard(phone)).toContainText(v1.registration);
+    await myVehicle(phone, v1.registration);
+
+    // 1. Unassigned (not out): the phone shows no vehicle, and the check-in asks for no odometer.
+    await post(admin, origin, `/vehicles/${v1.id}/unassign`, {});
+    await phone.goto('/field/today');
+    await expect(vehicleCard(phone)).toContainText(m.field.noVehicle);
+    await expect(vehicleCard(phone)).not.toContainText(v1.registration);
+    await myVehicle(phone, null);
+
+    // 2. Reassigned after the unassign: the new vehicle, on every screen and on the trip.
+    await post(admin, origin, `/vehicles/${v2.id}/assign`, { sellerId: seller.id });
+    await phone.goto('/field/today');
+    await expect(vehicleCard(phone)).toContainText(v2.registration);
+    await myVehicle(phone, v2.registration);
+    await checkIn(phone, m, n('60004'));
+    await expect(phone.getByTestId('day-card')).toContainText(fill(m.field.withVehicle, { registration: v2.registration }));
+
+    // 3. Unassigned while out with it: asked first; taken back, the open screen catches up by itself within a minute.
+    const refused = await admin.request.post(`/api/v1/vehicles/${v2.id}/unassign`, { headers, data: {} });
+    expect(refused.status()).toBe(409);
+    expect(((await refused.json()) as { code: string }).code).toBe('SELLER_OUT_WITH_VEHICLE');
+    await post(admin, origin, `/vehicles/${v2.id}/unassign`, { vehicleBack: { odometer: 60_030 } });
+    await expect(phone.getByTestId('day-card')).toContainText(m.field.status.CHECKED_OUT, { timeout: 75_000 }); // no reload
+    await expect(vehicleCard(phone)).toContainText(m.field.noVehicle, { timeout: 75_000 });
+    await expect(vehicleCard(phone)).not.toContainText(v2.registration);
+
+    // 4. Reassigned after that, the same day: the next trip is with the new vehicle, not the day's first.
+    await post(admin, origin, `/vehicles/${v1.id}/assign`, { sellerId: seller.id });
+    await checkIn(phone, m, n('50006'));
+    await expect(phone.getByTestId('day-card')).toContainText(fill(m.field.withVehicle, { registration: v1.registration }));
+    await expect(phone.getByTestId('day-card')).not.toContainText(v2.registration);
+    await expect(vehicleCard(phone)).toContainText(v1.registration);
+    await expect(phone.getByTestId('vehicle-changed')).toHaveCount(0);
+    await myVehicle(phone, v1.registration);
+
+    // 5. Reassigned directly to another seller while out with it: theirs now; this seller has none.
+    await post(admin, origin, `/vehicles/${v1.id}/assign`, { sellerId: other.id, vehicleBack: { odometer: 50_040 } });
+    await phone.goto('/field/today');
+    await expect(phone.getByTestId('day-card')).toContainText(m.field.status.CHECKED_OUT);
+    await expect(vehicleCard(phone)).toContainText(m.field.noVehicle);
+    await myVehicle(phone, null);
+    await other.page.goto('/field/today');
+    await expect(vehicleCard(other.page)).toContainText(v1.registration);
+    await checkIn(other.page, m, n('50041'));
+    await expect(other.page.getByTestId('day-card')).toContainText(fill(m.field.withVehicle, { registration: v1.registration }));
+    await phone.screenshot({ path: shot(`vehicle-none-phone-${locale}`), fullPage: true });
+  });
 }
