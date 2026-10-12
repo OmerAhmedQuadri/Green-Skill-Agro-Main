@@ -6,10 +6,10 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useState } from 'react';
-import { Alert, Badge, Button, Card, Checkbox, Field, Input } from '@gsa/ui';
+import { Alert, Badge, Button, Card, Field, Input } from '@gsa/ui';
 import { PageHeader } from '@/components/common/PageHeader';
 import { CreditPanel } from '@/components/stores/CreditPanel';
-import { NO_PAYMENT, PaymentFields, paymentBody, type PaymentDraft } from '@/components/stores/PaymentFields';
+import { choiceBody, choiceReady, NO_PAYMENT, PaymentChoice, type PaymentDraft, type PaymentWay } from '@/components/stores/PaymentFields';
 import { api, ApiError } from '@/lib/api';
 import { useFormat } from '@/lib/format';
 import { decimalText, wholeNumber } from '@/lib/forms';
@@ -90,7 +90,8 @@ function SellForm({ storeId, options: o, from, missing, back }: {
     return [l.skuId, trimPercent(dec(l.requestedDiscount).gt(dec(ceiling)) ? ceiling : l.requestedDiscount)];
   })));
   const [reason, setReason] = useState('');
-  const [paying, setPaying] = useState(false);
+  // ADR-0055: on credit unless the seller says otherwise.
+  const [way, setWay] = useState<PaymentWay>('CREDIT');
   const [draft, setDraft] = useState<PaymentDraft>(NO_PAYMENT);
   const record = useOnceCommand((body: unknown, key) => api<Sale>('/sales', { method: 'POST', body, idempotencyKey: key }), {
     onSuccess: (sale) => {
@@ -104,7 +105,7 @@ function SellForm({ storeId, options: o, from, missing, back }: {
   const billToBill = o.store.creditMode === 'BILL_TO_BILL';
   // ADR-0047: money taken with the sale may settle older bills too, so it is held against all that is owed.
   const owed = sumMoney([o.store.credit.outstanding, total]);
-  const payment = paying && !needsApproval ? paymentBody(draft, owed) : null;
+  const payment = needsApproval ? null : choiceBody(way, draft, total, owed);
   // ADR-0047: every store's limit, counting orders on their way and what is paid now. A sale
   // waiting for approval meets it when it completes, with what is paid then.
   const overLimit = !needsApproval && !o.store.credit.overrideAvailable && dec(o.store.credit.outstanding).plus(dec(o.store.credit.committed))
@@ -130,7 +131,6 @@ function SellForm({ storeId, options: o, from, missing, back }: {
           <div className="flex justify-between text-sm"><span>{t('subtotal')}</span><span>{format.money(gross)}</span></div>
           <div className="flex justify-between text-sm"><span>{t('discount')}</span><span>{discount === '0.00' ? '—' : `−${format.money(discount)}`}</span></div>
           <div className="flex justify-between text-lg font-semibold"><span>{t('total')}</span><span data-testid="total">{format.money(total)}</span></div>
-          <p className="text-sm text-stone-600">{t(billToBill ? 'billToBillNote' : 'onAccountNote', { amount: format.money(o.store.credit.available) })}</p>
           {overLimit ? <Alert data-testid="over-limit">{t('overLimit', { amount: format.money(o.store.credit.available) })}</Alert> : null}
 
           {needsApproval ? (
@@ -140,18 +140,13 @@ function SellForm({ storeId, options: o, from, missing, back }: {
               <Field id="reason" label={t('requestReason')}><Input id="reason" value={reason} maxLength={500} onChange={(e) => setReason(e.target.value)} /></Field>
             </div>
           ) : (
-            // ADR-0047: selling and collecting are two things; the money may come now, in part or in full, or later.
-            <div className="space-y-3">
-              <label htmlFor="take-payment" className="flex items-center gap-2 text-sm font-medium">
-                <Checkbox id="take-payment" checked={paying} onChange={(e) => setPaying(e.target.checked)} />
-                {t('takePayment')}
-              </label>
-              {paying ? <PaymentFields id="sale" owed={owed} value={draft} onChange={setDraft} /> : null}
-            </div>
+            // ADR-0047, ADR-0055: selling and collecting are two things; the money may come later, in part now, or in full now.
+            <PaymentChoice id="sale" total={total} owed={owed} dueIfOnCredit={o.store.credit.dueIfOnCredit} billToBill={billToBill}
+              way={way} onWay={setWay} value={draft} onChange={setDraft} />
           )}
 
           {record.error ? <Alert>{errorText(record.error)}</Alert> : null}
-          <Button block onClick={submit} disabled={invalid || overLimit || record.isPending || (needsApproval && !reason.trim()) || (paying && !needsApproval && !payment)}>
+          <Button block onClick={submit} disabled={invalid || overLimit || record.isPending || (needsApproval && !reason.trim()) || (!needsApproval && !choiceReady(way, payment))}>
             {record.isPending ? t('saving') : needsApproval ? t('requestApproval') : t('complete')}
           </Button>
         </Card>

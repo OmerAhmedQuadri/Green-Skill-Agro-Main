@@ -6,9 +6,9 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useState } from 'react';
-import { Alert, Badge, Button, Card, Checkbox, Field, Input, Select } from '@gsa/ui';
+import { Alert, Badge, Button, Card, Field, Input, Select } from '@gsa/ui';
 import { PageHeader } from '@/components/common/PageHeader';
-import { NO_PAYMENT, PaymentFields, paymentBody, type PaymentDraft } from '@/components/stores/PaymentFields';
+import { choiceBody, choiceReady, NO_PAYMENT, PaymentChoice, type PaymentDraft, type PaymentWay } from '@/components/stores/PaymentFields';
 import type { Store } from '@/components/stores/types';
 import { api } from '@/lib/api';
 import { useFormat } from '@/lib/format';
@@ -29,14 +29,14 @@ type Counts = { received: string; short: string; damaged: string };
  */
 export function FieldOrderScreen({ id }: { id: string }) {
   const t = useTranslations('dispatch');
-  const ts = useTranslations('stores');
   const format = useFormat();
   const errorText = useErrorText();
   const router = useRouter();
   const queryClient = useQueryClient();
   const [counts, setCounts] = useState<Record<string, Counts>>({});
   const [mode, setMode] = useState<'IN_PERSON' | 'OWNER_WORD'>('IN_PERSON');
-  const [paying, setPaying] = useState(false);
+  // ADR-0055: on credit unless the seller says otherwise.
+  const [way, setWay] = useState<PaymentWay>('CREDIT');
   const [draft, setDraft] = useState<PaymentDraft>(NO_PAYMENT);
   const [claiming, setClaiming] = useState(false);
   const [claimReason, setClaimReason] = useState('');
@@ -73,7 +73,7 @@ export function FieldOrderScreen({ id }: { id: string }) {
   // What this delivery adds to the store's balance — the packs that arrived — and so what it may pay now.
   const delivered = sumMoney(o.lines.map((l) => lineAmounts(l.unitPrice, wholeNumber(countOf(l.id, l.packs).received) ?? 0, l.discount).total));
   const owed = sumMoney([store.data?.credit.outstanding ?? ('0.00' as Money), delivered]);
-  const payment = paying ? paymentBody(draft, owed) : null;
+  const payment = choiceBody(way, draft, delivered, owed);
 
   return (
     <div className="space-y-4 pb-6">
@@ -114,12 +114,11 @@ export function FieldOrderScreen({ id }: { id: string }) {
             </Select>
           </Field>
           {mode === 'OWNER_WORD' ? <p className="text-sm text-stone-600">{t('ownerWordNote')}</p> : null}
-          <label htmlFor="take-payment" className="flex items-center gap-2 text-sm font-medium">
-            <Checkbox id="take-payment" checked={paying} onChange={(e) => setPaying(e.target.checked)} />
-            {ts('takePaymentAtDelivery')}
-          </label>
-          {paying ? <PaymentFields id="delivery" owed={owed} value={draft} onChange={setDraft} /> : null}
-          <Button block disabled={act.isPending || (paying && !payment)} onClick={() => act.run({
+          {store.data ? (
+            <PaymentChoice id="delivery" total={delivered} owed={owed} dueIfOnCredit={store.data.credit.dueIfOnCredit}
+              billToBill={store.data.creditMode === 'BILL_TO_BILL'} way={way} onWay={setWay} value={draft} onChange={setDraft} />
+          ) : null}
+          <Button block disabled={act.isPending || !store.data || !choiceReady(way, payment)} onClick={() => act.run({
             action: 'confirm-receipt', data: {
               version: o.version, mode,
               lines: o.lines.map((l) => {

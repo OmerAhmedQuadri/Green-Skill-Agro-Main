@@ -1,4 +1,4 @@
-import type { DomainError, PermissionCode } from '@gsa/core';
+import { businessDate, dueDateFor, type DomainError, type PermissionCode } from '@gsa/core';
 import { describe, expect, it } from 'vitest';
 import { blobs } from '../../test/blobs';
 import { ownerQuery } from '../../test/db';
@@ -36,6 +36,8 @@ describe('a sale within the ceilings (workflow I, SAL-001..008)', () => {
     const options = await saleOptions(seller.ctx, store.id);
     expect(options).toMatchObject({ store: { id: store.id, credit: { blocked: false, available: '5000.00' } }, notWorking: null, canDiscount: true });
     expect(options.items).toEqual([expect.objectContaining({ skuId: bag.id, sellablePacks: 10, unitPrice: '90.00', ceiling: '5' })]);
+    // ADR-0055: what goes on credit today falls due by the store's cycle — weekly, at the week's close (Saturday by default).
+    expect(options.store.credit.dueIfOnCredit).toBe(dueDateFor('WEEKLY', null, businessDate(new Date()), 'SATURDAY'));
   });
 
   it('SAL-007, SAL-008, SAL-006, DOC-005: completes in one request — stock leaves the vehicle batch by batch, the store owes it by its cycle, a document is numbered', async () => {

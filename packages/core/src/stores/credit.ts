@@ -90,6 +90,11 @@ export type CreditStatus = {
   readonly blocked: boolean; readonly reasons: readonly BlockReason[]; readonly overridden: boolean;
   /** An unused same-day override: it releases the next sale from a credit block or the limit (OQ-018). */
   readonly overrideAvailable: boolean;
+  /**
+   * CRD-001 (ADR-0055): the day what is sold on credit today falls due, by the
+   * store's cycle — today itself for bill to bill, cleared before the next bill.
+   */
+  readonly dueIfOnCredit: string;
 };
 
 /**
@@ -107,6 +112,7 @@ export function creditStatus(input: {
   status: 'PENDING_APPROVAL' | 'ACTIVE' | 'REJECTED' | 'INACTIVE'; mode: CreditMode;
   limit: Money; openDebits: readonly { dueOn: string; open: Money }[]; graceDays: number; today: string; overrideActive: boolean;
   /** Dispatch orders to the store still waiting for delivery (ADR-0038). */ committed: Money;
+  /** A custom cycle's days, and the day a weekly cycle closes (CRD-001). */ cycleDays?: number | null; weekClosesOn?: Weekday;
 }): CreditStatus {
   const outstanding = input.openDebits.reduce((sum, d) => sum.plus(dec(d.open)), new Dec(0));
   const pastDueDebits = input.openDebits.filter((d) => dec(d.open).gt(0) && addDays(d.dueOn, input.graceDays) < input.today);
@@ -131,5 +137,6 @@ export function creditStatus(input: {
     outstanding: toMoney(outstanding), pastDue: toMoney(pastDue), limit: input.limit, available: toMoney(available.gt(0) ? available : new Dec(0)),
     committed: input.committed,
     blocked: all.length > 0, reasons: [...reasons, ...creditReasons], overridden, overrideAvailable: input.overrideActive && reasons.length === 0,
+    dueIfOnCredit: dueDateFor(input.mode, input.cycleDays ?? null, input.today, input.weekClosesOn),
   };
 }

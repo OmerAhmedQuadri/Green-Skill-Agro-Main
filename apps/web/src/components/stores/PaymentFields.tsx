@@ -1,9 +1,9 @@
 'use client';
 
-import { dec, type Money } from '@gsa/core';
+import { dec, toMoney, type Money } from '@gsa/core';
 import { useTranslations } from 'next-intl';
 import type { Dispatch, SetStateAction } from 'react';
-import { Field, Input, Select } from '@gsa/ui';
+import { cn, Field, Input, Select } from '@gsa/ui';
 import { PhotoCapture } from '@/components/common/PhotoCapture';
 import { useFormat } from '@/lib/format';
 import { decimalText } from '@/lib/forms';
@@ -50,8 +50,9 @@ export function paymentBody(draft: PaymentDraft, owed: Money): PaymentBody | nul
  * `fullAmount` (ADR-0052): an open sale is paid exactly in full, so there is
  * no amount to type — the caller builds the body with that sum.
  */
-export function PaymentFields({ id, owed, value, onChange, fullAmount }: {
+export function PaymentFields({ id, owed, value, onChange, fullAmount, amountHint, amountError }: {
   id: string; owed: Money; value: PaymentDraft; onChange: Dispatch<SetStateAction<PaymentDraft>>; fullAmount?: Money | undefined;
+  /** What the amount is held to, when the caller says more than what is owed (ADR-0055). */ amountHint?: string | undefined; amountError?: string | undefined;
 }) {
   const t = useTranslations('stores');
   const format = useFormat();
@@ -62,8 +63,8 @@ export function PaymentFields({ id, owed, value, onChange, fullAmount }: {
     <div className="space-y-3" data-testid={`${id}-payment`}>
       {fullAmount ? <p className="text-sm font-medium" data-testid={`${id}-full-amount`}>{t('paidInFullAmount', { amount: format.money(fullAmount) })}</p> : (
         <Field
-          id={`${id}-amount`} label={t('amount')} hint={t('owedHint', { amount: format.money(owed) })}
-          error={tooMuch ? t('moreThanOwed', { amount: format.money(owed) }) : undefined}
+          id={`${id}-amount`} label={t('amount')} hint={amountHint ?? t('owedHint', { amount: format.money(owed) })}
+          error={tooMuch ? t('moreThanOwed', { amount: format.money(owed) }) : amountError}
         >
           <Input id={`${id}-amount`} inputMode="decimal" dir="ltr" value={value.amount} onChange={(e) => set({ amount: e.target.value })} />
         </Field>
@@ -84,5 +85,92 @@ export function PaymentFields({ id, owed, value, onChange, fullAmount }: {
       </Field>
       <PhotoCapture id={`${id}-voucher-photo`} kind="PAYMENT_VOUCHER" label={t('voucherPhoto')} onChange={(photoId) => set({ voucherPhotoId: photoId })} />
     </div>
+  );
+}
+
+/** ADR-0055: how a store pays for a sale or a delivery — named as the choice it is, credit first. */
+export const PAYMENT_WAYS = ['CREDIT', 'PART', 'FULL'] as const;
+export type PaymentWay = (typeof PAYMENT_WAYS)[number];
+
+/**
+ * The payment a choice comes to: none on credit; part of the total; or all of
+ * it — more settles older bills too, up to all that is owed (ADR-0047). Null
+ * while the choice is not complete.
+ */
+export function choiceBody(way: PaymentWay, draft: PaymentDraft, total: Money, owed: Money): PaymentBody | null {
+  if (way === 'CREDIT') return null;
+  const body = paymentBody(draft, owed);
+  if (!body) return null;
+  if (way === 'PART' && !dec(body.amount).lt(dec(total))) return null;
+  if (way === 'FULL' && dec(body.amount).lt(dec(total))) return null;
+  return body;
+}
+
+/** On credit is ready as it is; paying now, once the payment is complete. */
+export const choiceReady = (way: PaymentWay, body: PaymentBody | null): boolean => way === 'CREDIT' || body !== null;
+
+/**
+ * ADR-0055 (SAL-006, CRD-001): how the store pays — on credit, part now and
+ * the rest on credit, or in full now — with what goes on its account and when
+ * it falls due by the store's cycle; for bill to bill, before its next bill.
+ * Money taken now is cash or a bank transfer, with its voucher (ADR-0047).
+ */
+export function PaymentChoice({ id, total, owed, dueIfOnCredit, billToBill, way, onWay, value, onChange }: {
+  id: string; total: Money; owed: Money; dueIfOnCredit: string; billToBill: boolean;
+  way: PaymentWay; onWay: (way: PaymentWay) => void; value: PaymentDraft; onChange: Dispatch<SetStateAction<PaymentDraft>>;
+}) {
+  const t = useTranslations('stores.pay');
+  const format = useFormat();
+  const typed = decimalText(value.amount);
+  const amount = MONEY.test(typed) ? dec(typed) : null;
+  const choose = (next: PaymentWay) => {
+    onWay(next);
+    // In full starts at the total; part starts empty.
+    if (next === 'FULL') onChange((previous) => ({ ...previous, amount: total }));
+    if (next === 'PART') onChange((previous) => ({ ...previous, amount: '' }));
+  };
+  const totalText = format.money(total);
+  const date = format.date(dueIfOnCredit);
+  let summary: string | null = null;
+  let amountError: string | undefined;
+  if (way === 'CREDIT') {
+    summary = billToBill ? t('onCreditBill', { amount: totalText }) : t('onCredit', { amount: totalText, date });
+  } else if (way === 'PART') {
+    if (amount && amount.gt(0) && amount.lt(dec(total))) {
+      const paid = format.money(toMoney(amount));
+      const rest = format.money(toMoney(dec(total).minus(amount)));
+      summary = billToBill ? t('partBill', { paid, rest }) : t('part', { paid, rest, date });
+    } else if (amount && amount.gte(dec(total))) amountError = t('partTooMuch', { total: totalText });
+  } else if (amount && amount.gte(dec(total))) {
+    const older = amount.minus(dec(total));
+    summary = older.gt(0) ? t('fullOlder', { older: format.money(toMoney(older)) }) : t('full');
+  } else if (amount) amountError = t('fullTooLittle', { total: totalText });
+
+  return (
+    <fieldset className="space-y-3" data-testid={`${id}-choice`}>
+      <legend className="text-sm font-medium text-stone-900">{t('title')}</legend>
+      <div className="grid gap-2 sm:grid-cols-3">
+        {PAYMENT_WAYS.map((w) => (
+          <label key={w} className={cn('flex cursor-pointer items-start gap-2 rounded-md border p-3 text-sm', way === w ? 'border-brand-600 bg-brand-50' : 'border-stone-200 bg-white')}>
+            {/* Named by its own words, the hint read after them: "on credit" is in the others' hints too. */}
+            <input type="radio" name={`${id}-way`} value={w} checked={way === w} onChange={() => choose(w)} className="mt-0.5 accent-brand-700"
+              aria-labelledby={`${id}-way-${w}-name`} aria-describedby={`${id}-way-${w}-hint`} data-testid={`${id}-way-${w}`} />
+            <span>
+              <span id={`${id}-way-${w}-name`} className="block font-medium text-stone-900">{t(`ways.${w}`)}</span>
+              <span id={`${id}-way-${w}-hint`} className="block text-xs text-stone-500">{t(`hints.${w}`)}</span>
+            </span>
+          </label>
+        ))}
+      </div>
+      {summary ? <p className="text-sm text-stone-700" data-testid={`${id}-payment-summary`}>{summary}</p> : null}
+      {way !== 'CREDIT' ? (
+        <PaymentFields
+          id={id} owed={owed} value={value} onChange={onChange} amountError={amountError}
+          amountHint={way === 'PART' ? t('partHint', { total: totalText })
+            // More than the total only settles older bills — when there are any.
+            : dec(owed).gt(dec(total)) ? t('fullHint', { total: totalText, owed: format.money(owed) }) : t('fullHintExact', { total: totalText })}
+        />
+      ) : null}
+    </fieldset>
   );
 }
