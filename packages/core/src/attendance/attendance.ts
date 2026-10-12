@@ -43,6 +43,22 @@ export function assertWorking(day: { status: AttendanceDayStatus; awaitingAuthor
   if (day.status === 'ON_BREAK') throw new DomainError('ON_BREAK');
 }
 
+// ---------------------------------------------------------------- the trip's vehicle (ATT-014, ADR-0056)
+
+/**
+ * The seller's vehicle changed under an open trip: they check out and in
+ * again to work with the one they hold now. A trip without a vehicle changed
+ * only if one was assigned after it began — one declared without (ATT-007)
+ * did not.
+ */
+export function tripVehicleChanged(
+  trip: { readonly vehicleId: string | null; readonly checkedInAt: Date },
+  assignment: { readonly vehicleId: string; readonly startedAt: Date } | null,
+): boolean {
+  if (trip.vehicleId !== null) return trip.vehicleId !== assignment?.vehicleId;
+  return assignment !== null && assignment.startedAt > trip.checkedInAt;
+}
+
 // ---------------------------------------------------------------- location (ATT-008, ATT-009, ATT-013)
 
 export type GeoPoint = { readonly lat: number; readonly lng: number };

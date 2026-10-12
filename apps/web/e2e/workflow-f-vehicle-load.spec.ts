@@ -18,6 +18,19 @@ async function checkIn(phone: Page, m: typeof en, odometer: string) {
   await expect(phone.getByTestId('day-card')).toContainText(m.field.status.OPEN);
 }
 
+/** Check out on the phone, the odometer read as the vehicle is handed over (ATT-001, VEH-017). */
+async function checkOut(phone: Page, m: typeof en, odometer: string) {
+  await phone.goto('/field/today');
+  await phone.getByTestId('day-card').getByRole('button', { name: m.field.checkOut, exact: true }).click();
+  const form = phone.getByRole('form', { name: m.field.checkOut });
+  await expect(form.getByTestId('location')).not.toContainText(m.field.locating, { timeout: 20_000 });
+  await takePhoto(phone, 'out-selfie', m);
+  await takePhoto(phone, 'out-odometer', m);
+  await form.getByLabel(m.field.odometerReading).fill(odometer);
+  await form.getByRole('button', { name: m.field.checkOut, exact: true }).click();
+  await expect(phone.getByTestId('day-card')).toContainText(m.field.status.CHECKED_OUT);
+}
+
 /**
  * Workflow F — assigning a vehicle and issuing stock (WORKFLOWS.md), in
  * English and Arabic: the manager registers and assigns a vehicle, builds a
@@ -28,7 +41,7 @@ async function checkIn(phone: Page, m: typeof en, odometer: string) {
 for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
   // An Arabic keyboard types Arabic-Indic digits; the app must read them (ADR-0026).
   const n = (v: string) => (locale === 'ar' ? v.replace(/\d/g, (d) => '٠١٢٣٤٥٦٧٨٩'[Number(d)] ?? d) : v);
-  test(`Workflow F (${locale}) — VEH-002, 005..009: assign, load with FEFO and a ceiling warning, confirm on the phone, hand over`, async ({ browser, baseURL }) => {
+  test(`Workflow F (${locale}) — VEH-002, 005..009, 017: assign, load with FEFO and a ceiling warning, confirm on the phone, check out and hand over`, async ({ browser, baseURL }) => {
     test.setTimeout(240_000);
     const origin = baseURL ?? '';
     const stamp = String(Date.now()).slice(-6);
@@ -125,9 +138,15 @@ for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
     await admin.getByLabel(m.vehicles.reassignTo).selectOption(sellerB.id);
     await admin.getByRole('button', { name: m.vehicles.reassign, exact: true }).click();
     await expect(admin.getByTestId('pending-handover')).toBeVisible();
+    // VEH-017: seller A is still out with it — the page says so, and A's phone asks them to check out first.
+    await expect(admin.getByTestId('handover-outgoing-out')).toBeVisible();
     await sellerB.page.goto('/field/vehicle');
     await sellerB.page.getByTestId('handover').getByRole('button', { name: m.field.confirmHandover }).click();
     await expect(sellerB.page.getByTestId('handover')).toContainText(m.field.handoverWaitingOther);
+    await phoneA.goto('/field/vehicle');
+    await expect(phoneA.getByTestId('handover-check-out-first')).toBeVisible();
+    await expect(phoneA.getByTestId('handover').getByRole('button', { name: m.field.confirmHandover })).toHaveCount(0);
+    await checkOut(phoneA, m, n('12090'));
     await phoneA.goto('/field/vehicle');
     await phoneA.getByTestId('handover').getByRole('button', { name: m.field.confirmHandover }).click();
     await expect(phoneA.getByTestId('handover')).toHaveCount(0);
@@ -138,5 +157,10 @@ for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
     await sellerB.page.goto('/field/vehicle');
     await expect(sellerB.page.getByTestId(`batch-${early}`)).toBeVisible();
     expect(await batchPositions(admin, skuId, early)).toEqual({ warehouse: 6, vehicles: 4, total: 10 });
+    // Each phone shows who holds it now: seller B has it, seller A has none.
+    await sellerB.page.goto('/field/today');
+    await expect(sellerB.page.getByTestId('vehicle-card')).toContainText(registration);
+    await phoneA.goto('/field/today');
+    await expect(phoneA.getByTestId('vehicle-card')).toContainText(m.field.noVehicle);
   });
 }

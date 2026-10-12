@@ -9,7 +9,7 @@ import { Facts, Section } from '@/components/common/Section';
 import { Cell, Table } from '@/components/common/Table';
 import { api, ApiError } from '@/lib/api';
 import { useFormat } from '@/lib/format';
-import { formText, wholeNumber } from '@/lib/forms';
+import { formText, latinDigits, wholeNumber } from '@/lib/forms';
 import { useCommand, useErrorText } from '@/lib/hooks';
 import { keys } from '@/lib/query-keys';
 import { LoadBuilder } from './LoadBuilder';
@@ -57,6 +57,11 @@ export function VehicleDetail({ id, can }: { id: string; can: Can }) {
           { label: t('vehicles.seller'), value: v.seller ? t('vehicles.sellerSince', { name: v.seller.name, date: format.dateTime(v.seller.since) }) : t('vehicles.unassigned') },
           { label: t('vehicles.odometer'), value: v.odometer === null ? '—' : t('vehicles.km', { km: format.number(v.odometer) }) },
           { label: t('vehicles.stockValue'), value: t('vehicles.packsAndValue', { packs: format.number(v.packs), value: format.money(v.value) }) },
+          // VEH-016: its seller is out with it — it is not back yet.
+          ...(v.trip && v.seller ? [{
+            label: t('vehicles.trip'),
+            value: <span data-testid="vehicle-out">{t(v.trip.awaitingAuthorisation ? 'vehicles.outAwaiting' : 'vehicles.outSince', { name: v.seller.name, time: format.dateTime(v.trip.since) })}</span>,
+          }] : []),
         ]} />
       </Section>
 
@@ -123,27 +128,91 @@ export function VehicleDetail({ id, can }: { id: string; can: Can }) {
   );
 }
 
-/** VEH-002, 009, 010: assign, hand over with stock, or release an empty vehicle. */
+/** VEH-016: the seller the server says is still out with the vehicle. */
+type OutWith = { name: string; since: string; awaitingAuthorisation: boolean; lastOdometer: number | null };
+const outWith = (e: unknown) => (e instanceof ApiError && e.code === 'SELLER_OUT_WITH_VEHICLE' ? (e.details as OutWith) : null);
+type Back = { odometer: number };
+
+/**
+ * VEH-002, 009, 010, 016: assign, hand over with stock, or release an empty
+ * vehicle. While its seller is out with it, the console first asks whether it
+ * is back — yes, with the reading now, ends their trip and goes ahead; no
+ * changes nothing (ADR-0056).
+ */
 function Assignment({ vehicle: v, onChange }: { vehicle: Vehicle; onChange: () => void }) {
   const t = useTranslations();
   const format = useFormat();
   const errorText = useErrorText();
-  const [outcome, setOutcome] = useState<string | null>(null);
+  const [outcome, setOutcome] = useState<'ASSIGNED' | 'HANDOVER_PROPOSED' | null>(null);
+  const [ended, setEnded] = useState<{ name: string; km: number } | null>(null);
+  // What the manager asked for, to send again once they say the vehicle is back.
+  const [intent, setIntent] = useState<{ action: 'reassign' | 'unassign'; sellerId: string } | null>(null);
+  const [reading, setReading] = useState('');
   const sellers = useQuery({ queryKey: keys.sellers, queryFn: () => api<Seller[]>('/sellers') });
-  const assign = useCommand((sellerId: string, key) => api<{ outcome: 'ASSIGNED' | 'HANDOVER_PROPOSED' }>(`/vehicles/${v.id}/assign`, { method: 'POST', body: { sellerId }, idempotencyKey: key }), {
-    onSuccess: (r) => { setOutcome(r.outcome); onChange(); },
+  const done = (vars: { back?: Back; outWith?: OutWith }) => {
+    setEnded(vars.back && vars.outWith ? { name: vars.outWith.name, km: vars.back.odometer } : null);
+    setIntent(null);
+    setReading('');
+    onChange();
+  };
+  const assign = useCommand(({ sellerId, back }: { sellerId: string; back?: Back; outWith?: OutWith }, key) =>
+    api<{ outcome: 'ASSIGNED' | 'HANDOVER_PROPOSED' }>(`/vehicles/${v.id}/assign`, { method: 'POST', body: { sellerId, ...(back ? { vehicleBack: back } : {}) }, idempotencyKey: key }), {
+    onSuccess: (r, { vars }) => { setOutcome(r.outcome); done(vars); },
   });
-  const unassign = useCommand((_: null, key) => api(`/vehicles/${v.id}/unassign`, { method: 'POST', body: {}, idempotencyKey: key }), { onSuccess: onChange });
+  const unassign = useCommand(({ back }: { back?: Back; outWith?: OutWith }, key) =>
+    api(`/vehicles/${v.id}/unassign`, { method: 'POST', body: back ? { vehicleBack: back } : {}, idempotencyKey: key }), {
+    onSuccess: (_, { vars }) => { setOutcome(null); done(vars); },
+  });
   const cancel = useCommand((body: { id: string; version: number; reason: string }, key) =>
     api(`/vehicle-handovers/${body.id}/cancel`, { method: 'POST', body: { version: body.version, reason: body.reason }, idempotencyKey: key }), { onSuccess: onChange });
-  const error = assign.error ?? unassign.error ?? cancel.error;
+  const command = intent?.action === 'unassign' ? unassign : assign;
+  // Asked, or being answered: the question stays up while the answer is sent.
+  const asking = intent ? outWith(command.error) ?? (command.isPending ? command.variables?.vars.outWith ?? null : null) : null;
+  const error = [assign.error, unassign.error, cancel.error].find((e) => e && !outWith(e)) ?? null;
   const h = v.pendingHandover;
+
+  const start = (next: { action: 'reassign' | 'unassign'; sellerId: string }) => {
+    setIntent(next);
+    setOutcome(null);
+    setEnded(null);
+    if (next.action === 'unassign') unassign.run({});
+    else assign.run({ sellerId: next.sellerId });
+  };
+  const back = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const odometer = wholeNumber(reading);
+    if (!intent || !asking || odometer === null) return;
+    if (intent.action === 'unassign') unassign.run({ back: { odometer }, outWith: asking });
+    else assign.run({ sellerId: intent.sellerId, back: { odometer }, outWith: asking });
+  };
+  const notBack = () => {
+    setIntent(null);
+    setReading('');
+    assign.reset();
+    unassign.reset();
+  };
 
   return (
     <Section title={t('vehicles.assignment')} description={v.packs > 0 && v.seller ? t('vehicles.handoverHint') : undefined}>
       <div className="space-y-4 p-5">
         {error ? <Alert>{errorText(error)}</Alert> : null}
+        {ended ? <Alert tone="success" data-testid="trip-ended">{t('vehicles.tripEnded', { name: ended.name, km: format.number(ended.km) })}</Alert> : null}
         {outcome ? <Alert tone="success">{t(outcome === 'ASSIGNED' ? 'vehicles.assigned' : 'vehicles.handoverProposed')}</Alert> : null}
+        {asking && intent ? (
+          <form className="space-y-3 rounded-md border border-amber-300 bg-amber-50 p-4 text-sm" data-testid="vehicle-back" noValidate onSubmit={back}>
+            <p className="font-semibold text-stone-900">{t('vehicles.backTitle', { registration: v.registration })}</p>
+            <p>{t('vehicles.backBody', { name: asking.name, time: format.dateTime(asking.since), action: intent.action })}</p>
+            <Field id="vb-odometer" label={t('vehicles.odometerKm')}
+              hint={asking.lastOdometer !== null ? t('vehicles.lastReading', { km: format.number(asking.lastOdometer) }) : undefined}>
+              <Input id="vb-odometer" value={reading} onChange={(e) => setReading(latinDigits(e.target.value).replace(/\D/g, ''))}
+                inputMode="numeric" dir="ltr" autoComplete="off" className="w-40" />
+            </Field>
+            <div className="flex flex-wrap gap-2">
+              <Button type="submit" disabled={!/^\d{1,7}$/.test(reading) || command.isPending}>{t('vehicles.backYes', { action: intent.action })}</Button>
+              <Button variant="ghost" onClick={notBack} disabled={command.isPending}>{t('vehicles.backNo', { name: asking.name })}</Button>
+            </div>
+          </form>
+        ) : null}
         {h ? (
           <div className="space-y-3 rounded-md border border-amber-200 bg-amber-50 p-4 text-sm" data-testid="pending-handover">
             <p className="font-medium">{t('vehicles.handoverFromTo', { from: h.outgoing.name, to: h.incoming.name })}</p>
@@ -151,6 +220,8 @@ function Assignment({ vehicle: v, onChange }: { vehicle: Vehicle; onChange: () =
               outgoing: h.outgoing.confirmedAt ? format.dateTime(h.outgoing.confirmedAt) : t('vehicles.notYet'),
               incoming: h.incoming.confirmedAt ? format.dateTime(h.incoming.confirmedAt) : t('vehicles.notYet'),
             })}</p>
+            {/* VEH-017: it does not pass while the outgoing seller is out with it. */}
+            {v.trip ? <p className="text-amber-900" data-testid="handover-outgoing-out">{t('vehicles.handoverOutgoingOut', { name: h.outgoing.name })}</p> : null}
             <form className="flex flex-wrap items-end gap-2" noValidate onSubmit={(e: FormEvent<HTMLFormElement>) => {
               e.preventDefault();
               cancel.run({ id: h.id, version: h.version, reason: formText(new FormData(e.currentTarget), 'reason') });
@@ -162,7 +233,7 @@ function Assignment({ vehicle: v, onChange }: { vehicle: Vehicle; onChange: () =
         ) : (
           <form className="flex flex-wrap items-end gap-2" noValidate onSubmit={(e: FormEvent<HTMLFormElement>) => {
             e.preventDefault();
-            assign.run(formText(new FormData(e.currentTarget), 'sellerId'));
+            start({ action: 'reassign', sellerId: formText(new FormData(e.currentTarget), 'sellerId') });
           }}>
             <Field id="assign-seller" label={v.seller ? t('vehicles.reassignTo') : t('vehicles.assignTo')}>
               <Select id="assign-seller" name="sellerId" defaultValue="" disabled={v.status !== 'ACTIVE'}>
@@ -172,9 +243,9 @@ function Assignment({ vehicle: v, onChange }: { vehicle: Vehicle; onChange: () =
                 ))}
               </Select>
             </Field>
-            <Button type="submit" disabled={assign.isPending || v.status !== 'ACTIVE'}>{v.seller ? t('vehicles.reassign') : t('vehicles.assign')}</Button>
+            <Button type="submit" disabled={assign.isPending || asking !== null || v.status !== 'ACTIVE'}>{v.seller ? t('vehicles.reassign') : t('vehicles.assign')}</Button>
             {v.seller && v.packs === 0 && v.outstandingLoads === 0
-              ? <Button variant="ghost" onClick={() => unassign.run(null)} disabled={unassign.isPending}>{t('vehicles.unassign')}</Button> : null}
+              ? <Button variant="ghost" onClick={() => start({ action: 'unassign', sellerId: '' })} disabled={unassign.isPending || asking !== null}>{t('vehicles.unassign')}</Button> : null}
           </form>
         )}
       </div>

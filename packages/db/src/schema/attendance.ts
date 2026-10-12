@@ -34,8 +34,9 @@ export const checkInZones = pgTable(
 
 /**
  * DATA-MODEL §5.7: a day is the container, sessions are the events. The day
- * is the business date of its first check-in; no vehicle means a day without
- * one (ATT-007). Opened by a manager on the seller's behalf (ATT-011) when
+ * is the business date of its first check-in; its vehicle is that of its
+ * latest session with one (ADR-0056), and none means a day without one
+ * (ATT-007). Opened by a manager on the seller's behalf (ATT-011) when
  * `opened_by` is not the seller.
  */
 export const attendanceDays = pgTable(
@@ -61,9 +62,11 @@ export const attendanceDays = pgTable(
 );
 
 /**
- * One check-in/check-out pair (ATT-001, ATT-005). Selfie and location are
- * required unless a manager opened the session on the seller's behalf.
- * Odometer readings live in `odometer_readings` as well, against the vehicle.
+ * One check-in/check-out pair (ATT-001, ATT-005), with the vehicle assigned
+ * at its check-in — none on a trip without one (ATT-014, ADR-0056). Selfie
+ * and location are required unless a manager opened the session on the
+ * seller's behalf, or closed it on taking the vehicle back. Odometer readings
+ * live in `odometer_readings` as well, against the vehicle.
  */
 export const attendanceSessions = pgTable(
   'attendance_sessions',
@@ -71,6 +74,7 @@ export const attendanceSessions = pgTable(
     id: id(),
     dayId: uuid('day_id').notNull().references(() => attendanceDays.id),
     sellerId: uuid('seller_id').notNull().references(() => users.id),
+    vehicleId: uuid('vehicle_id').references(() => vehicles.id),
     status: attendanceSessionStatus('status').notNull(),
     checkedInAt: timestamptz('checked_in_at').notNull(),
     checkInLat: lat('check_in_lat'),
@@ -93,6 +97,7 @@ export const attendanceSessions = pgTable(
     checkOutOdoPhotoId: uuid('check_out_odo_photo_id').references(() => mediaAssets.id),
     checkOutOdometer: integer('check_out_odometer'),
     checkOutFlags: odometerFlag('check_out_flags').array().notNull().default(sql`'{}'`),
+    closedOnBehalfBy: uuid('closed_on_behalf_by').references(() => users.id), // VEH-016
     reviewedAt: timestamptz('reviewed_at'), // ATT-012
     reviewedBy: uuid('reviewed_by').references(() => users.id),
     reviewComment: text('review_comment'),
@@ -103,13 +108,15 @@ export const attendanceSessions = pgTable(
     // ATT-010: at most one session a seller is working in, or waiting on.
     uniqueIndex('attendance_sessions_one_live').on(t.sellerId).where(sql`${t.status} in ('OPEN', 'AWAITING_AUTHORISATION')`),
     index('attendance_sessions_day_id_idx').on(t.dayId),
+    index('attendance_sessions_vehicle_id_idx').on(t.vehicleId),
     index('attendance_sessions_checked_in_at_idx').on(t.checkedInAt),
     check('attendance_sessions_check_in_evidence', sql`${t.openedOnBehalfBy} is not null or (
       ${t.checkInSelfieId} is not null and ${t.checkInLat} is not null and ${t.checkInLng} is not null)`),
     check('attendance_sessions_on_behalf_reason', sql`(${t.openedOnBehalfBy} is null) = (${t.onBehalfReason} is null)`),
     check('attendance_sessions_closed', sql`(${t.status} = 'CLOSED') = (${t.checkedOutAt} is not null)`),
-    check('attendance_sessions_check_out_evidence', sql`${t.checkedOutAt} is null or (
+    check('attendance_sessions_check_out_evidence', sql`${t.checkedOutAt} is null or ${t.closedOnBehalfBy} is not null or (
       ${t.checkOutSelfieId} is not null and ${t.checkOutLat} is not null and ${t.checkOutLng} is not null)`),
+    check('attendance_sessions_closed_on_behalf', sql`${t.closedOnBehalfBy} is null or ${t.checkedOutAt} is not null`),
   ],
 );
 

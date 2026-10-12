@@ -1,18 +1,19 @@
 import {
-  attributeByDay, businessDate, checkInOdometerFlags, DomainError, odometerReading, transitionDay,
-  type AttendanceDayStatus, type DayShare,
+  attributeByDay, businessDate, checkInOdometerFlags, checkOutOdometerFlags, DomainError, odometerReading, transitionDay,
+  type AttendanceDayStatus, type DayShare, type OdometerFlag,
 } from '@gsa/core';
 import { schema } from '@gsa/db';
-import { and, asc, desc, eq, gte, inArray, lt, lte, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, isNull, lt, lte, sql, type SQL } from 'drizzle-orm';
 import { authorize, authorizeAny, type Ctx } from '../context';
 import { endRequest, notify } from '../notifications';
 import { audit, inTx, writeAudit, type Tx } from '../platform';
 import { defaultBranchId, getDb } from '../runtime';
+import { expireSellerSales } from '../sales';
 import { readSettings } from '../system';
 import { sessionsFor, totalsOf, withdraw, type SessionView } from './days';
-import { currentAssignment, lastOdometer, liveSession } from './guard';
+import { currentAssignment, lastOdometer, liveSession, lockAttendance, type LiveDay } from './guard';
 
-const { attendanceDays, attendanceSessions, odometerReadings, users, vehicles } = schema;
+const { attendanceDays, attendanceSessions, attendanceBreaks, odometerReadings, users, vehicles } = schema;
 
 /**
  * ATT-011: a seller missed their check-in — a manager opens the day for them,
@@ -26,7 +27,7 @@ export async function openDayOnBehalf(ctx: Ctx, input: { sellerId: string; reaso
   return inTx(ctx, async (tx) => {
     const [seller] = await tx.select({ role: users.role, status: users.status }).from(users).where(eq(users.id, input.sellerId));
     if (seller?.role !== 'SELLER' || seller.status !== 'ACTIVE') throw new DomainError('NOT_FOUND', { entity: 'seller', id: input.sellerId });
-    await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`attendance:${input.sellerId}`}, 0))`);
+    await lockAttendance(tx, input.sellerId);
     const live = await liveSession(tx, input.sellerId);
     if (live && !live.awaitingAuthorisation) throw new DomainError('ALREADY_CHECKED_IN');
     if (live) await withdraw(tx, ctx, live.sessionId);
@@ -41,7 +42,7 @@ export async function openDayOnBehalf(ctx: Ctx, input: { sellerId: string; reaso
     let dayId: string;
     if (existing) {
       await tx.update(attendanceDays).set({
-        status: transitionDay(existing.status, 'check_in'), vehicleId: existing.vehicleId ?? assignment?.vehicleId ?? null,
+        status: transitionDay(existing.status, 'check_in'), vehicleId: assignment?.vehicleId ?? existing.vehicleId,
         updatedAt: ctx.now, updatedBy: ctx.user.id, version: existing.version + 1,
       }).where(eq(attendanceDays.id, existing.id));
       dayId = existing.id;
@@ -54,7 +55,7 @@ export async function openDayOnBehalf(ctx: Ctx, input: { sellerId: string; reaso
       dayId = created.id;
     }
     const [session] = await tx.insert(attendanceSessions).values({
-      dayId, sellerId: input.sellerId, status: 'OPEN', checkedInAt: ctx.now, checkInOdometer: reading, checkInFlags: flags,
+      dayId, sellerId: input.sellerId, vehicleId: assignment?.vehicleId ?? null, status: 'OPEN', checkedInAt: ctx.now, checkInOdometer: reading, checkInFlags: flags,
       openedOnBehalfBy: ctx.user.id, onBehalfReason: reason, branchId: ctx.branchId, createdBy: ctx.user.id, updatedBy: ctx.user.id,
     }).returning({ id: attendanceSessions.id });
     if (!session) throw new Error('attendance session insert returned nothing');
@@ -67,6 +68,47 @@ export async function openDayOnBehalf(ctx: Ctx, input: { sellerId: string; reaso
     await notify(tx, ctx, { users: [input.sellerId] }, 'DAY_OPENED_ON_BEHALF', { reason }, '/field/today');
     await audit(tx, ctx, { action: 'attendance.day_opened_on_behalf', entityType: 'attendance_session', entityId: session.id, after: { sellerId: input.sellerId, workDate, reason, odometer: reading } });
     return { sessionId: session.id };
+  });
+}
+
+/**
+ * VEH-016 (ADR-0056): the vehicle is back with a manager, so the seller's
+ * trip with it ends at the reading the manager enters — closed on their
+ * behalf, without a selfie or location, and the seller is told. Their pending
+ * requests expire as at their own check-out (PRC-015). A check-in still
+ * waiting on a zone authorisation is withdrawn instead. The reading is kept
+ * against the vehicle either way. Part of taking the vehicle back: the caller
+ * holds the vehicle and the seller's lock, and found `trip` with this vehicle.
+ */
+export async function endTripOnBehalf(
+  tx: Tx, ctx: Ctx, trip: LiveDay, input: { sellerId: string; vehicleId: string; registration: string; odometer: number },
+): Promise<void> {
+  const reading = odometerReading(input.odometer);
+  const [session] = await tx.select().from(attendanceSessions).where(eq(attendanceSessions.id, trip.sessionId));
+  const [day] = await tx.select().from(attendanceDays).where(eq(attendanceDays.id, trip.dayId));
+  if (!session || !day) throw new Error('live session vanished');
+  let flags: OdometerFlag[] = [];
+  if (trip.awaitingAuthorisation) {
+    await withdraw(tx, ctx, session.id);
+  } else {
+    const settings = await readSettings(tx);
+    flags = checkOutOdometerFlags(session.checkInOdometer ?? (await lastOdometer(tx, input.vehicleId)), reading, settings['attendance.max_session_km']);
+    await tx.update(attendanceBreaks).set({ endedAt: ctx.now }).where(and(eq(attendanceBreaks.sessionId, session.id), isNull(attendanceBreaks.endedAt)));
+    await tx.update(attendanceSessions).set({
+      status: 'CLOSED', checkedOutAt: ctx.now, checkOutOdometer: reading, checkOutFlags: flags, closedOnBehalfBy: ctx.user.id,
+      updatedAt: ctx.now, updatedBy: ctx.user.id, version: session.version + 1,
+    }).where(eq(attendanceSessions.id, session.id));
+    await tx.update(attendanceDays).set({ status: transitionDay(day.status, 'check_out'), updatedAt: ctx.now, updatedBy: ctx.user.id, version: day.version + 1 })
+      .where(eq(attendanceDays.id, day.id));
+  }
+  await tx.insert(odometerReadings).values({
+    vehicleId: input.vehicleId, readingKm: reading, source: 'CHECK_OUT', sessionId: session.id, recordedAt: ctx.now, recordedBy: ctx.user.id, branchId: ctx.branchId,
+  });
+  await expireSellerSales(tx, ctx, input.sellerId);
+  await notify(tx, ctx, { users: [input.sellerId] }, 'TRIP_CLOSED_ON_BEHALF', { registration: input.registration, odometer: reading }, '/field/today');
+  await audit(tx, ctx, {
+    action: 'attendance.trip_closed_on_behalf', entityType: 'attendance_session', entityId: session.id,
+    after: { sellerId: input.sellerId, vehicleId: input.vehicleId, odometer: reading, flags, withdrawn: trip.awaitingAuthorisation },
   });
 }
 

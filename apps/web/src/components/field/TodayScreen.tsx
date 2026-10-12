@@ -16,6 +16,7 @@ import { useCommand, useErrorText } from '@/lib/hooks';
 import { keys } from '@/lib/query-keys';
 import type { StoreSummary } from '@/components/stores/types';
 import { CaptureForm } from './CaptureForm';
+import { FIELD_REFRESH_MS } from './refresh';
 import type { Handover, Load, MyVehicle, Today } from './types';
 
 /**
@@ -34,10 +35,11 @@ export function TodayScreen({ name }: { name: string }) {
   const errorText = useErrorText();
   const queryClient = useQueryClient();
   const [capturing, setCapturing] = useState<'in' | 'out' | null>(null);
-  const today = useQuery({ queryKey: keys.today, queryFn: () => api<Today>('/attendance/today'), refetchInterval: 60_000 });
-  const vehicle = useQuery({ queryKey: keys.myVehicle, queryFn: () => api<MyVehicle>('/stock/my-vehicle') });
-  const loads = useQuery({ queryKey: keys.loads({ status: 'ISSUED' }), queryFn: () => api<Load[]>('/vehicle-loads?status=ISSUED') });
-  const handovers = useQuery({ queryKey: keys.handovers, queryFn: () => api<Handover[]>('/vehicle-handovers') });
+  // The day and the vehicle ask again together, so a vehicle a manager takes back or assigns shows on both (ADR-0056).
+  const today = useQuery({ queryKey: keys.today, queryFn: () => api<Today>('/attendance/today'), refetchInterval: FIELD_REFRESH_MS });
+  const vehicle = useQuery({ queryKey: keys.myVehicle, queryFn: () => api<MyVehicle>('/stock/my-vehicle'), refetchInterval: FIELD_REFRESH_MS });
+  const loads = useQuery({ queryKey: keys.loads({ status: 'ISSUED' }), queryFn: () => api<Load[]>('/vehicle-loads?status=ISSUED'), refetchInterval: FIELD_REFRESH_MS });
+  const handovers = useQuery({ queryKey: keys.handovers, queryFn: () => api<Handover[]>('/vehicle-handovers'), refetchInterval: FIELD_REFRESH_MS });
   const cash = useQuery({ queryKey: keys.cashInHand, queryFn: () => api<{ cashInHand: string }>('/cash/me') });
   const portfolio = useQuery({ queryKey: keys.stores(), queryFn: () => api<StoreSummary[]>('/stores') });
   // TGT-004: the seller's own month, in real time, beside the cash they are holding.
@@ -76,11 +78,17 @@ export function TodayScreen({ name }: { name: string }) {
           <>
             <p className="text-sm">{t('workingSince', { time: format.dateTime(live.checkedInAt) })}</p>
             <p className="text-2xl font-semibold" data-testid="active-hours">{duration(d.totals.activeMs)}</p>
-            {d.day?.vehicle ? <p className="text-sm text-stone-600">{t('withVehicle', { registration: d.day.vehicle.registration })}</p> : <p className="text-sm text-stone-600">{t('noVehicleToday')}</p>}
+            {live.vehicle ? <p className="text-sm text-stone-600">{t('withVehicle', { registration: live.vehicle.registration })}</p> : <p className="text-sm text-stone-600">{t('noVehicleToday')}</p>}
+            {/* ATT-014: the vehicle they hold is not this trip's — a new check-in takes it. */}
+            {d.vehicleChanged ? (
+              <Alert tone="warning" data-testid="vehicle-changed">
+                {d.assignedVehicle ? t('vehicleChanged', { registration: d.assignedVehicle.registration }) : t('vehicleTaken', { registration: live.vehicle?.registration ?? '' })}
+              </Alert>
+            ) : null}
             {live.openedOnBehalf ? <Alert tone="info">{t('openedOnBehalf', { reason: live.onBehalfReason ?? '' })}</Alert> : null}
             <div className="grid gap-2">
               {d.breaksEnabled ? <Button variant="secondary" onClick={() => breakCmd.run('start')} disabled={breakCmd.isPending}><Coffee className="size-4" aria-hidden />{t('startBreak')}</Button> : null}
-              {d.day?.vehicle ? (
+              {live.vehicle && !d.vehicleChanged ? (
                 d.closingDeclared
                   ? <p className="text-sm text-brand-800"><PackageCheck className="me-1 inline size-4" aria-hidden />{t('closingDeclared')}</p>
                   : <Link href="/field/closing" className="inline-flex h-11 items-center justify-center rounded-md border border-stone-300 px-4 text-sm font-medium hover:bg-stone-50">{t('declareClosing')}</Link>

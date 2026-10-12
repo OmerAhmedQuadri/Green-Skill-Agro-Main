@@ -15,9 +15,12 @@ export const UpdateVehicleRequest = z.object({
   odometer: Odometer.optional(), odometerNote: z.string().trim().max(300).optional(),
 });
 
-/** VEH-002, 009, 010 */
-export const AssignVehicleRequest = z.object({ sellerId: z.uuid() });
-export const UnassignVehicleRequest = z.object({ note: OptionalText(300) });
+/** VEH-016 (ADR-0056): the vehicle is back with the manager, at this reading — the trip its seller is out on ends at it. */
+const VehicleBack = z.object({ odometer: Odometer });
+
+/** VEH-002, 009, 010, 016 */
+export const AssignVehicleRequest = z.object({ sellerId: z.uuid(), vehicleBack: VehicleBack.optional() });
+export const UnassignVehicleRequest = z.object({ note: OptionalText(300), vehicleBack: VehicleBack.optional() });
 export const CancelRequest = z.object({ version: Version, reason: z.string().trim().min(1).max(500) });
 
 /** VEH-005: the SKUs and quantities to propose batches for. */
