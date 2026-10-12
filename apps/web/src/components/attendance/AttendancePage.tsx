@@ -35,6 +35,7 @@ export function AttendancePage({ canManage, initialAttention = false }: { canMan
   const [filter, setFilter] = useState({ from: riyadhToday(), to: riyadhToday(), sellerId: '', attention: initialAttention });
   const [reviewing, setReviewing] = useState<string | null>(null);
   const [opening, setOpening] = useState(false);
+  const [unreadable, setUnreadable] = useState(false);
   const days = useQuery({
     queryKey: keys.attendance(filter),
     queryFn: () => {
@@ -56,8 +57,12 @@ export function AttendancePage({ canManage, initialAttention = false }: { canMan
   const openDay = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const f = new FormData(e.currentTarget);
-    const odometer = formText(f, 'odometer');
-    open.run({ sellerId: formText(f, 'sellerId'), reason: formText(f, 'reason'), odometer: wholeNumber(odometer) });
+    // ATT-011: a reading typed is sent as typed, or refused — never dropped because it could not be read.
+    const typed = formText(f, 'odometer');
+    const odometer = wholeNumber(typed);
+    setUnreadable(typed !== '' && odometer === null);
+    if (typed !== '' && odometer === null) return;
+    open.run({ sellerId: formText(f, 'sellerId'), reason: formText(f, 'reason'), odometer });
   };
 
   return (
@@ -76,7 +81,9 @@ export function AttendancePage({ canManage, initialAttention = false }: { canMan
               </Select>
             </Field>
             <Field id="od-reason" label={t('attendance.reason')}><Input id="od-reason" name="reason" maxLength={500} /></Field>
-            <Field id="od-odometer" label={t('attendance.odometerOptional')}><Input id="od-odometer" name="odometer" inputMode="numeric" dir="ltr" /></Field>
+            <Field id="od-odometer" label={t('attendance.odometerOptional')} error={unreadable ? t('errors.INVALID_ODOMETER') : undefined}>
+              <Input id="od-odometer" name="odometer" inputMode="numeric" dir="ltr" aria-invalid={unreadable} />
+            </Field>
             <div className="flex gap-2 sm:col-span-3">
               <Button type="submit" disabled={open.isPending}>{t('attendance.openDay')}</Button>
               <Button variant="ghost" onClick={() => setOpening(false)}>{t('common.cancel')}</Button>

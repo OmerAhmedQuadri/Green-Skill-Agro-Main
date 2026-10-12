@@ -17,10 +17,16 @@ export function latinDigits(value: string): string {
     .replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x06F0));
 }
 
-/** A whole number as a person types it — either script of digits, spaces around ignored — or null. */
+/**
+ * A whole number as a person types it — either script of digits, spaces
+ * around ignored, thousands grouped by a comma, the Arabic thousands separator
+ * (٬) or a space ("300,180", "٣٠٠٬١٨٠") — or null. Only groups of three:
+ * "1,5" is not a whole number.
+ */
 export function wholeNumber(value: string | null | undefined): number | null {
   const v = latinDigits(value ?? '').trim();
-  return /^\d+$/.test(v) ? Number.parseInt(v, 10) : null;
+  if (/^\d+$/.test(v)) return Number.parseInt(v, 10);
+  return /^\d{1,3}(?:[,٬\s]\d{3})+$/.test(v) ? Number.parseInt(v.replace(/[,٬\s]/g, ''), 10) : null;
 }
 
 /**

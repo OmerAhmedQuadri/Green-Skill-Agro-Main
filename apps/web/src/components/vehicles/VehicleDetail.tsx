@@ -253,18 +253,26 @@ function Assignment({ vehicle: v, onChange }: { vehicle: Vehicle; onChange: () =
   );
 }
 
-/** VEH-001, VEH-004: description and status; a corrected odometer is a new reading with a note. */
+/**
+ * VEH-001, VEH-004: description and status; a corrected odometer is a new
+ * reading with a note. A reading that cannot be read is refused here — never
+ * sent as something else, such as 0.
+ */
 function EditVehicle({ vehicle: v, onDone }: { vehicle: Vehicle; onDone: () => void }) {
   const t = useTranslations();
   const errorText = useErrorText();
+  const [unreadable, setUnreadable] = useState(false);
   const save = useCommand((body: unknown, key) => api(`/vehicles/${v.id}`, { method: 'PATCH', body, idempotencyKey: key }), { onSuccess: onDone });
   const submit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const f = new FormData(e.currentTarget);
-    const odometer = formText(f, 'odometer');
+    const typed = formText(f, 'odometer');
+    const odometer = wholeNumber(typed);
+    setUnreadable(typed !== '' && odometer === null);
+    if (typed !== '' && odometer === null) return;
     save.run({
       version: v.version, description: formText(f, 'description') || null, status: formText(f, 'status'),
-      ...(odometer ? { odometer: whole(odometer), odometerNote: formText(f, 'odometerNote') } : {}),
+      ...(odometer !== null ? { odometer, odometerNote: formText(f, 'odometerNote') } : {}),
     });
   };
   return (
@@ -277,7 +285,9 @@ function EditVehicle({ vehicle: v, onDone }: { vehicle: Vehicle; onDone: () => v
             {(['ACTIVE', 'MAINTENANCE', 'RETIRED'] as const).map((s) => <option key={s} value={s}>{t(`vehicles.statuses.${s}`)}</option>)}
           </Select>
         </Field>
-        <Field id="ev-odometer" label={t('vehicles.correctOdometer')}><Input id="ev-odometer" name="odometer" inputMode="numeric" dir="ltr" /></Field>
+        <Field id="ev-odometer" label={t('vehicles.correctOdometer')} error={unreadable ? t('errors.INVALID_ODOMETER') : undefined}>
+          <Input id="ev-odometer" name="odometer" inputMode="numeric" dir="ltr" aria-invalid={unreadable} />
+        </Field>
         <Field id="ev-note" label={t('vehicles.correctionNote')}><Input id="ev-note" name="odometerNote" maxLength={300} /></Field>
         <div className="flex gap-2 sm:col-span-2">
           <Button type="submit" disabled={save.isPending}>{save.isPending ? t('common.saving') : t('common.save')}</Button>
