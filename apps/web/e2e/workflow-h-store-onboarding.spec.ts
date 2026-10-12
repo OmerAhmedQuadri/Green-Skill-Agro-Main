@@ -62,15 +62,23 @@ for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
     await expect(admin.getByRole('link', { name: m.stores.viewPhoto })).toHaveAttribute('href', /^\/files\/[0-9a-f-]{36}$/);
     await admin.getByRole('button', { name: m.stores.approve, exact: true }).click();
     await expect(admin.getByText(m.stores.statuses.ACTIVE).first()).toBeVisible();
+    // DOC-009: its Customer ID, given when it was onboarded.
+    const customerId = (await admin.getByTestId('customer-id').textContent()) ?? '';
+    expect(customerId).toMatch(/^GSA-S-\d{4}$/);
 
     // STO-006: the list shows every store, not only what awaits approval. It
     // used to open filtered for an approver, so a store vanished from it the
     // moment it was approved and the page gave no sign it was hiding any.
     await admin.goto('/console/stores');
     await expect(admin.getByRole('link', { name, exact: true })).toBeVisible();
+    // The Customer ID on a paper finds the store, and only it.
+    await admin.getByLabel(m.stores.search).fill(customerId);
+    await expect(admin.getByRole('link', { name: `Al-Amal Seeds ${locale} ${stamp}`, exact: true })).toHaveCount(0);
+    await expect(admin.getByRole('link', { name, exact: true })).toBeVisible();
     await admin.goto(`/console/stores/${storeId}`); // back to the store the rest of this works on
     await phone.goto(`/field/stores/${storeId}`);
     await expect(phone.getByTestId('credit-clear')).toBeVisible();
+    await expect(phone.getByTestId('customer-id')).toHaveText(customerId);
 
     // CRD-004, CRD-005: a debt past due — the store is blocked, with the reason, before any sale starts.
     await admin.request.post(`/api/v1/stores/${storeId}/adjustments`, { headers: headers(origin), data: { amount: '300.00', reason: 'Opening balance', dueOn: '2026-01-15' } });

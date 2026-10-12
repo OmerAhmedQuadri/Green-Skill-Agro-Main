@@ -47,7 +47,10 @@ export type Sale = {
   /** ADR-0038: from the vehicle, or dispatched from the warehouse. */ readonly channel: SaleChannel;
   /** Who raised it — the seller, or a manager on their behalf (DSP-015). */ readonly raisedBy: string | null;
   /** Null for an open sale (ADR-0052), which has its buyer and place instead. */
-  readonly store: { readonly id: string; readonly name: string; readonly ownerName: string; readonly contactNumber: string; readonly creditMode: CreditMode } | null;
+  readonly store: {
+    readonly id: string; /** DOC-009: the Customer ID. */ readonly code: string; readonly name: string; readonly ownerName: string; readonly contactNumber: string;
+    readonly creditMode: CreditMode;
+  } | null;
   readonly open: OpenSaleInfo | null;
   readonly seller: Person; readonly vehicle: { readonly id: string; readonly registration: string } | null;
   /** The dispatch order carrying it, if any. */ readonly dispatchOrder: { readonly id: string; readonly number: string } | null;
@@ -68,6 +71,7 @@ export type Sale = {
 
 /** SAL-012: an open sale's buyer, as given, and where it was made. */
 export type OpenSaleInfo = {
+  /** DOC-009: the buyer's Customer ID, the same for every sale to one phone number. */ readonly buyerCode: string;
   readonly buyerName: string | null; readonly buyerPhone: string | null;
   readonly location: { readonly lat: number; readonly lng: number; readonly accuracyM: number | null };
 };
@@ -101,8 +105,8 @@ function visibility(ctx: Ctx): SQL | undefined {
 }
 
 /** SAL-012: what a sale row says about its open buyer, if it has none of a store's. */
-const openOf = (s: typeof sales.$inferSelect): OpenSaleInfo | null => (s.storeId === null && s.latitude !== null && s.longitude !== null ? {
-  buyerName: s.buyerName, buyerPhone: s.buyerPhone,
+const openOf = (s: typeof sales.$inferSelect): OpenSaleInfo | null => (s.storeId === null && s.buyerCode !== null && s.latitude !== null && s.longitude !== null ? {
+  buyerCode: s.buyerCode, buyerName: s.buyerName, buyerPhone: s.buyerPhone,
   location: { lat: Number(s.latitude), lng: Number(s.longitude), accuracyM: s.locationAccuracyM },
 } : null);
 
@@ -114,7 +118,7 @@ const sender = aliasedTable(users, 'sender');
 /** One sale, if the caller may see it — otherwise it does not exist for them (SECURITY §3). */
 export async function loadSale(db: Executor, ctx: Ctx, id: string): Promise<Sale> {
   const [row] = await db.select({
-    s: sales, storeName: stores.name, ownerName: stores.ownerName, contactNumber: stores.contactNumber, creditMode: stores.creditMode,
+    s: sales, storeCode: stores.code, storeName: stores.name, ownerName: stores.ownerName, contactNumber: stores.contactNumber, creditMode: stores.creditMode,
     sellerName: seller.name, registration: vehicles.registration, orderId: dispatchOrders.id, orderNumber: dispatchOrders.number,
   }).from(sales)
     .leftJoin(stores, eq(stores.id, sales.storeId)).innerJoin(seller, eq(seller.id, sales.sellerId)).leftJoin(vehicles, eq(vehicles.id, sales.vehicleId))
@@ -148,8 +152,8 @@ export async function loadSale(db: Executor, ctx: Ctx, id: string): Promise<Sale
 
   return {
     id: s.id, status: s.status, businessDate: s.businessDate, channel: s.channel, raisedBy: s.createdBy,
-    store: s.storeId && row.storeName !== null && row.ownerName !== null && row.contactNumber !== null && row.creditMode !== null
-      ? { id: s.storeId, name: row.storeName, ownerName: row.ownerName, contactNumber: row.contactNumber, creditMode: row.creditMode }
+    store: s.storeId && row.storeCode !== null && row.storeName !== null && row.ownerName !== null && row.contactNumber !== null && row.creditMode !== null
+      ? { id: s.storeId, code: row.storeCode, name: row.storeName, ownerName: row.ownerName, contactNumber: row.contactNumber, creditMode: row.creditMode }
       : null,
     open: openOf(s),
     seller: { id: s.sellerId, name: row.sellerName },

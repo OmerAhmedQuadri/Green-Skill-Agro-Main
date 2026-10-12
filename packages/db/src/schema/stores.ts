@@ -24,6 +24,8 @@ export const stores = pgTable(
   'stores',
   {
     id: id(),
+    /** DOC-009 (ADR-0053): GSA-S-0001…, the Customer ID its delivery documents carry. */
+    code: text('code').notNull().unique(),
     name: text('name').notNull(),
     ownerName: text('owner_name').notNull(),
     contactNumber: text('contact_number').notNull(),

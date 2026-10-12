@@ -19,11 +19,13 @@ type Spec =
   // A calendar date, `YYYY-MM-DD`, or none.
   | { readonly kind: 'date'; readonly default: null }
   // A sum of money, a decimal string within the range (ADR-0003).
-  | { readonly kind: 'money'; readonly min: string; readonly max: string; readonly default: string };
+  | { readonly kind: 'money'; readonly min: string; readonly max: string; readonly default: string }
+  // A line of text, trimmed, at most so long and — if a pattern is given — matching it when not empty.
+  | { readonly kind: 'text'; readonly maxLength: number; readonly pattern?: RegExp; readonly default: string };
 
 type Entry = Spec & { readonly permission: PermissionCode; readonly group: SettingGroup };
 
-export const SETTING_GROUPS = ['discounts', 'sales', 'documents', 'returns', 'expiry', 'operations', 'attendance', 'stores', 'credit', 'limits', 'targets', 'storage'] as const;
+export const SETTING_GROUPS = ['discounts', 'sales', 'company', 'documents', 'returns', 'expiry', 'operations', 'attendance', 'stores', 'credit', 'limits', 'targets', 'storage'] as const;
 export type SettingGroup = (typeof SETTING_GROUPS)[number];
 
 export const SETTINGS = {
@@ -35,6 +37,16 @@ export const SETTINGS = {
   // SAL-015, SAL-016 (ADR-0052): open sales on or off — the Admin's, grantable to a manager — and the sum above which one waits for approval anyway.
   'sales.open_sales_on': { kind: 'boolean', default: true, permission: 'sales.manage_open_sales', group: 'sales' },
   'sales.open_sale_limit': { kind: 'money', min: '0.00', max: '100000.00', default: '500.00', permission: 'system.configure', group: 'sales' },
+  // DOC-007..010 (ADR-0053): who issues the delivery document, as it says so, and the VAT its prices include.
+  // Empty until the Admin enters them — the company's details are client data, never defaults in code.
+  'company.name_en': { kind: 'text', maxLength: 120, default: '', permission: 'system.configure', group: 'company' },
+  'company.name_ar': { kind: 'text', maxLength: 120, default: '', permission: 'system.configure', group: 'company' },
+  'company.address_en': { kind: 'text', maxLength: 300, default: '', permission: 'system.configure', group: 'company' },
+  'company.address_ar': { kind: 'text', maxLength: 300, default: '', permission: 'system.configure', group: 'company' },
+  // A Saudi VAT number: 15 digits, beginning and ending with 3.
+  'company.vat_number': { kind: 'text', maxLength: 15, pattern: /^3\d{13}3$/, default: '', permission: 'system.configure', group: 'company' },
+  'company.other_id': { kind: 'text', maxLength: 40, default: '', permission: 'system.configure', group: 'company' },
+  'vat.rate': { kind: 'percent', default: '15', permission: 'system.configure', group: 'company' },
   // DOC-004: whether the seller must send the delivery document, may, or cannot — a copy is kept regardless (DOC-005)
   'documents.sending': { kind: 'choice', options: ['OPTIONAL', 'COMPULSORY', 'DISABLED'], default: 'OPTIONAL', permission: 'system.configure', group: 'documents' },
   // RET-002..006, SYS-003
@@ -101,7 +113,8 @@ type ValueOf<S> = S extends { kind: 'percent' } ? string
         : S extends { kind: 'months' } ? number | 'FOREVER'
           : S extends { kind: 'date' } ? string | null
             : S extends { kind: 'money' } ? string
-              : never;
+              : S extends { kind: 'text' } ? string
+                : never;
 export type SettingValue<K extends SettingKey> = ValueOf<(typeof SETTINGS)[K]>;
 export type Settings = { readonly [K in SettingKey]: SettingValue<K> };
 
@@ -133,6 +146,12 @@ export function parseSetting<K extends SettingKey>(key: K, raw: unknown): Settin
       if (raw === null) return raw as SettingValue<K>;
       if (typeof raw !== 'string' || !isCalendarDate(raw)) throw invalid();
       return raw as SettingValue<K>;
+    case 'text': {
+      if (typeof raw !== 'string') throw invalid();
+      const value = raw.trim();
+      if (value.length > spec.maxLength || (value && spec.pattern && !spec.pattern.test(value))) throw invalid();
+      return value as SettingValue<K>;
+    }
     case 'money': {
       if (typeof raw !== 'string') throw invalid();
       let value: string;

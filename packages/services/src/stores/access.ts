@@ -19,7 +19,7 @@ export const seesAllStores = (ctx: Ctx) => ctx.permissions.has('stores.view_all'
 export const readingAsManager = (ctx: Ctx): Ctx => ({ ...ctx, permissions: new Set<PermissionCode>([...ctx.permissions, 'stores.view_all']) });
 
 export type StoreSummary = {
-  readonly id: string; readonly name: string; readonly ownerName: string; readonly contactNumber: string; readonly category: string | null;
+  readonly id: string; /** DOC-009: GSA-S-0001… */ readonly code: string; readonly name: string; readonly ownerName: string; readonly contactNumber: string; readonly category: string | null;
   readonly status: StoreStatus; readonly seller: { readonly id: string; readonly name: string } | null;
   readonly creditMode: CreditMode; readonly creditCycleDays: number | null; readonly creditLimit: Money;
   readonly credit: CreditStatus; readonly createdAt: Date;
@@ -125,7 +125,7 @@ export async function loadStore(db: Executor, ctx: Ctx, id: string): Promise<Sto
 }
 
 export const summaryOf = (s: typeof stores.$inferSelect, currentSeller: { id: string; name: string } | null, credit: CreditStatus): StoreSummary => ({
-  id: s.id, name: s.name, ownerName: s.ownerName, contactNumber: s.contactNumber, category: s.category, status: s.status,
+  id: s.id, code: s.code, name: s.name, ownerName: s.ownerName, contactNumber: s.contactNumber, category: s.category, status: s.status,
   seller: currentSeller, creditMode: s.creditMode, creditCycleDays: s.creditCycleDays, creditLimit: s.creditLimit as Money,
   credit, createdAt: s.createdAt,
 });

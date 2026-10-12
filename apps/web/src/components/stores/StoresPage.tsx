@@ -78,6 +78,7 @@ export function StoresPage({ canApprove, initialStatus = '' }: { canApprove: boo
                 <Cell>
                   <Link href={`/console/stores/${s.id}`} className="font-medium text-brand-800 hover:underline">{s.name}</Link>
                   <div className="text-xs text-stone-500">{s.ownerName}</div>
+                  <bdi dir="ltr" className="text-xs text-stone-500">{s.code}</bdi>
                 </Cell>
                 <Cell>{s.seller?.name ?? '—'}</Cell>
                 <Cell><Badge tone={STATUS_TONE[s.status]}>{t(`statuses.${s.status}`)}</Badge></Cell>

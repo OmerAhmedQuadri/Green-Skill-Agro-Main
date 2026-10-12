@@ -53,6 +53,8 @@ export const sales = pgTable(
     cancelReason: saleCancelReason('cancel_reason'),
     /** SAL-012: an open sale's buyer, as given — either, both or neither. */
     buyerName: text('buyer_name'),
+    /** DOC-009 (ADR-0053): GSA-C-0001…, the open sale buyer's Customer ID — the same for the same phone. */
+    buyerCode: text('buyer_code'),
     buyerPhone: text('buyer_phone'),
     /** SAL-012: where an open sale was made, as the phone reported it. */
     latitude: numeric('latitude', { precision: 9, scale: 6 }),
@@ -79,6 +81,7 @@ export const sales = pgTable(
     // ADR-0052: an open sale is made from a vehicle, where it is; only an open sale has a buyer or a place.
     check('sales_open', sql`${t.storeId} is not null or (${t.channel} = 'VEHICLE' and ${t.latitude} is not null and ${t.longitude} is not null and ${t.ledgerEntryId} is null)`),
     check('sales_open_only', sql`${t.storeId} is null or (${t.buyerName} is null and ${t.buyerPhone} is null and ${t.latitude} is null and ${t.longitude} is null and ${t.locationAccuracyM} is null)`),
+    check('sales_buyer_code', sql`(${t.storeId} is null) = (${t.buyerCode} is not null)`),
   ],
 );
 
@@ -182,6 +185,8 @@ export const deliveryDocuments = pgTable(
     purgedAt: timestamptz('purged_at'),
     keptAt: timestamptz('kept_at'),
     keptBy: uuid('kept_by').references(() => users.id),
+    /** DOC-006 (ADR-0053): the VAT rate its prices included when it was issued; null before VAT was shown. */
+    vatRate: numeric('vat_rate', { precision: 6, scale: 3 }),
     branchId: uuid('branch_id').notNull().references(() => branches.id),
     createdAt: createdAt(),
   },

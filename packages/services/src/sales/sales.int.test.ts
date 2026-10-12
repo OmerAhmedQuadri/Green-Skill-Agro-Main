@@ -290,7 +290,7 @@ describe('exactly once (SAL-011, ADR-0009)', () => {
   });
 });
 
-describe('the delivery document (DOC-001..006, ADR-0019)', () => {
+describe('the delivery document (DOC-001..010, ADR-0019, ADR-0053)', () => {
   it('ADR-0019: numbers are gapless — a rolled-back sale gives its number back', async () => {
     const now = new Date();
     await getDb().transaction(async (tx) => { await nextDocumentNumber(tx, 'DN', now, 6); tx.rollback(); }).catch(() => undefined);
@@ -302,7 +302,7 @@ describe('the delivery document (DOC-001..006, ADR-0019)', () => {
     await inTx({}, async (tx) => expect(await nextDocumentNumber(tx, 'DN', now, 6)).toBe(`DN-${year}-000003`));
   });
 
-  it('DOC-001, DOC-002, DOC-005, DOC-006: the worker prints it — store, date, seller, items, prices, total; not a tax invoice in both languages; no VAT — and keeps the copy', async () => {
+  it('DOC-001, DOC-002, DOC-005: the worker prints it — store, date, seller, items, prices, total; not a tax invoice in both languages — and keeps the copy', async () => {
     const ctx = await admin();
     const { seller, store, bag } = await aSellingSeller(ctx);
     const sale = await recordSale(seller.ctx, { storeId: store.id, lines: [{ skuId: bag.id, packs: 3, discount: '5' }] });
@@ -310,13 +310,45 @@ describe('the delivery document (DOC-001..006, ADR-0019)', () => {
     const renderer = aPdfRenderer();
     expect(await renderPendingDocuments(renderer, new Date())).toEqual({ rendered: 1, failed: 0 });
     const html = renderer.printed[0] ?? '';
-    for (const text of [store.name, sale.seller.name, bag.code, '90.00', '256.50', `DN-${year}-000001`, 'This is not a tax invoice', 'هذه ليست فاتورة ضريبية']) expect(html).toContain(text);
-    expect(html).not.toMatch(/VAT|ضريبة القيمة المضافة/);
+    // 90.00 a bag is 78.2609 before VAT, as the document shows prices (ADR-0053).
+    for (const text of [store.name, sale.seller.name, 'Okra', 'بامية', '78.2609', '256.50', `DN-${year}-000001`, 'This is not a tax invoice', 'هذه ليست فاتورة ضريبية']) expect(html).toContain(text);
     const { number, pdf } = await deliveryDocumentPdf(seller.ctx, sale.id);
     expect(number).toBe(`DN-${year}-000001`);
     expect(new TextDecoder().decode(pdf)).toMatch(/^%PDF/);
     expect(blobs.keys()).toContain(`delivery-documents/${year}/DN-${year}-000001.pdf`);
     expect((await getSale(seller.ctx, sale.id)).document?.status).toBe('READY');
+  });
+
+  it('DOC-006..010 (ADR-0053): the VAT inside each price at the rate of the day, the company and the Customer ID, what was paid by then, the total in words, a QR code', async () => {
+    const ctx = await admin();
+    await updateSettings(ctx, [
+      { key: 'company.name_en', value: 'Example Trading Co' }, { key: 'company.name_ar', value: 'شركة المثال التجارية' },
+      { key: 'company.vat_number', value: '300000000000003' },
+    ]);
+    const { seller, store, bag } = await aSellingSeller(ctx);
+    const sale = await recordSale(seller.ctx, { storeId: store.id, lines: [{ skuId: bag.id, packs: 3, discount: '5' }], payment: await paid(seller.ctx, '100.00') });
+    // Printed later: a new rate and a later payment change nothing on this paper.
+    await updateSettings(ctx, [{ key: 'vat.rate', value: '5' }]);
+    await recordPayment({ ...seller.ctx, now: minutes(1) }, { storeId: store.id, ...(await paid(seller.ctx, '50.00')) });
+    const renderer = aPdfRenderer();
+    await renderPendingDocuments(renderer, new Date());
+    const html = renderer.printed[0] ?? '';
+    // 256.50 includes 15%: 223.04 taxable and 33.46 VAT; 270.00 before the discount is 234.78 without VAT, so the discount is 11.74 —
+    // and the line reads as the sample's: 78.2609 × 3 − 11.74 = 223.04.
+    expect(html).toContain('<td class="num">78.2609</td>\n<td class="num">3</td>\n<td class="num">223.04</td>\n<td class="num">11.74</td>\n<td class="num">15.00%</td>\n<td class="num">33.46</td>\n<td class="num">256.50</td>');
+    for (const text of ['234.78 SAR', '11.74 SAR', '223.04 SAR', '33.46 SAR', '256.50 SAR', '100.00 SAR', '156.50 SAR']) expect(html).toContain(text);
+    expect(html).not.toContain('>5.00%<');
+    for (const text of ['EXAMPLE TRADING CO', 'شركة المثال التجارية', '300000000000003', store.code]) expect(html).toContain(text);
+    expect(html).toContain('TWO HUNDRED AND FIFTY-SIX SAUDI RIYALS AND FIFTY HALALAS');
+    expect(html).toContain('فقط مائتان وستة وخمسون ريالًا سعوديًا وخمسون هللة لا غير');
+    // The QR is ZATCA's: the Arabic name, the VAT number, the time in Riyadh, the total and the VAT.
+    const qr = /<div class="qr" data-qr="([^"]+)"><svg[^>]*>.*<path/s.exec(html)?.[1] ?? '';
+    const bytes = Uint8Array.from(atob(qr), (c) => c.charCodeAt(0));
+    const fields: string[] = [];
+    for (let i = 0; i < bytes.length; i += 2 + (bytes[i + 1] ?? 0)) fields.push(new TextDecoder().decode(bytes.slice(i + 2, i + 2 + (bytes[i + 1] ?? 0))));
+    expect(fields).toEqual(['شركة المثال التجارية', '300000000000003', expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/), '256.50', '33.46']);
+    const [row] = await ownerQuery<{ vat_rate: string }>('select vat_rate from delivery_documents where sale_id = $1', [sale.id]);
+    expect(row?.vat_rate).toBe('15.000');
   });
 
   it('ADR-0019: a render that fails is retried later, then left FAILED with its error', async () => {

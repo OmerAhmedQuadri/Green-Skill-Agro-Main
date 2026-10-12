@@ -1,5 +1,5 @@
 import {
-  assertCreditTerms, assertLocation, availableCreditModes, boundingBox, dec, DomainError, findDuplicates, initialStoreStatus, money,
+  assertCreditTerms, assertLocation, availableCreditModes, boundingBox, CUSTOMER_CODE_PREFIX, customerCode, dec, DomainError, findDuplicates, initialStoreStatus, money,
   normaliseContactNumber, type CreditMode, type DuplicateMatch, type GeoPoint,
 } from '@gsa/core';
 import { schema } from '@gsa/db';
@@ -7,7 +7,7 @@ import { and, asc, between, eq, ne } from 'drizzle-orm';
 import { authorize, authorizeAny, type Ctx } from '../context';
 import { assertOwnEvidence } from '../media';
 import { notify } from '../notifications';
-import { audit, inTx, type Executor } from '../platform';
+import { audit, inTx, nextInSeries, type Executor } from '../platform';
 import { getDb } from '../runtime';
 import { readSettings, readToggles } from '../system';
 import { loadStore, readingAsManager, type Store } from './access';
@@ -98,8 +98,10 @@ export async function onboardStore(ctx: Ctx, input: OnboardInput): Promise<Store
     if (duplicates.length > 0 && !input.acknowledgeDuplicates) throw new DomainError('DUPLICATE_STORE_WARNING', { duplicates });
 
     const status = initialStoreStatus((await readToggles(tx))['stores.approval_required']);
+    // DOC-009 (ADR-0053): its Customer ID, the next in the stores' series.
+    const code = customerCode('STORE', await nextInSeries(tx, CUSTOMER_CODE_PREFIX.STORE));
     const [row] = await tx.insert(stores).values({
-      name, ownerName, contactNumber, category: text(input.category),
+      code, name, ownerName, contactNumber, category: text(input.category),
       latitude: location.lat.toFixed(6), longitude: location.lng.toFixed(6), address: text(input.address),
       crNumber: text(input.crNumber), vatNumber: text(input.vatNumber), nationalAddress: text(input.nationalAddress),
       creditMode: input.creditMode, creditCycleDays: cycleDays, creditLimit, priceListId: input.priceListId, status,

@@ -58,6 +58,7 @@ export function FieldStoreScreen({ id }: { id: string }) {
       <div className="flex flex-wrap items-center gap-2">
         <Badge tone={STATUS_TONE[s.status]}>{t(`statuses.${s.status}`)}</Badge>
         <span className="text-sm text-stone-600">{s.ownerName}</span>
+        <bdi dir="ltr" className="text-sm text-stone-600" data-testid="customer-id">{s.code}</bdi>
         <a href={`tel:${s.contactNumber}`} className="inline-flex items-center gap-1 text-sm text-brand-800"><Phone className="size-4" aria-hidden /><bdi dir="ltr">{s.contactNumber}</bdi></a>
       </div>
       {s.status === 'PENDING_APPROVAL' ? <Alert tone="info">{t('waitingApproval')}</Alert> : null}

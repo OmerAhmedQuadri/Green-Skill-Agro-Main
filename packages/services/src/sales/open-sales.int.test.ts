@@ -44,7 +44,7 @@ describe('open sales (ADR-0052)', () => {
     const sale = await sell(2, { buyer: { name: '  Abu Khalid ', phone: '050 765 4321' }, payment: await paid(seller.ctx, '180.00') });
     expect(sale).toMatchObject({
       status: 'COMPLETED', store: null, total: '180.00',
-      open: { buyerName: 'Abu Khalid', buyerPhone: '+966507654321', location: { lat: HERE.lat, lng: HERE.lng, accuracyM: 12 } },
+      open: { buyerCode: 'GSA-C-0001', buyerName: 'Abu Khalid', buyerPhone: '+966507654321', location: { lat: HERE.lat, lng: HERE.lng, accuracyM: 12 } },
       payment: { method: 'CASH', amount: '180.00' }, document: { number: `OS-${year}-000001` },
     });
     // Nothing on any store's ledger; the cash is in the seller's hands.
@@ -61,7 +61,22 @@ describe('open sales (ADR-0052)', () => {
     expect(html).toContain('Simplified delivery record');
     expect(html).toContain('This is not a tax invoice');
     expect(html).toContain('Abu Khalid');
+    expect(html).toContain('GSA-C-0001');
+    expect(html).toContain('Paid in full');
     expect(html).not.toContain('>Store<');
+  });
+
+  it('DOC-009 (ADR-0053): an open buyer keeps one Customer ID by their phone; with no phone, each sale is a buyer of its own', async () => {
+    const { seller, sell } = await anOpenSeller();
+    const pay = async () => ({ payment: await paid(seller.ctx, '90.00') });
+    const sales = [
+      await sell(1, { buyer: { name: 'Abu Khalid', phone: '050 765 4321' }, ...(await pay()) }),
+      await sell(1, { buyer: { phone: '0507654321' }, ...(await pay()) }),
+      await sell(1, { buyer: { name: 'Abu Khalid', phone: '0551234567' }, ...(await pay()) }),
+      await sell(1, await pay()),
+      await sell(1, await pay()),
+    ];
+    expect(sales.map((s) => s.open?.buyerCode)).toEqual(['GSA-C-0001', 'GSA-C-0001', 'GSA-C-0002', 'GSA-C-0003', 'GSA-C-0004']);
   });
 
   it('SAL-012: the buyer may say nothing; the place is always kept', async () => {

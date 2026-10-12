@@ -105,6 +105,7 @@ export function SaleDetail({ id, canDecide: canDecideDiscount, canDecideOpenSale
       <div className="grid gap-6 lg:grid-cols-2">
         <Section title={t('details')}>
           <Facts items={[
+            { label: ts('customerId'), value: <bdi dir="ltr" data-testid="customer-id">{s.store?.code ?? s.open?.buyerCode ?? '—'}</bdi> },
             { label: t('seller'), value: s.seller.name },
             { label: t('vehicle'), value: s.vehicle ? <bdi dir="ltr">{s.vehicle.registration}</bdi> : t('fromWarehouse') },
             ...(s.store ? [{ label: ts('creditMode'), value: ts(`modes.${s.store.creditMode}`) }] : []),

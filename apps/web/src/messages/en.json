@@ -687,7 +687,8 @@
       "documents": "Delivery documents",
       "targets": "Targets and commission",
       "storage": "Storage",
-      "sales": "Open sales"
+      "sales": "Open sales",
+      "company": "Company details on delivery documents"
     },
     "fields": {
       "discount": {
@@ -760,6 +761,17 @@
       "sales": {
         "open_sales_on": "Open sales are switched on",
         "open_sale_limit": "An open sale above this needs approval (SAR)"
+      },
+      "company": {
+        "name_en": "Company name (English)",
+        "name_ar": "Company name (Arabic)",
+        "address_en": "Address (English)",
+        "address_ar": "Address (Arabic)",
+        "vat_number": "VAT number",
+        "other_id": "Other seller ID"
+      },
+      "vat": {
+        "rate": "VAT rate (%)"
       }
     },
     "choices": {
@@ -778,6 +790,15 @@
       "DISABLED": "Switched off — a copy is still kept"
     },
     "range": "Between {min} and {max}.",
+    "hints": {
+      "company": {
+        "vat_number": "15 digits, starting and ending with 3.",
+        "other_id": "For example the commercial registration number. Optional."
+      },
+      "vat": {
+        "rate": "Prices include VAT. Delivery documents show how much of each price is VAT."
+      }
+    },
     "toggles": "Features",
     "togglesHint": "A feature switched off is hidden from everyone, whatever their permissions.",
     "toggleNames": {
@@ -1613,6 +1634,7 @@
     "totalInvoiced": "Invoiced",
     "totalPaid": "Paid",
     "totalReturned": "Returned",
+    "customerId": "Customer ID",
     "vatNumber": "VAT number",
     "viewPhoto": "View photo",
     "waitingApproval": "Waiting for a manager's approval. No sale can be recorded until then.",

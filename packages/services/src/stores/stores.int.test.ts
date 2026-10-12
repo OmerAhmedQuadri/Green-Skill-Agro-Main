@@ -42,6 +42,15 @@ describe('onboarding (workflow H, STO-001..010)', () => {
     expect(store).toMatchObject({ crNumber: '1010123456', vatNumber: '300000000000003', nationalAddress: 'RRRD2929' });
   });
 
+  it('DOC-009 (ADR-0053): each store gets the next Customer ID, GSA-S-0001…, and is found by it', async () => {
+    const ctx = await admin();
+    const seller = await aSeller();
+    const first = await aStore(seller.ctx);
+    const second = await aStore(seller.ctx);
+    expect([first.code, second.code]).toEqual(['GSA-S-0001', 'GSA-S-0002']);
+    expect((await listStores(ctx, { search: 'gsa-s-0002' })).map((s) => s.id)).toEqual([second.id]);
+  });
+
   it('STO-008, OQ-006: a store close by, or of a similar name nearby, is shown first and must be acknowledged', async () => {
     const seller = await aSeller();
     const first = await aStore(seller.ctx, { name: 'مؤسسة الأمل للبذور', location: SHOP });
