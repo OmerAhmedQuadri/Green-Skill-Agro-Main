@@ -173,6 +173,23 @@ export async function salesAnalytics(ctx: Ctx, filter: AnalyticsFilter): Promise
   };
 }
 
+const totalOf = (figures: Map<string, Figures>): Figures => {
+  const all = [...figures.values()];
+  const sum = (pick: (f: Figures) => string) => toMoney(all.reduce((t, f) => t.plus(dec(pick(f))), new Dec(0)));
+  return {
+    sold: sum((f) => f.sold), returned: sum((f) => f.returned), net: sum((f) => f.net),
+    sales: all.reduce((n, f) => n + f.sales, 0), packs: all.reduce((n, f) => n + f.packs, 0),
+  };
+};
+
+/** RPT-012 (ADR-0054): a range's totals alone, under the same filters — what a period is compared with. */
+export async function salesTotals(ctx: Ctx, filter: AnalyticsFilter): Promise<Figures> {
+  authorize(ctx, 'reports.view_trends');
+  const range = analyticsRange(filter.from, filter.to);
+  // Every sale and every credit note has its seller, so the sellers' figures add up to the range's.
+  return totalOf(await figuresBy(ctx.tx ?? getDb(), range, filter, CUTS.seller));
+}
+
 /** RPT-010: each seller's figures for a range, net of returns — what the seller performance table reads. */
 export async function salesBySeller(db: Executor, range: AnalyticsRange, sellerId?: string): Promise<Map<string, Figures>> {
   return figuresBy(db, range, { from: range.from, to: range.to, sellerId }, CUTS.seller);

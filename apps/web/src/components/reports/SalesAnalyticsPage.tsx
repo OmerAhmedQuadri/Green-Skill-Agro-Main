@@ -5,10 +5,10 @@ import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-qu
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import type { ReactNode } from 'react';
-import { Alert, Button, Card, cn, Field, Input, Select } from '@gsa/ui';
+import { Alert, Button, Card, cn, Field, Input } from '@gsa/ui';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Section } from '@/components/common/Section';
+import { Tile } from '@/components/common/Tile';
 import { Cell, Table } from '@/components/common/Table';
 import { partyName } from '@/components/sales/party';
 import type { SaleSummary } from '@/components/sales/types';
@@ -18,25 +18,12 @@ import { useFormat } from '@/lib/format';
 import { useErrorText } from '@/lib/hooks';
 import { keys } from '@/lib/query-keys';
 import { BarList, ColumnChart, type BarRow } from './charts';
+import { Choice, PRESETS, PresetButtons } from './filters';
 import type { AnalyticsOptions, BreakdownRow, Collections, SalesAnalytics, SellerPerformance } from './types';
 
 const DIMENSIONS = ['sellerId', 'storeId', 'vehicleId', 'categoryId', 'productId', 'channel'] as const;
 type Dimension = (typeof DIMENSIONS)[number];
 type Filter = { from: string; to: string } & Record<Dimension, string>;
-
-/** Calendar arithmetic on `YYYY-MM-DD` — dates, not instants, so no time zone moves them. */
-const shift = (date: string, days: number) => new Date(Date.parse(`${date}T00:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10);
-const monthStart = (date: string) => `${date.slice(0, 7)}-01`;
-
-/** Presets before a custom range: nobody fights a calendar for "this month". */
-const PRESETS = {
-  thisMonth: (today: string) => ({ from: monthStart(today), to: today }),
-  lastMonth: (today: string) => { const end = shift(monthStart(today), -1); return { from: monthStart(end), to: end }; },
-  last30: (today: string) => ({ from: shift(today, -29), to: today }),
-  last90: (today: string) => ({ from: shift(today, -89), to: today }),
-  thisYear: (today: string) => ({ from: `${today.slice(0, 4)}-01-01`, to: today }),
-} as const;
-type Preset = keyof typeof PRESETS;
 
 function readFilter(params: URLSearchParams, today: string): Filter {
   const fallback = PRESETS.thisMonth(today);
@@ -82,10 +69,6 @@ export function SalesAnalyticsPage({ canListSales, canSeeCollections }: { canLis
 
   const o = options.data;
   const products = (o?.products ?? []).filter((p) => !filter.categoryId || p.categoryId === filter.categoryId);
-  const activePreset = (Object.keys(PRESETS) as Preset[]).find((k) => {
-    const r = PRESETS[k](today);
-    return r.from === filter.from && r.to === filter.to;
-  });
   const narrowed = DIMENSIONS.some((d) => filter[d]);
 
   return (
@@ -93,13 +76,7 @@ export function SalesAnalyticsPage({ canListSales, canSeeCollections }: { canLis
       <PageHeader title={t('title')} subtitle={t('subtitle')} />
 
       <Card className="space-y-4 p-4" data-testid="analytics-filters">
-        <div className="flex flex-wrap gap-2">
-          {(Object.keys(PRESETS) as Preset[]).map((k) => (
-            <Button key={k} size="sm" variant={activePreset === k ? 'primary' : 'secondary'} onClick={() => set(PRESETS[k](today))} data-testid={`preset-${k}`}>
-              {t(`presets.${k}`)}
-            </Button>
-          ))}
-        </div>
+        <PresetButtons range={filter} today={today} onPick={(range) => set(range)} />
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Field id="an-from" label={t('filters.from')}>
             <Input id="an-from" type="date" dir="ltr" value={filter.from} max={filter.to} onChange={(e) => { if (e.target.value) set({ from: e.target.value }); }} />
@@ -151,30 +128,6 @@ export function SalesAnalyticsPage({ canListSales, canSeeCollections }: { canLis
         </div>
       ) : view.isPending ? <p className="text-sm text-stone-500">{t('loading')}</p> : null}
     </div>
-  );
-}
-
-function Choice({ id, label, value, onChange, options, all }: {
-  id: string; label: string; value: string; onChange: (value: string) => void; all: string;
-  options: readonly { value: string; label: string }[];
-}) {
-  return (
-    <Field id={id} label={label}>
-      <Select id={id} value={value} onChange={(e) => onChange(e.target.value)}>
-        <option value="">{all}</option>
-        {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-      </Select>
-    </Field>
-  );
-}
-
-function Tile({ label, value, hint, testId, lead = false }: { label: string; value: string; hint?: ReactNode; testId: string; lead?: boolean }) {
-  return (
-    <Card className="p-4">
-      <div className="text-sm text-stone-600">{label}</div>
-      <div className={cn('mt-1 font-semibold text-stone-900', lead ? 'text-3xl' : 'text-xl')} data-testid={testId}>{value}</div>
-      {hint ? <div className="mt-1 text-xs text-stone-500">{hint}</div> : null}
-    </Card>
   );
 }
 

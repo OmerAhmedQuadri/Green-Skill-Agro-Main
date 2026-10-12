@@ -17,7 +17,7 @@ const STATUSES = ['', 'PENDING_APPROVAL', 'ACTIVE', 'REJECTED', 'INACTIVE'] as c
 type Status = (typeof STATUSES)[number];
 
 /** STO-006, STO-009, CRD-004: every store — who manages it, its state, what it owes and whether it is blocked. */
-export function StoresPage({ canApprove, initialStatus = '' }: { canApprove: boolean; initialStatus?: string }) {
+export function StoresPage({ canApprove, initialStatus = '', initialBlocked = false }: { canApprove: boolean; initialStatus?: string; initialBlocked?: boolean }) {
   const t = useTranslations('stores');
   const tc = useTranslations('common');
   const format = useFormat();
@@ -29,7 +29,8 @@ export function StoresPage({ canApprove, initialStatus = '' }: { canApprove: boo
   // — and the filter then says so.
   const [status, setStatus] = useState<Status>(() => STATUSES.find((s) => s === initialStatus) ?? '');
   const [search, setSearch] = useState('');
-  const [blockedOnly, setBlockedOnly] = useState(false);
+  // ADR-0054: the dashboard's blocked stores open here, filtered to them.
+  const [blockedOnly, setBlockedOnly] = useState(initialBlocked);
   const filter = { status, search, blockedOnly };
   const list = useQuery({
     queryKey: keys.stores(filter),
