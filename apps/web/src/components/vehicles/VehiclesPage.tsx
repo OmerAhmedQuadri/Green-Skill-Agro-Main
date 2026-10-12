@@ -27,6 +27,7 @@ export function VehiclesPage({ canManage }: { canManage: boolean }) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [adding, setAdding] = useState(false);
+  const [unreadable, setUnreadable] = useState(false);
   const list = useQuery({ queryKey: keys.vehicles, queryFn: () => api<VehicleListItem[]>('/vehicles') });
   const create = useCommand((body: unknown, key) => api<Vehicle>('/vehicles', { method: 'POST', body, idempotencyKey: key }), {
     onSuccess: (v) => { void queryClient.invalidateQueries({ queryKey: keys.vehicles }); router.push(`/console/vehicles/${v.id}`); },
@@ -34,8 +35,11 @@ export function VehiclesPage({ canManage }: { canManage: boolean }) {
   const submit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const f = new FormData(e.currentTarget);
-    const odometer = formText(f, 'odometer');
-    create.run({ registration: formText(f, 'registration'), description: formText(f, 'description') || null, odometer: wholeNumber(odometer) ?? -1 });
+    // VEH-001: the odometer as typed — refused here if it cannot be read, never sent as another figure.
+    const odometer = wholeNumber(formText(f, 'odometer'));
+    setUnreadable(odometer === null);
+    if (odometer === null) return;
+    create.run({ registration: formText(f, 'registration'), description: formText(f, 'description') || null, odometer });
   };
 
   return (
@@ -48,7 +52,9 @@ export function VehiclesPage({ canManage }: { canManage: boolean }) {
             {create.error ? <Alert className="sm:col-span-3">{errorText(create.error)}</Alert> : null}
             <Field id="v-registration" label={t('vehicles.registration')}><Input id="v-registration" name="registration" dir="ltr" required maxLength={20} /></Field>
             <Field id="v-description" label={t('vehicles.description')}><Input id="v-description" name="description" maxLength={200} /></Field>
-            <Field id="v-odometer" label={t('vehicles.odometerKm')}><Input id="v-odometer" name="odometer" inputMode="numeric" dir="ltr" required /></Field>
+            <Field id="v-odometer" label={t('vehicles.odometerKm')} error={unreadable ? t('errors.INVALID_ODOMETER') : undefined}>
+              <Input id="v-odometer" name="odometer" inputMode="numeric" dir="ltr" required aria-invalid={unreadable} />
+            </Field>
             <div className="flex gap-2 sm:col-span-3">
               <Button type="submit" disabled={create.isPending}>{create.isPending ? t('common.saving') : t('vehicles.create')}</Button>
               <Button variant="ghost" onClick={() => setAdding(false)}>{t('common.cancel')}</Button>
