@@ -34,3 +34,21 @@ export const CollectionsQuery = z.object({ from: z.iso.date(), to: z.iso.date(),
 
 /** RPT-010 (ADR-0048) */
 export const SellerPerformanceQuery = z.object({ from: z.iso.date(), to: z.iso.date(), sellerId: z.uuid().optional() });
+
+/** RPT-012 (ADR-0054): the dashboard's sales tab — every filter of the sales analytics. */
+export const DashboardSalesQuery = SalesAnalyticsQuery;
+
+/** RPT-013 (ADR-0054): the team on a day — today unless given. */
+export const DashboardTeamQuery = z.object({ date: z.iso.date().optional() });
+
+/** RPT-016 (ADR-0054): the stores — new in a period, quiet for 14, 30, 60 or 90 days, one seller's if chosen. */
+export const DashboardStoresQuery = z.object({
+  from: z.iso.date(), to: z.iso.date(), sellerId: z.uuid().optional(),
+  quietDays: z.coerce.number().pipe(z.union([z.literal(14), z.literal(30), z.literal(60), z.literal(90)])).default(30),
+});
+
+/** RPT-014 (ADR-0054): the money — collections in a period; one seller's or one store's if chosen. */
+export const DashboardMoneyQuery = CollectionsQuery;
+
+/** RPT-015 (ADR-0054): stock, narrowed to a category or a product. */
+export const DashboardStockQuery = z.object({ categoryId: z.uuid().optional(), productId: z.uuid().optional() });

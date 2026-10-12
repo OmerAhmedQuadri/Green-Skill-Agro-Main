@@ -49,6 +49,9 @@ export const keys = {
   sales: (filter?: object) => (filter ? ['sales', filter] as const : ['sales'] as const),
   salesAnalytics: (filter: object) => ['sales-analytics', filter] as const,
   analyticsOptions: ['analytics-options'] as const,
+  // ADR-0054: the dashboard's tabs, each by its own query.
+  dashboardOptions: ['dashboard-options'] as const,
+  dashboard: (tab: string, query: string) => ['dashboard', tab, query] as const,
   collections: (filter: object) => ['collections', filter] as const,
   sellerPerformance: (filter: object) => ['seller-performance', filter] as const,
   sale: (id: string) => ['sale', id] as const,

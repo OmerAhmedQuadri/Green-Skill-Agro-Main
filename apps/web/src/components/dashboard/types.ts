@@ -1,6 +1,8 @@
 import type { reports } from '@gsa/services';
 
-export type DashboardSales = reports.DashboardSales;
-export type TeamToday = reports.TeamToday;
-export type MoneyOwed = reports.MoneyOwed;
-export type StockAlerts = reports.StockAlerts;
+export type DashboardOptions = reports.DashboardOptions;
+export type SalesTabData = reports.SalesTab;
+export type TeamTabData = reports.TeamTab;
+export type StoresTabData = reports.StoresTab;
+export type MoneyTabData = reports.MoneyTab;
+export type StockTabData = reports.StockTab;

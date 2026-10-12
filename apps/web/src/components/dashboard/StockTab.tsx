@@ -3,10 +3,12 @@
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import type { ReactNode } from 'react';
-import { Badge, Card, cn } from '@gsa/ui';
-import { Section } from '@/components/common/Section';
+import { Alert, Badge, Card, cn } from '@gsa/ui';
+import { Tile } from '@/components/common/Tile';
 import { daysUntil, useFormat } from '@/lib/format';
-import type { StockAlerts as Alerts } from './types';
+import { useErrorText } from '@/lib/hooks';
+import { Freshness, tabQuery, useTabQuery, type DashboardFilter } from './shared';
+import type { StockTabData } from './types';
 
 /** One kind of alert: its title and count, a link to the page that deals with it, and the first few. */
 function Panel({ title, summary, href, open, testId, empty, children }: {
@@ -31,16 +33,44 @@ function Panel({ title, summary, href, open, testId, empty, children }: {
 
 /**
  * RPT-015 (ADR-0054): stock that needs someone — batches flagged for expiry,
- * what the forecast says to order, and purchase orders on their way, the late
- * ones counted — each for those whose permissions cover it.
+ * what the forecast says to order, purchase orders on their way (narrowed to
+ * a product or category, if chosen) — and where stock is: on each vehicle, and
+ * in dispatch orders on the road.
  */
-export function StockAlerts({ data }: { data: Alerts }) {
+export function StockTab({ filter }: { filter: DashboardFilter }) {
   const t = useTranslations('dashboard.stock');
+  const tl = useTranslations('analytics');
   const format = useFormat();
-  const { expiring, reorder, incoming } = data;
+  const errorText = useErrorText();
+  const view = useTabQuery<StockTabData>('stock', tabQuery('stock', filter));
+  const d = view.data;
+  if (view.error) return <Alert>{errorText(view.error)}</Alert>;
+  if (!d) return <p className="text-sm text-stone-500">{tl('loading')}</p>;
+  const { expiring, reorder, incoming, vehicles, dispatch } = d;
+  const narrowed = Boolean(filter.categoryId || filter.productId);
+
   return (
-    <Section id="stock-alerts" title={t('title')} description={t('hint')}>
-      <div className="grid items-start gap-4 p-5 lg:grid-cols-3">
+    <div className={cn('space-y-6 transition-opacity', view.isPlaceholderData && 'opacity-60')} data-testid="tab-stock">
+      <Freshness query={view} />
+      {vehicles || dispatch ? (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {vehicles ? (
+            <>
+              <Tile lead label={t('onVehicles')} value={format.money(vehicles.value)} hint={t('onVehiclesHint', { vehicles: vehicles.loaded, packs: vehicles.packs })} testId="stock-on-vehicles" />
+            </>
+          ) : null}
+          {dispatch ? (
+            <>
+              <Tile label={t('onTheRoad')} value={format.number(dispatch.onTheRoad)} hint={t('onTheRoadHint', { amount: format.money(dispatch.value) })} testId="stock-on-the-road" />
+              <Tile label={t('unconfirmed')} value={format.number(dispatch.unconfirmed)} hint={t('unconfirmedHint')} testId="stock-unconfirmed" />
+              <Tile label={t('requested')} value={format.number(dispatch.requested)} hint={t('requestedHint')} testId="stock-requested" />
+            </>
+          ) : null}
+        </div>
+      ) : null}
+      {narrowed && (vehicles || dispatch) ? <p className="text-xs text-stone-500" data-testid="stock-whole">{t('wholeLoads')}</p> : null}
+
+      <div className="grid items-start gap-4 lg:grid-cols-3">
         {expiring ? (
           <Panel
             testId="stock-expiring" title={t('expiring')} href="/console/expiry" open={t('openExpiry')}
@@ -116,7 +146,49 @@ export function StockAlerts({ data }: { data: Alerts }) {
             })}
           </Panel>
         ) : null}
+
+        {vehicles ? (
+          <Panel
+            testId="stock-vehicles" title={t('vehicles')} href="/console/vehicles" open={t('openVehicles')}
+            summary={t('vehiclesCount', { count: vehicles.loaded })} empty={vehicles.loaded === 0 ? t('noneOnVehicles') : null}
+          >
+            {vehicles.list.map((v) => (
+              <li key={v.id} className="flex items-start justify-between gap-3 py-2" data-testid={`vehicle-${v.id}`}>
+                <div className="min-w-0">
+                  <Link href={`/console/vehicles/${v.id}`} className="font-medium text-brand-800 hover:underline"><bdi dir="ltr">{v.registration}</bdi></Link>
+                  <div className="text-xs text-stone-500">{v.seller ? v.seller.name : t('unassigned')}</div>
+                  {v.outstandingLoads > 0 ? <Badge tone="warning" className="mt-1">{t('loadsWaiting', { count: v.outstandingLoads })}</Badge> : null}
+                </div>
+                <div className="shrink-0 text-end">
+                  <div className="text-sm font-semibold text-stone-900">{format.money(v.value)}</div>
+                  <div className="text-xs text-stone-600">{t('packs', { count: v.packs })}</div>
+                </div>
+              </li>
+            ))}
+          </Panel>
+        ) : null}
+
+        {dispatch ? (
+          <Panel
+            testId="stock-dispatch" title={t('dispatch')} href="/console/dispatch" open={t('openDispatch')}
+            summary={t('dispatchCount', { count: dispatch.onTheRoad })} empty={dispatch.onTheRoad === 0 ? t('noneOnTheRoad') : null}
+          >
+            {dispatch.oldest.map((o) => (
+              <li key={o.id} className="flex items-start justify-between gap-3 py-2" data-testid={`dispatch-${o.id}`}>
+                <div className="min-w-0">
+                  <Link href={`/console/dispatch/${o.id}`} className="font-medium text-brand-800 hover:underline"><bdi dir="ltr">{o.number}</bdi></Link>
+                  <div className="truncate text-xs text-stone-500">{o.store.name}</div>
+                  {o.unconfirmed ? <Badge tone="danger" className="mt-1">{t('tooLong')}</Badge> : null}
+                </div>
+                <div className="shrink-0 text-end">
+                  <div className="text-sm font-semibold text-stone-900">{format.money(o.total)}</div>
+                  {o.releasedAt ? <div className="text-xs text-stone-600">{t('released', { at: format.dateTime(o.releasedAt) })}</div> : null}
+                </div>
+              </li>
+            ))}
+          </Panel>
+        ) : null}
       </div>
-    </Section>
+    </div>
   );
 }
