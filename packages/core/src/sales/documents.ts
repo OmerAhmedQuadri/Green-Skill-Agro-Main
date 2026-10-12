@@ -29,25 +29,29 @@ export function vatOf(totalIncl: Money, rate: Percent): { readonly taxable: Mone
   return { taxable, vat: toMoney(dec(totalIncl).minus(dec(taxable))) };
 }
 
-export type DocumentLineAmounts = { readonly gross: Money; readonly discountAmount: Money; readonly total: Money };
+/** A sale line's own figures: its price and quantity, and its totals before and after discount — all including VAT. */
+export type DocumentLineAmounts = { readonly unitPrice: Money; readonly packs: number; readonly gross: Money; readonly total: Money };
 
 /**
- * DOC-006: every figure the document prints, line by line and in total, so
- * they add up on the page: the totals are sums of the lines, the discount
- * before VAT is the difference between before and after it, and the grand
- * total is exactly what the sale came to.
+ * DOC-006: every figure the document prints, line by line and in total, as
+ * Green Agro's own invoices show them: the unit price and the discount before
+ * VAT, so that unit price × quantity − discount is the taxable amount, and
+ * taxable amount + VAT is the line's total — which is what the store pays,
+ * exactly. The totals are the lines' sums.
  */
 export function documentFigures(lines: readonly DocumentLineAmounts[], rate: Percent) {
-  const split = lines.map((l) => ({ ...vatOf(l.total, rate), beforeDiscount: vatOf(l.gross, rate).taxable }));
+  const split = lines.map((l) => {
+    const { taxable, vat } = vatOf(l.total, rate);
+    const gross = vatOf(l.gross, rate).taxable;
+    return { unitPrice: unitPriceBeforeVat(l.unitPrice, l.packs, gross, rate), gross, discount: toMoney(dec(gross).minus(dec(taxable))), taxable, vat };
+  });
   const sum = (values: readonly Money[]): Money => toMoney(values.reduce((t, v) => t.plus(dec(v)), new Dec(0)));
-  const beforeDiscount = sum(split.map((s) => s.beforeDiscount));
-  const taxable = sum(split.map((s) => s.taxable));
   return {
-    lines: split.map(({ taxable: lineTaxable, vat }) => ({ taxable: lineTaxable, vat })),
+    lines: split.map(({ unitPrice, discount, taxable, vat }) => ({ unitPrice, discount, taxable, vat })),
     totals: {
-      /** Total (excluding VAT), before discounts. */ beforeDiscount,
-      /** Discounts, excluding VAT. */ discount: toMoney(dec(beforeDiscount).minus(dec(taxable))),
-      /** Total taxable amount (excluding VAT). */ taxable,
+      /** Total (excluding VAT), before discounts. */ beforeDiscount: sum(split.map((s) => s.gross)),
+      /** Discounts, excluding VAT. */ discount: sum(split.map((s) => s.discount)),
+      /** Total taxable amount (excluding VAT). */ taxable: sum(split.map((s) => s.taxable)),
       vat: sum(split.map((s) => s.vat)),
       /** Total including VAT — the sale's total. */ grand: sum(lines.map((l) => l.total)),
     },
@@ -55,17 +59,44 @@ export function documentFigures(lines: readonly DocumentLineAmounts[], rate: Per
 }
 
 /**
- * DOC-010 (ADR-0053): what the QR code holds — the document's facts as plain
- * text. Deliberately not ZATCA's base64 TLV, so no tax app reads it as a tax
- * invoice; any phone shows it as written.
+ * The unit price before VAT, to four decimals — or as many more as a large
+ * quantity needs for price × quantity to come to the line's amount before
+ * VAT, to the halala.
  */
-export function documentQrText(d: {
-  readonly seller: string; readonly title: string; readonly number: string; readonly issued: string;
-  readonly total: Money; readonly vat: Money; readonly vatRate: Percent;
+function unitPriceBeforeVat(unitPrice: Money, packs: number, grossBeforeVat: Money, rate: Percent): string {
+  const exact = dec(unitPrice).times(100).div(dec(rate).plus(100));
+  for (let places = 4; places < 8; places += 1) {
+    const shown = exact.toDecimalPlaces(places);
+    if (toMoney(shown.times(packs)) === grossBeforeVat) return shown.toFixed(places);
+  }
+  return exact.toFixed(8);
+}
+
+/**
+ * DOC-010 (ADR-0053): the QR code as ZATCA's e-invoices carry it, and Green
+ * Agro's own invoices with them — the seller's name, the VAT number, the time
+ * of issue, the total with VAT and the VAT, each as tag, length and UTF-8
+ * value (TLV), in base64.
+ */
+export function documentQr(d: {
+  readonly seller: string; readonly vatNumber: string; /** Riyadh time, `YYYY-MM-DDTHH:mm:ss`. */ readonly issuedAt: string;
+  readonly total: Money; readonly vat: Money;
 }): string {
-  return [
-    d.seller, `${d.title} ${d.number}`, d.issued,
-    `Total incl. VAT: ${d.total} SAR`, `VAT ${dec(d.vatRate).toString()}%: ${d.vat} SAR`,
-    'Not a tax invoice — ليست فاتورة ضريبية',
-  ].join('\n');
+  const bytes = [d.seller, d.vatNumber, d.issuedAt, d.total, d.vat].flatMap((value, i) => {
+    const encoded = tlvValue(value);
+    return [i + 1, encoded.length, ...encoded];
+  });
+  return btoa(String.fromCharCode(...bytes));
+}
+
+/** A value's UTF-8 bytes — cut at a character's end should it pass the 255 that one length byte can say. */
+function tlvValue(value: string): Uint8Array {
+  const encoder = new TextEncoder();
+  let chars = [...value];
+  let encoded = encoder.encode(value);
+  while (encoded.length > 255) {
+    chars = chars.slice(0, -1);
+    encoded = encoder.encode(chars.join(''));
+  }
+  return encoded;
 }

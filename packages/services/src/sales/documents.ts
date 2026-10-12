@@ -1,5 +1,5 @@
 import {
-  amountInWords, businessDate, Dec, dec, DOCUMENT_RENDER_MAX_ATTEMPTS, documentFigures, documentQrText, documentRenderBackoffMs, DomainError,
+  amountInWords, businessDate, Dec, dec, DOCUMENT_RENDER_MAX_ATTEMPTS, documentFigures, documentQr, documentRenderBackoffMs, DomainError,
   normaliseEmail, percent, toMoney, type Money,
 } from '@gsa/core';
 import { schema } from '@gsa/db';
@@ -68,7 +68,7 @@ async function documentData(db: Executor, doc: { saleId: string; number: string;
         .where(and(eq(paymentAllocations.debitEntryId, row.s.ledgerEntryId), eq(storeLedgerEntries.entryType, 'PAYMENT'), lte(storeLedgerEntries.occurredAt, doc.createdAt)))
       : Promise.resolve([]),
   ]);
-  const figures = documentFigures(lines.map((l) => ({ gross: l.l.gross as Money, discountAmount: l.l.discountAmount as Money, total: l.l.total as Money })), rate);
+  const figures = documentFigures(lines.map((l) => ({ unitPrice: l.l.unitPrice as Money, packs: l.l.packs, gross: l.l.gross as Money, total: l.l.total as Money })), rate);
   const total = row.s.total as Money;
   // An open sale is paid in full (SAL-013); a store's, as far as payments reached it.
   const paid = row.store ? toMoney(Dec.min(dec(allocated?.amount ?? '0'), dec(total))) : (payment ? total : ('0.00' as Money));
@@ -79,9 +79,10 @@ async function documentData(db: Executor, doc: { saleId: string; number: string;
     vatNumber: settings['company.vat_number'], otherId: settings['company.other_id'],
   };
   const open = !row.store;
-  const qrText = documentQrText({
-    seller: seller.nameEn, title: open ? 'Simplified delivery record' : 'Delivery document', number: doc.number,
-    issued: `${riyadhDay.format(issuedAt)} ${riyadhTime.format(issuedAt)}`, total, vat: figures.totals.vat, vatRate: rate,
+  // As on Green Agro's own invoices: the seller's Arabic name, and the time in Riyadh.
+  const qr = documentQr({
+    seller: seller.nameAr, vatNumber: seller.vatNumber, issuedAt: `${riyadhDay.format(issuedAt)}T${riyadhTime.format(issuedAt)}`,
+    total, vat: figures.totals.vat,
   });
   return {
     open, number: doc.number, issuedAt, suppliedAt: issuedAt, seller,
@@ -92,24 +93,26 @@ async function documentData(db: Executor, doc: { saleId: string; number: string;
       }
       : { code: row.s.buyerCode ?? '', name: row.s.buyerName, contact: null, phone: row.s.buyerPhone, address: null, vatNumber: null },
     salesperson: row.salesperson, vehicle: row.vehicle, vatRate: rate,
-    lines: lines.map((l, i) => ({
-      productEn: l.productEn, productAr: l.productAr, varietyEn: l.varietyEn, varietyAr: l.varietyAr,
-      size: sizeOf(l.sku), countUnit: l.countUnit, packs: l.l.packs, unitPrice: l.l.unitPrice as Money,
-      discountAmount: l.l.discountAmount as Money, total: l.l.total as Money,
-      taxable: figures.lines[i]?.taxable ?? (l.l.total as Money), vat: figures.lines[i]?.vat ?? ('0.00' as Money),
-    })),
+    lines: lines.map((l, i) => {
+      const f = figures.lines[i];
+      if (!f) throw new Error('document figures missing a line');
+      return {
+        productEn: l.productEn, productAr: l.productAr, varietyEn: l.varietyEn, varietyAr: l.varietyAr,
+        size: sizeOf(l.sku), countUnit: l.countUnit, packs: l.l.packs, ...f, total: l.l.total as Money,
+      };
+    }),
     totals: { ...figures.totals, paid, due: toMoney(Dec.max(dec(total).minus(dec(paid)), 0)) },
     words: { en: amountInWords(total, 'en'), ar: amountInWords(total, 'ar') },
     terms: open
       ? { kind: 'PAID_IN_FULL', days: null, dueOn: null, method: payment?.method ?? null }
       : { kind: row.store?.creditMode ?? 'BILL_TO_BILL', days: row.store?.creditCycleDays ?? null, dueOn: dec(paid).gte(dec(total)) ? null : (debit?.dueOn ?? row.s.businessDate), method: payment?.method ?? null },
-    qrSvg: await QRCode.toString(qrText, { type: 'svg', errorCorrectionLevel: 'M', margin: 0 }),
+    qr, qrSvg: await QRCode.toString(qr, { type: 'svg', errorCorrectionLevel: 'M', margin: 0 }),
   };
 }
 
-// The QR's date and time, Riyadh's (ADR-0026: Latin digits, the Gregorian calendar).
+// The QR's date and time, Riyadh's, to the second (ADR-0026: Latin digits, the Gregorian calendar).
 const riyadhDay = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Riyadh', year: 'numeric', month: '2-digit', day: '2-digit' });
-const riyadhTime = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Riyadh', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+const riyadhTime = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Riyadh', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' });
 
 /**
  * The worker's pass (ADR-0019, ADR-0037): claims due documents — two workers

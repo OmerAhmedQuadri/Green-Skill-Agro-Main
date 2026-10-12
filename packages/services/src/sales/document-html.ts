@@ -27,8 +27,9 @@ export type DocumentData = {
   readonly lines: readonly {
     readonly productEn: string; readonly productAr: string; readonly varietyEn: string | null; readonly varietyAr: string | null;
     readonly size: PackSize; readonly countUnit: CountUnit; readonly packs: number;
-    /** Including VAT, as the price lists hold it. */ readonly unitPrice: Money;
-    readonly discountAmount: Money; readonly taxable: Money; readonly vat: Money; readonly total: Money;
+    /** Before VAT, to four decimals or more (DOC-006): unit price × packs − discount = taxable. */ readonly unitPrice: string;
+    /** Before VAT. */ readonly discount: Money; readonly taxable: Money; readonly vat: Money;
+    /** With VAT — what the store pays for the line. */ readonly total: Money;
   }[];
   readonly totals: {
     readonly beforeDiscount: Money; readonly discount: Money; readonly taxable: Money; readonly vat: Money; readonly grand: Money;
@@ -40,12 +41,14 @@ export type DocumentData = {
     readonly kind: CreditMode | 'PAID_IN_FULL'; readonly days: number | null; readonly dueOn: string | null;
     readonly method: 'CASH' | 'BANK_TRANSFER' | null;
   };
-  /** DOC-010: the QR code, an SVG of the document's facts in plain text. */ readonly qrSvg: string;
+  /** DOC-010: the QR code's content, ZATCA's TLV in base64, and its SVG. */ readonly qr: string; readonly qrSvg: string;
 };
 
 const escape = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 const amount = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const money = (value: Money) => amount.format(value as `${number}`);
+const unitAmount = new Intl.NumberFormat('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 8 });
+const unitPrice = (value: string) => unitAmount.format(value as `${number}`);
 const rateText = (value: Percent) => `${Number(value).toFixed(2)}%`;
 // ADR-0026: Latin digits and the Gregorian calendar in both languages; Riyadh time.
 const dayFormat = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Riyadh', year: 'numeric', month: '2-digit', day: '2-digit' });
@@ -111,10 +114,10 @@ export function deliveryDocumentHtml(data: DocumentData, opts: { readonly fontCs
   const due = data.terms.dueOn ? latin(calendarDay(data.terms.dueOn)) : null;
   const rows = data.lines.map((l) => `<tr>
 <td class="item"><div>${escape(l.productEn)}${l.varietyEn ? ` ${escape(l.varietyEn)}` : ''} - ${escape(sizeCode(l.size, l.countUnit))}</div><div class="item-ar">${ar(`${l.productAr}${l.varietyAr ? ` ${l.varietyAr}` : ''}`)}</div></td>
-<td class="num">${money(l.unitPrice)}</td>
+<td class="num">${unitPrice(l.unitPrice)}</td>
 <td class="num">${l.packs}</td>
 <td class="num">${money(l.taxable)}</td>
-<td class="num">${money(l.discountAmount)}</td>
+<td class="num">${money(l.discount)}</td>
 <td class="num">${rateText(data.vatRate)}</td>
 <td class="num">${money(l.vat)}</td>
 <td class="num">${money(l.total)}</td>
@@ -166,7 +169,6 @@ small { font-size: 6.5pt; font-weight: 400; }
 .lines td.item { width: 30%; }
 .item-ar { color: #44403c; }
 .num { text-align: center; white-space: nowrap; }
-.vat-note { display: flex; justify-content: space-between; gap: 8px; padding: 2px 3px 0; font-size: 7pt; color: #57534e; }
 .lines-end { border-bottom: 2px solid #8a9a2b; margin-top: 2px; }
 .totals { display: flex; gap: 8px; margin-top: 4px; }
 .totals table { flex: 1; border-collapse: collapse; }
@@ -202,7 +204,7 @@ small { font-size: 6.5pt; font-weight: 400; }
       ${infoRow('Date of Supply', latin(day(data.suppliedAt)), 'تاريخ التوريد')}
       ${infoRow('Sales Representative', `${escape(data.salesperson)}${data.vehicle ? ` · ${latin(data.vehicle)}` : ''}`, 'المندوب')}
     </table>
-    <div class="qr">${data.qrSvg}</div>
+    <div class="qr" data-qr="${escape(data.qr)}">${data.qrSvg}</div>
   </div>
 </td></tr></thead>
 <tbody><tr><td>
@@ -224,8 +226,6 @@ small { font-size: 6.5pt; font-weight: 400; }
 ${rows}
     </tbody>
   </table>
-  <!-- ADR-0053: the price lists' prices include VAT, so a line's price and discount do too; the totals below are without it. -->
-  <div class="vat-note"><span>Unit prices and discounts include VAT.</span>${ar('سعر الوحدة والخصم شاملان ضريبة القيمة المضافة.')}</div>
   <div class="lines-end"></div>
 
   <div class="summary">
@@ -233,7 +233,7 @@ ${rows}
   <div class="totals">
     <table>
       ${totalRow('Total', '(Excluding VAT)', 'الإجمالي', '(غير شامل الضريبة)', data.totals.beforeDiscount)}
-      ${totalRow('Discount', '(Excluding VAT)', 'مجموع الخصومات', '(غير شامل الضريبة)', data.totals.discount)}
+      ${totalRow('Discount', '', 'مجموع الخصومات', '', data.totals.discount)}
       ${totalRow('Total Taxable Amount', '(Excluding VAT)', 'الإجمالي الخاضع للضريبة', '(غير شامل الضريبة)', data.totals.taxable)}
       ${totalRow('Total VAT', '', 'مجموع ضريبة القيمة المضافة', '', data.totals.vat)}
       ${totalRow('Grand Total', '', 'الإجمالي شامل الضريبة', '', data.totals.grand)}
