@@ -1817,8 +1817,31 @@
     "voucherHint": "As printed on the voucher you hand over.",
     "voucherPhoto": "Photo of the voucher",
     "voucherIs": "Voucher {number}",
-    "takePaymentAtDelivery": "Take a payment now",
-    "paidInFullAmount": "Paid in full: {amount}"
+    "paidInFullAmount": "Paid in full: {amount}",
+    "pay": {
+      "title": "How is the store paying?",
+      "ways": {
+        "CREDIT": "On credit",
+        "PART": "Part now",
+        "FULL": "In full now"
+      },
+      "hints": {
+        "CREDIT": "Nothing paid now",
+        "PART": "The rest on credit",
+        "FULL": "Nothing left on credit"
+      },
+      "onCredit": "{amount} goes on the store's account, due {date}.",
+      "onCreditBill": "{amount} goes on the store's account. Bill to bill: it must be paid before the store's next bill.",
+      "part": "{paid} paid now; {rest} goes on the store's account, due {date}.",
+      "partBill": "{paid} paid now; {rest} goes on the store's account and must be paid before the next bill.",
+      "full": "Nothing goes on the store's account.",
+      "fullOlder": "Nothing goes on the store's account, and {older} of what it owed before is settled.",
+      "partHint": "Less than the total, {total}.",
+      "fullHint": "The total, {total} — or more, up to {owed}, to settle older bills too.",
+      "fullHintExact": "The total, {total}.",
+      "partTooMuch": "Part means less than the total, {total}. To pay it all, choose In full now.",
+      "fullTooLittle": "In full means at least the total, {total}. To pay less, choose Part now."
+    }
   },
   "sales": {
     "title": "Sales",
@@ -1851,13 +1874,11 @@
     "subtotal": "Subtotal",
     "discount": "Discount",
     "total": "Total",
-    "onAccountNote": "Whatever isn't paid now goes on the store's balance, due by its cycle. Credit available: {amount}.",
     "overLimit": "The total is above the credit available ({amount}). Take more of it now, reduce the order, or ask a manager to release the store for one sale.",
     "requestTitle": "A manager must approve this discount",
     "requestHint": "The sale waits for the decision and the items stay reserved on your vehicle. You can withdraw it at any time.",
     "requestReason": "Why this discount?",
     "requestApproval": "Request approval",
-    "billToBillNote": "Bill to bill: whatever isn't paid now must be cleared before the store's next bill. Credit available: {amount}.",
     "complete": "Complete sale",
     "waitingTitle": "Waiting for a manager's decision",
     "waitingHint": "The items are reserved on your vehicle. The request expires at {time}.",
@@ -1951,7 +1972,6 @@
     "monthSold": "Sold this month",
     "monthReturned": "Returned",
     "monthNet": "Net",
-    "takePayment": "Take a payment with this sale",
     "collectFirst": "Collect the open bill first",
     "documentDeleted": "This delivery document was deleted on {date} under the storage policy.",
     "documentKept": "Kept forever.",

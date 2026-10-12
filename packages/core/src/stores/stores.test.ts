@@ -147,3 +147,17 @@ describe('a voucher number (ADR-0047)', () => {
     for (const bad of ['', '   ', '-12', '12-', 'رقم12', '12#4', 'X'.repeat(41)]) expect(code(() => voucherNumber(bad))).toBe('INVALID_VOUCHER_NUMBER');
   });
 });
+
+describe('what credit today comes to (ADR-0055)', () => {
+  const base = {
+    status: 'ACTIVE' as const, limit: '1000.00' as Money, openDebits: [], graceDays: 0, today: '2026-10-12', overrideActive: false, committed: '0.00' as Money,
+  };
+  it('CRD-001: a sale on credit today falls due by the store\'s cycle — today itself for bill to bill', () => {
+    // 2026-10-12 is a Monday.
+    expect(creditStatus({ ...base, mode: 'WEEKLY', weekClosesOn: 'SATURDAY' }).dueIfOnCredit).toBe('2026-10-17');
+    expect(creditStatus({ ...base, mode: 'WEEKLY', weekClosesOn: 'THURSDAY' }).dueIfOnCredit).toBe('2026-10-15');
+    expect(creditStatus({ ...base, mode: 'MONTHLY' }).dueIfOnCredit).toBe('2026-10-31');
+    expect(creditStatus({ ...base, mode: 'CUSTOM', cycleDays: 30 }).dueIfOnCredit).toBe('2026-11-11');
+    expect(creditStatus({ ...base, mode: 'BILL_TO_BILL' }).dueIfOnCredit).toBe('2026-10-12');
+  });
+});

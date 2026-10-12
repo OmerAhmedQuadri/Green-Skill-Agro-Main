@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import ar from '../src/messages/ar.json' with { type: 'json' };
 import en from '../src/messages/en.json' with { type: 'json' };
-import { aStoreByApi, aVehicle, batchOf, checkIn, freshSeller, post, receiveStock, sessionPage, takePhoto } from './helpers';
+import { aStoreByApi, aVehicle, batchOf, checkIn, freshSeller, post, receiveStock, sessionPage, shot, takePhoto } from './helpers';
 
 const headers = (origin: string) => ({ origin, 'idempotency-key': crypto.randomUUID() });
 const fill = (template: string, values: Record<string, string | number>) =>
@@ -159,6 +159,10 @@ for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
     await phone.getByRole('link', { name: m.sales.freshSale }).click();
     await expect(phone.getByLabel(fill(m.sales.discountFor, { code: 'OKRA-PK-5KG' }))).toHaveValue('5');
     await expect(phone.getByTestId('total')).toContainText('171.00');
+    // ADR-0055: on credit unless the seller says otherwise — and the line says it goes on the store's account, due by its cycle.
+    await expect(phone.getByRole('radio', { name: m.stores.pay.ways.CREDIT })).toBeChecked();
+    await expect(phone.getByTestId('sale-payment-summary')).toContainText('171.00');
+    await phone.getByTestId('sale-choice').screenshot({ path: shot(`sale-payment-credit-${locale}`) });
     await phone.getByRole('button', { name: m.sales.complete }).click();
     // The dropped response reset the connection, so the sale page's first read can fail and be
     // retried with backoff — recovery is the point of the test, and CI takes longer than 10 s.
@@ -170,8 +174,13 @@ for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
     await phone.getByLabel(fill(m.sales.packsFor, { code: 'OKRA-PK-5KG' })).fill(n('1'));
     await expect(phone.getByTestId('over-limit')).toBeVisible();
     await expect(phone.getByRole('button', { name: m.sales.complete })).toBeDisabled();
-    await phone.getByLabel(m.sales.takePayment).check();
+    // Part now means less than the total; in full now starts at it.
+    await phone.getByRole('radio', { name: m.stores.pay.ways.PART }).check();
     await phone.getByLabel(m.stores.amount).fill(n('90'));
+    await expect(phone.getByText(m.stores.pay.partTooMuch.split('{total}')[0]?.trim() ?? '')).toBeVisible();
+    await phone.getByRole('radio', { name: m.stores.pay.ways.FULL }).check();
+    await expect(phone.getByLabel(m.stores.amount)).toHaveValue('90.00');
+    await phone.getByTestId('sale-choice').screenshot({ path: shot(`sale-payment-full-${locale}`) });
     await phone.getByLabel(m.stores.voucherNumber).fill(`I-${locale}-${stamp}`);
     await takePhoto(phone, 'sale-voucher-photo', m);
     await expect(phone.getByTestId('over-limit')).toHaveCount(0);

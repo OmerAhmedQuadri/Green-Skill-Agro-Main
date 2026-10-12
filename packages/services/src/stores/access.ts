@@ -68,7 +68,7 @@ async function committedByStore(db: Executor, storeIds: readonly string[]): Prom
 
 /** CRD-004..006: every store's credit status, derived now. */
 export async function creditStatuses(
-  db: Executor, rows: readonly { id: string; status: StoreStatus; creditMode: CreditMode; creditLimit: string }[], now: Date,
+  db: Executor, rows: readonly { id: string; status: StoreStatus; creditMode: CreditMode; creditCycleDays: number | null; creditLimit: string }[], now: Date,
 ): Promise<Map<string, CreditStatus>> {
   if (rows.length === 0) return new Map();
   const ids = rows.map((r) => r.id);
@@ -81,6 +81,7 @@ export async function creditStatuses(
   const overridden = new Set(overrides.map((o) => o.storeId));
   return new Map(rows.map((r) => [r.id, creditStatus({
     status: r.status, mode: r.creditMode, limit: r.creditLimit as Money, graceDays: settings['credit.grace_days'], today,
+    cycleDays: r.creditCycleDays, weekClosesOn: settings['credit.week_closes_on'],
     overrideActive: overridden.has(r.id), openDebits: debits.filter((d) => d.storeId === r.id),
     committed: committed.get(r.id) ?? ('0.00' as Money),
   })]));

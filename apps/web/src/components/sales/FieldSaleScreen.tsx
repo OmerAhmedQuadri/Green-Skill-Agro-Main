@@ -6,9 +6,9 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useState } from 'react';
-import { Alert, Badge, Button, Card, Checkbox } from '@gsa/ui';
+import { Alert, Badge, Button, Card } from '@gsa/ui';
 import { PageHeader } from '@/components/common/PageHeader';
-import { NO_PAYMENT, PaymentFields, paymentBody, type PaymentDraft } from '@/components/stores/PaymentFields';
+import { choiceBody, choiceReady, NO_PAYMENT, PaymentChoice, PaymentFields, paymentBody, type PaymentDraft, type PaymentWay } from '@/components/stores/PaymentFields';
 import type { Store } from '@/components/stores/types';
 import { api } from '@/lib/api';
 import { useFormat } from '@/lib/format';
@@ -33,7 +33,8 @@ export function FieldSaleScreen({ id, canReturn = false }: { id: string; canRetu
   const errorText = useErrorText();
   const queryClient = useQueryClient();
   const router = useRouter();
-  const [paying, setPaying] = useState(false);
+  // ADR-0055: on credit unless the seller says otherwise.
+  const [way, setWay] = useState<PaymentWay>('CREDIT');
   const [draft, setDraft] = useState<PaymentDraft>(NO_PAYMENT);
   const [confirmWithdraw, setConfirmWithdraw] = useState(false);
   const sale = useQuery({
@@ -67,7 +68,7 @@ export function FieldSaleScreen({ id, canReturn = false }: { id: string; canRetu
   const open = s.open !== null;
   const billToBill = s.store?.creditMode === 'BILL_TO_BILL';
   const owed = sumMoney([store.data?.credit.outstanding ?? ('0.00' as Money), s.total]);
-  const payment = open ? paymentBody({ ...draft, amount: s.total }, s.total) : paying ? paymentBody(draft, owed) : null;
+  const payment = open ? paymentBody({ ...draft, amount: s.total }, s.total) : choiceBody(way, draft, s.total, owed);
   const a = s.approval;
   const mustSend = s.sendingMode === 'COMPULSORY' && (s.document?.sends.length ?? 0) === 0 && s.document?.status !== 'FAILED';
 
@@ -130,17 +131,12 @@ export function FieldSaleScreen({ id, canReturn = false }: { id: string; canRetu
       ) : null}
       {s.status === 'DISCOUNT_APPROVED' && s.channel === 'VEHICLE' ? (
         <Card className="space-y-3 p-4">
-          {billToBill && store.data ? <p className="text-sm text-stone-600">{t('billToBillNote', { amount: format.money(store.data.credit.available) })}</p> : null}
-          {open ? <PaymentFields id="complete" owed={s.total} value={draft} onChange={setDraft} fullAmount={s.total} /> : (
-            <>
-              <label htmlFor="take-payment" className="flex items-center gap-2 text-sm font-medium">
-                <Checkbox id="take-payment" checked={paying} onChange={(e) => setPaying(e.target.checked)} />
-                {t('takePayment')}
-              </label>
-              {paying ? <PaymentFields id="complete" owed={owed} value={draft} onChange={setDraft} /> : null}
-            </>
-          )}
-          <Button block disabled={act.isPending || ((paying || open) && !payment)} onClick={() => act.run({ action: 'complete', version: s.version, payment: payment ?? undefined })}>
+          {open ? <PaymentFields id="complete" owed={s.total} value={draft} onChange={setDraft} fullAmount={s.total} /> : store.data ? (
+            <PaymentChoice id="complete" total={s.total} owed={owed} dueIfOnCredit={store.data.credit.dueIfOnCredit} billToBill={billToBill}
+              way={way} onWay={setWay} value={draft} onChange={setDraft} />
+          ) : null}
+          <Button block disabled={act.isPending || (open ? !payment : !store.data || !choiceReady(way, payment))}
+            onClick={() => act.run({ action: 'complete', version: s.version, payment: payment ?? undefined })}>
             {act.isPending ? t('saving') : t('complete')}
           </Button>
         </Card>
