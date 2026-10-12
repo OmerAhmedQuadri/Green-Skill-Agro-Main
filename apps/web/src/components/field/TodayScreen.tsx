@@ -76,11 +76,17 @@ export function TodayScreen({ name }: { name: string }) {
           <>
             <p className="text-sm">{t('workingSince', { time: format.dateTime(live.checkedInAt) })}</p>
             <p className="text-2xl font-semibold" data-testid="active-hours">{duration(d.totals.activeMs)}</p>
-            {d.day?.vehicle ? <p className="text-sm text-stone-600">{t('withVehicle', { registration: d.day.vehicle.registration })}</p> : <p className="text-sm text-stone-600">{t('noVehicleToday')}</p>}
+            {live.vehicle ? <p className="text-sm text-stone-600">{t('withVehicle', { registration: live.vehicle.registration })}</p> : <p className="text-sm text-stone-600">{t('noVehicleToday')}</p>}
+            {/* ATT-014: the vehicle they hold is not this trip's — a new check-in takes it. */}
+            {d.vehicleChanged ? (
+              <Alert tone="warning" data-testid="vehicle-changed">
+                {d.assignedVehicle ? t('vehicleChanged', { registration: d.assignedVehicle.registration }) : t('vehicleTaken', { registration: live.vehicle?.registration ?? '' })}
+              </Alert>
+            ) : null}
             {live.openedOnBehalf ? <Alert tone="info">{t('openedOnBehalf', { reason: live.onBehalfReason ?? '' })}</Alert> : null}
             <div className="grid gap-2">
               {d.breaksEnabled ? <Button variant="secondary" onClick={() => breakCmd.run('start')} disabled={breakCmd.isPending}><Coffee className="size-4" aria-hidden />{t('startBreak')}</Button> : null}
-              {d.day?.vehicle ? (
+              {live.vehicle && !d.vehicleChanged ? (
                 d.closingDeclared
                   ? <p className="text-sm text-brand-800"><PackageCheck className="me-1 inline size-4" aria-hidden />{t('closingDeclared')}</p>
                   : <Link href="/field/closing" className="inline-flex h-11 items-center justify-center rounded-md border border-stone-300 px-4 text-sm font-medium hover:bg-stone-50">{t('declareClosing')}</Link>

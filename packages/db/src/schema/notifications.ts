@@ -57,6 +57,7 @@ export const notificationKind = pgEnum('notification_kind', [
   'TRANSFER_RECORDED', 'TRANSFER_NOT_RECEIVED',
   'TARGET_SET', 'TARGET_BEHIND_PACE', 'TARGET_MISSED', 'PERIOD_CLOSED',
   'OPEN_SALE_REQUESTED', 'OPEN_SALE_APPROVED', 'OPEN_SALE_REJECTED', 'OPEN_SALE_EXPIRED',
+  'TRIP_CLOSED_ON_BEHALF',
 ]);
 
 // Mirror REQUEST_OUTCOMES in packages/core/src/notifications/index.ts.

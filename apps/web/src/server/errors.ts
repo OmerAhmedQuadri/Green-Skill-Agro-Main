@@ -80,6 +80,9 @@ const STATUS: Record<ErrorCode, number> = {
   SELLER_HAS_VEHICLE: 409,
   VEHICLE_HAS_STOCK: 409,
   HANDOVER_PENDING: 409,
+  // ADR-0056: the console asks whether the vehicle is back, then resends with the reading.
+  SELLER_OUT_WITH_VEHICLE: 409,
+  CHECK_OUT_FIRST: 409,
   // VEH-006: a warning, not a refusal — the client asks, then resends acknowledged.
   CEILING_WARNING: 409,
   EMPTY_LOAD: 422,

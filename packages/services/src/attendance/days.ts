@@ -1,6 +1,6 @@
 import {
   activeMs, assertLocation, businessDate, checkInOdometerFlags, checkOutOdometerFlags, DomainError, odometerReading,
-  sessionDistanceKm, transitionDay, zoneCheck,
+  sessionDistanceKm, transitionDay, tripVehicleChanged, zoneCheck,
   type AttendanceDayStatus, type AttendanceSessionStatus, type GeoPoint, type OdometerFlag,
 } from '@gsa/core';
 import { schema } from '@gsa/db';
@@ -12,7 +12,7 @@ import { audit, inTx, type Executor, type Tx } from '../platform';
 import { getDb } from '../runtime';
 import { expireSellerSales } from '../sales';
 import { readSettings, readToggles } from '../system';
-import { currentAssignment, lastOdometer, liveSession } from './guard';
+import { currentAssignment, lastOdometer, liveSession, lockAttendance } from './guard';
 
 const { attendanceDays, attendanceSessions, attendanceBreaks, odometerReadings, checkInZones, vehicles, closingStockDeclarations } = schema;
 
@@ -25,10 +25,13 @@ export type Capture = {
 
 export type SessionView = {
   readonly id: string; readonly status: AttendanceSessionStatus; readonly checkedInAt: Date; readonly checkedOutAt: Date | null;
+  /** ATT-014: the vehicle this trip was made with; none on a trip without one (ATT-007). */
+  readonly vehicle: { readonly id: string; readonly registration: string } | null;
   readonly checkInOdometer: number | null; readonly checkOutOdometer: number | null; readonly distanceKm: number | null;
   readonly activeMs: number; readonly breaks: readonly { readonly startedAt: Date; readonly endedAt: Date | null }[];
   readonly flags: readonly OdometerFlag[]; readonly reviewed: boolean; readonly reviewComment: string | null;
   readonly openedOnBehalf: boolean; readonly onBehalfReason: string | null;
+  /** VEH-016: a manager ended the trip on taking the vehicle back — no selfie or location at its end. */ readonly closedOnBehalf: boolean;
   /** ATT-012: the evidence a manager checks a flagged reading against. */
   readonly photos: { readonly checkInSelfie: string | null; readonly checkInOdometer: string | null; readonly checkOutSelfie: string | null; readonly checkOutOdometer: string | null };
 };
@@ -42,6 +45,8 @@ export type Today = {
   /** The session being worked or waiting on authorisation. */ readonly live: SessionView | null;
   readonly totals: { readonly activeMs: number; readonly distanceKm: number | null };
   readonly assignedVehicle: { readonly id: string; readonly registration: string; readonly lastOdometer: number | null } | null;
+  /** ATT-014: the vehicle the seller holds is not the live trip's — they check out and in again to work with it. */
+  readonly vehicleChanged: boolean;
   readonly breaksEnabled: boolean;
   readonly closingDeclared: boolean;
 };
@@ -49,24 +54,26 @@ export type Today = {
 /** Sessions with their breaks, in order, for a set of days. */
 export async function sessionsFor(db: Executor, dayIds: readonly string[], now: Date): Promise<Map<string, SessionView[]>> {
   if (dayIds.length === 0) return new Map();
-  const rows = await db.select().from(attendanceSessions)
+  const joined = await db.select({ session: attendanceSessions, registration: vehicles.registration }).from(attendanceSessions)
+    .leftJoin(vehicles, eq(vehicles.id, attendanceSessions.vehicleId))
     .where(and(inArray(attendanceSessions.dayId, [...dayIds]), ne(attendanceSessions.status, 'WITHDRAWN')))
     .orderBy(asc(attendanceSessions.checkedInAt));
-  const breaks = rows.length === 0 ? [] : await db.select().from(attendanceBreaks)
-    .where(inArray(attendanceBreaks.sessionId, rows.map((r) => r.id))).orderBy(asc(attendanceBreaks.startedAt));
+  const breaks = joined.length === 0 ? [] : await db.select().from(attendanceBreaks)
+    .where(inArray(attendanceBreaks.sessionId, joined.map((j) => j.session.id))).orderBy(asc(attendanceBreaks.startedAt));
   const out = new Map<string, SessionView[]>();
-  for (const r of rows) {
+  for (const { session: r, registration } of joined) {
     const own = breaks.filter((b) => b.sessionId === r.id).map((b) => ({ startedAt: b.startedAt, endedAt: b.endedAt }));
     const distanceKm = sessionDistanceKm(r.checkInOdometer, r.checkOutOdometer);
     const span = { from: r.checkedInAt, to: r.checkedOutAt, distanceKm, breaks: own.map((b) => ({ from: b.startedAt, to: b.endedAt })) };
     const list = out.get(r.dayId) ?? [];
     list.push({
       id: r.id, status: r.status, checkedInAt: r.checkedInAt, checkedOutAt: r.checkedOutAt,
+      vehicle: r.vehicleId && registration ? { id: r.vehicleId, registration } : null,
       checkInOdometer: r.checkInOdometer, checkOutOdometer: r.checkOutOdometer, distanceKm,
       // Waiting on authorisation is not working time.
       activeMs: r.status === 'AWAITING_AUTHORISATION' ? 0 : activeMs(span, now), breaks: own,
       flags: [...r.checkInFlags, ...r.checkOutFlags], reviewed: r.reviewedAt !== null, reviewComment: r.reviewComment,
-      openedOnBehalf: r.openedOnBehalfBy !== null, onBehalfReason: r.onBehalfReason,
+      openedOnBehalf: r.openedOnBehalfBy !== null, onBehalfReason: r.onBehalfReason, closedOnBehalf: r.closedOnBehalfBy !== null,
       photos: { checkInSelfie: r.checkInSelfieId, checkInOdometer: r.checkInOdoPhotoId, checkOutSelfie: r.checkOutSelfieId, checkOutOdometer: r.checkOutOdoPhotoId },
     });
     out.set(r.dayId, list);
@@ -105,12 +112,11 @@ export async function getToday(ctx: Ctx): Promise<Today> {
     } : null,
     sessions, live: sessions.find((s) => s.id === live?.sessionId) ?? null, totals: totalsOf(sessions),
     assignedVehicle: assignment ? { id: assignment.vehicleId, registration: assignment.registration, lastOdometer: await lastOdometer(db, assignment.vehicleId) } : null,
+    // A check-in still waiting on a manager is simply made again, with the vehicle held then.
+    vehicleChanged: live !== null && !live.awaitingAuthorisation && tripVehicleChanged(live, assignment),
     breaksEnabled: toggles['attendance.break_logging'], closingDeclared: declared !== undefined,
   };
 }
-
-/** One seller's attendance changes one at a time. */
-const lockSeller = (tx: Tx, sellerId: string) => tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`attendance:${sellerId}`}, 0))`);
 
 async function odometerCapture(tx: Tx, ctx: Ctx, input: Capture): Promise<{ reading: number; photoId: string }> {
   if (input.odometer === null || input.odometer === undefined || !input.odometerPhotoId) throw new DomainError('ODOMETER_REQUIRED');
@@ -125,14 +131,16 @@ const coords = (p: GeoPoint & { accuracyM?: number | null | undefined }) => ({
 /**
  * Workflow G step 1 (ATT-001, 004, 005, 007, 008, 012): selfie, location and —
  * with a vehicle — odometer photo and reading. A second check-in the same day
- * is a split shift. Outside every zone, with restriction on, the session waits
- * for a manager (ATT-009). Odometer doubts are flagged, never refused.
+ * is a split shift. Each check-in takes the vehicle the seller holds now, and
+ * the day follows it (ATT-014). Outside every zone, with restriction on, the
+ * session waits for a manager (ATT-009). Odometer doubts are flagged, never
+ * refused.
  */
 export async function checkIn(ctx: Ctx, input: Capture & { withoutVehicle?: boolean | undefined }): Promise<Today> {
   authorize(ctx, 'attendance.self');
   const location = assertLocation(input.location);
   await inTx(ctx, async (tx) => {
-    await lockSeller(tx, ctx.user.id);
+    await lockAttendance(tx, ctx.user.id);
     await assertOwnEvidence(tx, ctx, input.selfieId, 'SELFIE');
     const live = await liveSession(tx, ctx.user.id);
     if (live && !live.awaitingAuthorisation) throw new DomainError('ALREADY_CHECKED_IN');
@@ -151,10 +159,10 @@ export async function checkIn(ctx: Ctx, input: Capture & { withoutVehicle?: bool
     const [existing] = await tx.select().from(attendanceDays).where(and(eq(attendanceDays.sellerId, ctx.user.id), eq(attendanceDays.workDate, workDate)));
     let dayId: string;
     if (existing) {
-      // A split shift — or a fresh attempt after a withdrawn one.
+      // A split shift — or a fresh attempt after a withdrawn one — perhaps with another vehicle (ATT-014).
       const status = transitionDay(existing.status, 'check_in');
       await tx.update(attendanceDays).set({
-        status, vehicleId: existing.vehicleId ?? assignment?.vehicleId ?? null, updatedAt: ctx.now, updatedBy: ctx.user.id, version: existing.version + 1,
+        status, vehicleId: assignment?.vehicleId ?? existing.vehicleId, updatedAt: ctx.now, updatedBy: ctx.user.id, version: existing.version + 1,
       }).where(eq(attendanceDays.id, existing.id));
       dayId = existing.id;
     } else {
@@ -168,7 +176,7 @@ export async function checkIn(ctx: Ctx, input: Capture & { withoutVehicle?: bool
 
     const c = coords(input.location);
     const [session] = await tx.insert(attendanceSessions).values({
-      dayId, sellerId: ctx.user.id, status: zone.inside ? 'OPEN' : 'AWAITING_AUTHORISATION', checkedInAt: ctx.now,
+      dayId, sellerId: ctx.user.id, vehicleId: assignment?.vehicleId ?? null, status: zone.inside ? 'OPEN' : 'AWAITING_AUTHORISATION', checkedInAt: ctx.now,
       checkInLat: c.lat, checkInLng: c.lng, checkInAccuracyM: c.accuracy, checkInSelfieId: input.selfieId,
       checkInOdoPhotoId: odometer?.photoId ?? null, checkInOdometer: odometer?.reading ?? null, checkInFlags: flags,
       checkInZoneId: zone.zoneId, branchId: ctx.branchId, createdBy: ctx.user.id, updatedBy: ctx.user.id,
@@ -207,14 +215,14 @@ export async function withdraw(tx: Tx, ctx: Ctx, sessionId: string): Promise<voi
 
 /**
  * Workflow G step 7 (ATT-001, 002): the same capture again. Distance is the
- * odometer difference against the vehicle; a doubtful figure is flagged.
- * Checking out on a break ends the break.
+ * odometer difference against the trip's vehicle (ATT-014); a doubtful figure
+ * is flagged. Checking out on a break ends the break.
  */
 export async function checkOut(ctx: Ctx, input: Capture): Promise<Today> {
   authorize(ctx, 'attendance.self');
   assertLocation(input.location);
   await inTx(ctx, async (tx) => {
-    await lockSeller(tx, ctx.user.id);
+    await lockAttendance(tx, ctx.user.id);
     await assertOwnEvidence(tx, ctx, input.selfieId, 'SELFIE');
     const live = await liveSession(tx, ctx.user.id);
     if (!live) throw new DomainError('NOT_CHECKED_IN');
@@ -224,9 +232,10 @@ export async function checkOut(ctx: Ctx, input: Capture): Promise<Today> {
     if (!session || !day) throw new Error('live session vanished');
     const status = transitionDay(day.status, 'check_out');
 
-    const odometer = day.vehicleId ? await odometerCapture(tx, ctx, input) : null;
+    const vehicleId = session.vehicleId;
+    const odometer = vehicleId ? await odometerCapture(tx, ctx, input) : null;
     const settings = await readSettings(tx);
-    const base = session.checkInOdometer ?? (day.vehicleId ? await lastOdometer(tx, day.vehicleId) : null);
+    const base = session.checkInOdometer ?? (vehicleId ? await lastOdometer(tx, vehicleId) : null);
     const flags = odometer ? checkOutOdometerFlags(base, odometer.reading, settings['attendance.max_session_km']) : [];
 
     await tx.update(attendanceBreaks).set({ endedAt: ctx.now }).where(and(eq(attendanceBreaks.sessionId, session.id), isNull(attendanceBreaks.endedAt)));
@@ -236,9 +245,9 @@ export async function checkOut(ctx: Ctx, input: Capture): Promise<Today> {
       checkOutSelfieId: input.selfieId, checkOutOdoPhotoId: odometer?.photoId ?? null, checkOutOdometer: odometer?.reading ?? null,
       checkOutFlags: flags, updatedAt: ctx.now, updatedBy: ctx.user.id, version: session.version + 1,
     }).where(eq(attendanceSessions.id, session.id));
-    if (day.vehicleId && odometer) {
+    if (vehicleId && odometer) {
       await tx.insert(odometerReadings).values({
-        vehicleId: day.vehicleId, readingKm: odometer.reading, source: 'CHECK_OUT', sessionId: session.id, photoId: odometer.photoId,
+        vehicleId, readingKm: odometer.reading, source: 'CHECK_OUT', sessionId: session.id, photoId: odometer.photoId,
         recordedAt: ctx.now, recordedBy: ctx.user.id, branchId: ctx.branchId,
       });
     }
@@ -257,7 +266,7 @@ export async function setBreak(ctx: Ctx, action: 'start' | 'end'): Promise<Today
   authorize(ctx, 'attendance.self');
   await inTx(ctx, async (tx) => {
     if (!(await readToggles(tx))['attendance.break_logging']) throw new DomainError('FEATURE_DISABLED', { feature: 'attendance.break_logging' });
-    await lockSeller(tx, ctx.user.id);
+    await lockAttendance(tx, ctx.user.id);
     const live = await liveSession(tx, ctx.user.id);
     if (!live) throw new DomainError('NOT_CHECKED_IN');
     if (live.awaitingAuthorisation) throw new DomainError('ZONE_AUTHORISATION_PENDING');

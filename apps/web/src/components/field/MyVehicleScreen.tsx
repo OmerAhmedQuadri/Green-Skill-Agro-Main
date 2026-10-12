@@ -1,6 +1,7 @@
 'use client';
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { useState, type FormEvent } from 'react';
 import { Alert, Badge, Button, Card, Field, Input } from '@gsa/ui';
@@ -11,7 +12,7 @@ import { formText } from '@/lib/forms';
 import { useCommand, useErrorText } from '@/lib/hooks';
 import { keys } from '@/lib/query-keys';
 import { FieldWriteOff } from './FieldWriteOff';
-import type { Handover, Load, MyVehicle, MyVehicleBatch } from './types';
+import type { Handover, Load, MyVehicle, MyVehicleBatch, Today } from './types';
 
 /**
  * The seller's vehicle (STK-006, EXP-007, VEH-007, VEH-009): loads to
@@ -28,6 +29,7 @@ export function MyVehicleScreen({ userId, canWriteOff, canConvert }: { userId: s
   const vehicle = useQuery({ queryKey: keys.myVehicle, queryFn: () => api<MyVehicle>('/stock/my-vehicle') });
   const loads = useQuery({ queryKey: keys.loads({ mine: true }), queryFn: () => api<Load[]>('/vehicle-loads?open=true') });
   const handovers = useQuery({ queryKey: keys.handovers, queryFn: () => api<Handover[]>('/vehicle-handovers') });
+  const today = useQuery({ queryKey: keys.today, queryFn: () => api<Today>('/attendance/today') });
   const refresh = () => {
     for (const key of [keys.myVehicle, keys.loads(), keys.handovers, keys.today]) void queryClient.invalidateQueries({ queryKey: key });
   };
@@ -89,13 +91,18 @@ export function MyVehicleScreen({ userId, canWriteOff, canConvert }: { userId: s
 
       {(handovers.data ?? []).map((h) => {
         const mine = h.outgoing.id === userId ? h.outgoing : h.incoming;
+        // VEH-017: handing over, the seller first checks out — their reading ends the trip with it.
+        const outWithIt = h.outgoing.id === userId && today.data?.live?.vehicle?.id === h.vehicleId;
         return (
           <Card key={h.id} className="space-y-2 p-4" data-testid="handover">
             <p className="font-semibold">{t('handoverTitle', { registration: h.registration })}</p>
             <p className="text-sm">{t('handoverParties', { from: h.outgoing.name, to: h.incoming.name })}</p>
-            {mine.confirmedAt
-              ? <p className="text-sm text-stone-600">{t('handoverWaitingOther')}</p>
-              : <Button onClick={() => handoverCmd.run(h.id)} disabled={handoverCmd.isPending}>{t('confirmHandover')}</Button>}
+            {mine.confirmedAt ? <p className="text-sm text-stone-600">{t('handoverWaitingOther')}</p> : outWithIt ? (
+              <>
+                <Alert tone="warning" data-testid="handover-check-out-first">{t('handoverCheckOutFirst')}</Alert>
+                <Link href="/field/today" className="inline-flex h-11 items-center justify-center rounded-md border border-stone-300 px-4 text-sm font-medium hover:bg-stone-50">{t('checkOut')}</Link>
+              </>
+            ) : <Button onClick={() => handoverCmd.run(h.id)} disabled={handoverCmd.isPending}>{t('confirmHandover')}</Button>}
           </Card>
         );
       })}

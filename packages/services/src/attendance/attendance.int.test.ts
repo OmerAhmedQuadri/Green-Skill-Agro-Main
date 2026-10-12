@@ -8,9 +8,9 @@ import { submitWriteOff } from '../inventory';
 import { getDb } from '../runtime';
 import { listMyNotifications } from '../notifications';
 import { updateToggles } from '../system';
-import { assignVehicle, getVehicle } from '../vehicles';
+import { assignVehicle, getVehicle, unassignVehicle } from '../vehicles';
 import {
-  authoriseZone, checkIn, checkOut, closeFinishedDays, createZone, getToday, listAttendance, openDayOnBehalf, reviewSession, setBreak,
+  authoriseZone, checkIn, checkOut, closeFinishedDays, createZone, getToday, listAttendance, openDayOnBehalf, reviewSession, sellerVehicleAccount, setBreak,
 } from './index';
 
 const code = async (p: Promise<unknown>) => p.then(() => 'NO_ERROR', (e: DomainError) => e.code ?? String(e));
@@ -113,6 +113,43 @@ describe('check-in and check-out (workflow G, ATT-001..007)', () => {
       { date: DAY, activeMs: 6 * H, distanceKm: 450 },
       { date: NEXT_DAY, activeMs: 6 * H, distanceKm: 450 },
     ]);
+  });
+
+  it('ATT-014: moved to another vehicle between trips, the seller works with it from the next check-in; each reading goes on its own trip\'s vehicle', async () => {
+    const { admin: ctx, vehicle: first, seller, as } = await sellerWithVehicle(10_000);
+    await checkInAs(await as(t('07:00')), { odometer: 10_000 });
+    await checkOut(await as(t('10:00')), await captureFor(await as(t('10:00')), 10_060));
+    await unassignVehicle(ctx, first.id);
+    const second = await aVehicle(ctx, 20_000);
+    await assignVehicle(ctx, second.id, { sellerId: seller.account.id });
+
+    const today = await checkInAs(await as(t('11:00')), { odometer: 20_005 });
+    expect(today.day?.vehicle?.id).toBe(second.id); // the day follows the latest trip
+    expect(today.live?.vehicle?.id).toBe(second.id);
+    expect(today.vehicleChanged).toBe(false);
+    expect(await sellerVehicleAccount(getDb(), await as(t('11:05')))).toEqual({ kind: 'VEHICLE', vehicleId: second.id }); // sales and stock work
+    const out = await checkOut(await as(t('15:00')), await captureFor(await as(t('15:00')), 20_090));
+    expect(out.sessions.map((s) => s.vehicle?.id)).toEqual([first.id, second.id]);
+    expect(out.totals.distanceKm).toBe(60 + 85);
+    expect((await getVehicle(ctx, second.id)).odometer).toBe(20_090);
+    expect((await getVehicle(ctx, first.id)).odometer).toBe(10_060); // never the other vehicle's reading
+    // A third trip without the vehicle needs no odometer at its end, though the day had one.
+    await checkInAs(await as(t('16:00')), { withoutVehicle: true });
+    const walked = await checkOut(await as(t('17:00')), { location: YARD, selfieId: await aPhoto(await as(t('17:00')), 'SELFIE') });
+    expect(walked.sessions.map((s) => s.vehicle?.id ?? null)).toEqual([first.id, second.id, null]);
+  });
+
+  it('ATT-014, ATT-007: given a vehicle while out without one, the seller is told to check in again with it; one declared without is not', async () => {
+    const seller = await aSeller();
+    const vehicle = await aVehicle(await admin());
+    await checkInAs(seller.ctx, { withoutVehicle: true });
+    await assignVehicle(await admin(), vehicle.id, { sellerId: seller.account.id }); // after the check-in
+    const told = await getToday(await ctxFor(seller.account));
+    expect(told).toMatchObject({ vehicleChanged: true, assignedVehicle: { id: vehicle.id }, live: { vehicle: null } });
+    expect(await code(sellerVehicleAccount(getDb(), await ctxFor(seller.account)))).toBe('NO_VEHICLE_TODAY');
+
+    const declared = await sellerWithVehicle();
+    expect((await checkInAs(declared.seller.ctx, { withoutVehicle: true })).vehicleChanged).toBe(false);
   });
 
   it('ATT-007: a day without the vehicle skips the odometer, records no distance, and has no vehicle stock', async () => {

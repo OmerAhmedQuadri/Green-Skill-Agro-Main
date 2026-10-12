@@ -4,7 +4,7 @@ import {
 } from '@gsa/core';
 import { schema } from '@gsa/db';
 import { aliasedTable, and, desc, eq, inArray, isNull, or } from 'drizzle-orm';
-import { currentAssignment, lastOdometer } from '../attendance';
+import { currentAssignment, endTripOnBehalf, lastOdometer, lockAttendance, tripWith } from '../attendance';
 import { authorize, authorizeAny, type Ctx } from '../context';
 import { notify } from '../notifications';
 import { audit, inTx, mapUniqueViolations, type Executor, type Tx } from '../platform';
@@ -27,6 +27,8 @@ export type Vehicle = {
   readonly id: string; readonly registration: string; readonly description: string | null; readonly status: VehicleStatus;
   readonly odometer: number | null;
   readonly seller: { readonly id: string; readonly name: string; readonly since: Date } | null;
+  /** VEH-016: the seller is out with it — checked in with this vehicle and not out yet — since when. */
+  readonly trip: { readonly since: Date; readonly awaitingAuthorisation: boolean } | null;
   readonly assignments: readonly { readonly sellerId: string; readonly name: string; readonly startedAt: Date; readonly endedAt: Date | null }[];
   readonly readings: readonly { readonly readingKm: number; readonly source: 'REGISTRATION' | 'CHECK_IN' | 'CHECK_OUT' | 'CORRECTION'; readonly recordedAt: Date; readonly note: string | null }[];
   readonly batches: readonly VehicleBatch[]; readonly value: Money; readonly packs: number;
@@ -65,10 +67,12 @@ async function loadVehicle(db: Executor, id: string): Promise<Vehicle> {
   const outstanding = await db.select({ id: vehicleLoadouts.id }).from(vehicleLoadouts)
     .where(and(eq(vehicleLoadouts.vehicleId, id), inArray(vehicleLoadouts.status, [...HOLDING_LOAD_STATUSES])));
   const current = history.find((h) => h.a.endedAt === null);
+  const trip = current ? await tripWith(db, current.a.sellerId, id) : null;
   return {
     id: vehicle.id, registration: vehicle.registration, description: vehicle.description, status: vehicle.status,
     odometer: readings[0]?.readingKm ?? null,
     seller: current ? { id: current.a.sellerId, name: current.name, since: current.a.startedAt } : null,
+    trip: trip ? { since: trip.checkedInAt, awaitingAuthorisation: trip.awaitingAuthorisation } : null,
     assignments: history.map((h) => ({ sellerId: h.a.sellerId, name: h.name, startedAt: h.a.startedAt, endedAt: h.a.endedAt })),
     readings: readings.map((r) => ({ readingKm: r.readingKm, source: r.source, recordedAt: r.recordedAt, note: r.note })),
     batches: lines, value: valueOf(lines), packs: lines.reduce((n, l) => n + l.packs, 0),
@@ -171,12 +175,37 @@ async function endAssignment(tx: Tx, ctx: Ctx, vehicleId: string, note: string |
     .where(and(eq(vehicleAssignments.vehicleId, vehicleId), isNull(vehicleAssignments.endedAt)));
 }
 
+/** VEH-016 (ADR-0056): the vehicle is back with the manager, at this reading. */
+export type VehicleBack = { readonly odometer: number };
+
 /**
- * VEH-002, 009, 010 (ADR-0031): assign a vehicle to a seller. Empty, it
- * passes at once and the old assignment ends. Carrying stock, it becomes a
- * handover both sellers confirm — or the manager returns the stock first.
+ * VEH-016 (ADR-0056): a vehicle leaves its seller only once it is back. If
+ * they are out with it, the manager says it is back, with the reading now —
+ * their trip ends at it — or nothing changes. Holds the seller's attendance
+ * until the transaction ends, so they cannot check in with it meanwhile.
  */
-export async function assignVehicle(ctx: Ctx, vehicleId: string, input: { sellerId: string }): Promise<{ outcome: 'ASSIGNED' | 'HANDOVER_PROPOSED'; vehicle: Vehicle }> {
+async function takeBack(tx: Tx, ctx: Ctx, vehicle: { id: string; registration: string }, seller: { id: string; name: string }, back: VehicleBack | undefined) {
+  await lockAttendance(tx, seller.id);
+  const trip = await tripWith(tx, seller.id, vehicle.id);
+  if (!trip) return;
+  if (!back) {
+    throw new DomainError('SELLER_OUT_WITH_VEHICLE', {
+      sellerId: seller.id, name: seller.name, since: trip.checkedInAt, awaitingAuthorisation: trip.awaitingAuthorisation,
+      lastOdometer: await lastOdometer(tx, vehicle.id),
+    });
+  }
+  await endTripOnBehalf(tx, ctx, trip, { sellerId: seller.id, vehicleId: vehicle.id, registration: vehicle.registration, odometer: back.odometer });
+}
+
+/**
+ * VEH-002, 009, 010, 016 (ADR-0031, ADR-0056): assign a vehicle to a seller.
+ * Empty, it passes at once and the old assignment ends — once the vehicle is
+ * back, if its seller is out with it. Carrying stock, it becomes a handover
+ * both sellers confirm — or the manager returns the stock first.
+ */
+export async function assignVehicle(
+  ctx: Ctx, vehicleId: string, input: { sellerId: string; vehicleBack?: VehicleBack | undefined },
+): Promise<{ outcome: 'ASSIGNED' | 'HANDOVER_PROPOSED'; vehicle: Vehicle }> {
   authorize(ctx, 'vehicles.manage');
   return inTx(ctx, async (tx) => {
     const vehicle = await lockVehicle(tx, vehicleId);
@@ -198,22 +227,32 @@ export async function assignVehicle(ctx: Ctx, vehicleId: string, input: { seller
       await audit(tx, ctx, { action: 'vehicles.handover_proposed', entityType: 'vehicle_handover', entityId: handover.id, after: { vehicleId, from: state.seller.id, to: input.sellerId } });
       return { outcome: 'HANDOVER_PROPOSED' as const, vehicle: await loadVehicle(tx, vehicleId) };
     }
-    if (state.seller) await endAssignment(tx, ctx, vehicleId, null);
+    if (state.seller) {
+      await takeBack(tx, ctx, vehicle, state.seller, input.vehicleBack);
+      await endAssignment(tx, ctx, vehicleId, null);
+    }
     await startAssignment(tx, ctx, vehicleId, input.sellerId);
     await audit(tx, ctx, { action: 'vehicles.assigned', entityType: 'vehicle', entityId: vehicleId, before: { sellerId: state.seller?.id ?? null }, after: { sellerId: input.sellerId } });
     return { outcome: 'ASSIGNED' as const, vehicle: await loadVehicle(tx, vehicleId) };
   });
 }
 
-/** Ends the assignment. Stock is never left without an accountable seller (ADR-0031). */
-export async function unassignVehicle(ctx: Ctx, vehicleId: string, input: { note?: string | null | undefined } = {}): Promise<Vehicle> {
+/**
+ * Ends the assignment. Stock is never left without an accountable seller
+ * (ADR-0031), and a seller out with the vehicle keeps it until it is back
+ * (VEH-016).
+ */
+export async function unassignVehicle(
+  ctx: Ctx, vehicleId: string, input: { note?: string | null | undefined; vehicleBack?: VehicleBack | undefined } = {},
+): Promise<Vehicle> {
   authorize(ctx, 'vehicles.manage');
   return inTx(ctx, async (tx) => {
-    await lockVehicle(tx, vehicleId);
+    const vehicle = await lockVehicle(tx, vehicleId);
     const state = await loadVehicle(tx, vehicleId);
     if (!state.seller) throw new DomainError('VEHICLE_NOT_ASSIGNED');
     if (state.pendingHandover) throw new DomainError('HANDOVER_PENDING');
     if (state.packs > 0 || state.outstandingLoads > 0) throw new DomainError('VEHICLE_HAS_STOCK', { packs: state.packs });
+    await takeBack(tx, ctx, vehicle, state.seller, input.vehicleBack);
     await endAssignment(tx, ctx, vehicleId, input.note?.trim() || null);
     await audit(tx, ctx, { action: 'vehicles.unassigned', entityType: 'vehicle', entityId: vehicleId, before: { sellerId: state.seller.id } });
     return loadVehicle(tx, vehicleId);
@@ -223,7 +262,9 @@ export async function unassignVehicle(ctx: Ctx, vehicleId: string, input: { note
 /**
  * VEH-009: each seller confirms on their own phone. The second confirmation
  * completes it: the old assignment ends, the new one starts, and the stock
- * list at that moment is kept as the record. Nothing moves.
+ * list at that moment is kept as the record. Nothing moves. VEH-017
+ * (ADR-0056): the outgoing seller checks out first — their reading ends their
+ * trip with the vehicle — and it does not pass while they are out with it.
  */
 export async function confirmHandover(ctx: Ctx, id: string): Promise<Handover> {
   authorize(ctx, 'inventory.confirm_load');
@@ -231,10 +272,14 @@ export async function confirmHandover(ctx: Ctx, id: string): Promise<Handover> {
     const [h] = await tx.select().from(vehicleHandovers).where(eq(vehicleHandovers.id, id)).for('update');
     if (!h) throw new DomainError('NOT_FOUND', { entity: 'vehicle_handover', id });
     const { side, complete } = confirmHandoverBy(h, ctx.user.id);
+    await lockVehicle(tx, h.vehicleId);
+    await lockAttendance(tx, h.outgoingSellerId);
+    if ((side === 'OUTGOING' || complete) && (await tripWith(tx, h.outgoingSellerId, h.vehicleId))) {
+      throw new DomainError(side === 'OUTGOING' ? 'CHECK_OUT_FIRST' : 'SELLER_OUT_WITH_VEHICLE');
+    }
     const confirmed = side === 'OUTGOING' ? { outgoingConfirmedAt: ctx.now } : { incomingConfirmedAt: ctx.now };
     let stockList: { skuId: string; code: string; packs: number }[] | null = null;
     if (complete) {
-      await lockVehicle(tx, h.vehicleId);
       const lines = await vehicleBatches(tx, [h.vehicleId]);
       const bySku = new Map<string, { skuId: string; code: string; packs: number }>();
       for (const l of lines) {
@@ -298,7 +343,7 @@ export async function listVehicles(ctx: Ctx): Promise<(Omit<Vehicle, 'assignment
     const v = await loadVehicle(db, id);
     out.push({
       id: v.id, registration: v.registration, description: v.description, status: v.status, odometer: v.odometer ?? (await lastOdometer(db, id)),
-      seller: v.seller, value: v.value, packs: v.packs, outstandingLoads: v.outstandingLoads, handoverPending: v.pendingHandover !== null, version: v.version,
+      seller: v.seller, trip: v.trip, value: v.value, packs: v.packs, outstandingLoads: v.outstandingLoads, handoverPending: v.pendingHandover !== null, version: v.version,
     });
   }
   return out;

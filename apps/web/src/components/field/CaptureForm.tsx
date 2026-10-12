@@ -39,8 +39,10 @@ export function CaptureForm({ mode, today, onDone, onCancel }: {
     void request();
   };
 
-  const vehicle = mode === 'in' ? (withoutVehicle ? null : today.assignedVehicle) : today.day?.vehicle ?? null;
-  const lastOdometer = mode === 'in' ? today.assignedVehicle?.lastOdometer ?? null : today.live?.checkInOdometer ?? today.assignedVehicle?.lastOdometer ?? null;
+  // Checking out, the trip's own vehicle (ATT-014): the one it was checked in with.
+  const vehicle = mode === 'in' ? (withoutVehicle ? null : today.assignedVehicle) : today.live?.vehicle ?? null;
+  const held = today.assignedVehicle && today.assignedVehicle.id === vehicle?.id ? today.assignedVehicle.lastOdometer : null;
+  const lastOdometer = mode === 'in' ? held : today.live?.checkInOdometer ?? held;
   const send = useCommand((body: unknown, key) => api<Today>(`/attendance/${mode === 'in' ? 'check-in' : 'check-out'}`, { method: 'POST', body, idempotencyKey: key }), { onSuccess: onDone });
   const odometerOk = !vehicle || (odometerPhotoId !== null && /^\d{1,7}$/.test(reading));
   const ready = position !== null && selfieId !== null && odometerOk;

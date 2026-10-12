@@ -104,55 +104,61 @@ export function AttendancePage({ canManage, initialAttention = false }: { canMan
         {days.data?.length === 0 ? <p className="p-5 text-sm text-stone-500">{t('attendance.none')}</p> : null}
         {days.data && days.data.length > 0 ? (
           <Table head={[t('attendance.date'), t('vehicles.seller'), t('attendance.sessions'), t('attendance.hours'), t('attendance.distance'), t('common.status')]}>
-            {days.data.map((d) => (
-              <tr key={d.id} data-testid={`day-${d.seller.name}`}>
-                <Cell>{format.date(d.workDate)}</Cell>
-                <Cell>
-                  {d.seller.name}
-                  <div className="text-xs text-stone-500">{d.vehicle ? <bdi dir="ltr">{d.vehicle.registration}</bdi> : t('attendance.noVehicle')}</div>
-                  {d.openedOnBehalf ? <Badge className="mt-1">{t('attendance.onBehalf')}</Badge> : null}
-                </Cell>
-                <Cell>
-                  <ul className="space-y-2">
-                    {d.sessions.map((s) => (
-                      <li key={s.id}>
-                        <span>{`${format.dateTime(s.checkedInAt)} – ${s.checkedOutAt ? format.dateTime(s.checkedOutAt) : '…'}`}</span>
-                        {s.checkInOdometer !== null ? <span className="text-xs text-stone-500">{` · ${t('vehicles.km', { km: format.number(s.checkInOdometer) })}${s.checkOutOdometer !== null ? ` → ${format.number(s.checkOutOdometer)}` : ''}`}</span> : null}
-                        {s.breaks.length > 0 ? <span className="text-xs text-stone-500">{` · ${t('attendance.breaks', { count: s.breaks.length })}`}</span> : null}
-                        <div className="mt-1 flex flex-wrap gap-1">
-                          {s.awaitingAuthorisation ? <Badge tone="warning">{t('attendance.outsideZone')}</Badge> : null}
-                          {s.flags.map((f) => <Badge key={f} tone={s.reviewed ? 'neutral' : 'danger'}>{t(`attendance.flags.${f}`)}</Badge>)}
-                          {s.onBehalfReason ? <span className="text-xs text-stone-500">{s.onBehalfReason}</span> : null}
-                          {s.reviewComment ? <span className="text-xs text-stone-500">{s.reviewComment}</span> : null}
-                        </div>
-                        <div className="mt-1 flex flex-wrap gap-2 text-xs">
-                          {(Object.entries(s.photos) as [keyof typeof s.photos, string | null][]).filter(([, id]) => id).map(([k, id]) => (
-                            <a key={k} href={`/files/${id}`} target="_blank" rel="noreferrer" className="text-brand-800 hover:underline">{t(`attendance.photos.${k}`)}</a>
-                          ))}
-                        </div>
-                        {canManage && s.awaitingAuthorisation ? <Button size="sm" className="mt-1" onClick={() => authorise.run(s.id)} disabled={authorise.isPending}>{t('attendance.authorise')}</Button> : null}
-                        {canManage && s.flags.length > 0 && !s.reviewed && reviewing !== s.id ? <Button size="sm" variant="secondary" className="mt-1" onClick={() => setReviewing(s.id)}>{t('attendance.review')}</Button> : null}
-                        {reviewing === s.id ? (
-                          <form className="mt-2 flex flex-wrap items-end gap-2" noValidate onSubmit={(e: FormEvent<HTMLFormElement>) => {
-                            e.preventDefault();
-                            review.run({ id: s.id, comment: formText(new FormData(e.currentTarget), 'comment') });
-                          }}>
-                            <Field id={`rv-${s.id}`} label={t('attendance.reviewComment')}><Input id={`rv-${s.id}`} name="comment" maxLength={500} /></Field>
-                            <Button type="submit" size="sm" disabled={review.isPending}>{t('attendance.markReviewed')}</Button>
-                          </form>
-                        ) : null}
-                      </li>
-                    ))}
-                  </ul>
-                </Cell>
-                <Cell>
-                  {duration(d.totals.activeMs)}
-                  {d.attribution ? <div className="mt-1 text-xs text-stone-500">{d.attribution.map((a) => t('attendance.split', { date: format.date(a.date), hours: duration(a.activeMs), km: a.distanceKm ?? '—' })).join(' · ')}</div> : null}
-                </Cell>
-                <Cell>{d.totals.distanceKm === null ? '—' : t('vehicles.km', { km: format.number(d.totals.distanceKm) })}</Cell>
-                <Cell><Badge tone={d.status === 'OPEN' ? 'success' : d.status === 'ON_BREAK' ? 'warning' : 'neutral'}>{t(`attendance.statuses.${d.status}`)}</Badge></Cell>
-              </tr>
-            ))}
+            {days.data.map((d) => {
+              // ATT-014: a day worked with more than one vehicle names each trip's.
+              const several = new Set(d.sessions.map((s) => s.vehicle?.id ?? null)).size > 1;
+              return (
+                <tr key={d.id} data-testid={`day-${d.seller.name}`}>
+                  <Cell>{format.date(d.workDate)}</Cell>
+                  <Cell>
+                    {d.seller.name}
+                    <div className="text-xs text-stone-500">{d.vehicle ? <bdi dir="ltr">{d.vehicle.registration}</bdi> : t('attendance.noVehicle')}</div>
+                    {d.openedOnBehalf ? <Badge className="mt-1">{t('attendance.onBehalf')}</Badge> : null}
+                  </Cell>
+                  <Cell>
+                    <ul className="space-y-2">
+                      {d.sessions.map((s) => (
+                        <li key={s.id}>
+                          <span>{`${format.dateTime(s.checkedInAt)} – ${s.checkedOutAt ? format.dateTime(s.checkedOutAt) : '…'}`}</span>
+                          {several ? <span className="text-xs text-stone-500">{' · '}{s.vehicle ? <bdi dir="ltr">{s.vehicle.registration}</bdi> : t('attendance.noVehicle')}</span> : null}
+                          {s.checkInOdometer !== null ? <span className="text-xs text-stone-500">{` · ${t('vehicles.km', { km: format.number(s.checkInOdometer) })}${s.checkOutOdometer !== null ? ` → ${format.number(s.checkOutOdometer)}` : ''}`}</span> : null}
+                          {s.breaks.length > 0 ? <span className="text-xs text-stone-500">{` · ${t('attendance.breaks', { count: s.breaks.length })}`}</span> : null}
+                          <div className="mt-1 flex flex-wrap gap-1">
+                            {s.awaitingAuthorisation ? <Badge tone="warning">{t('attendance.outsideZone')}</Badge> : null}
+                            {s.closedOnBehalf ? <Badge data-testid="closed-on-behalf">{t('attendance.closedOnBehalf')}</Badge> : null}
+                            {s.flags.map((f) => <Badge key={f} tone={s.reviewed ? 'neutral' : 'danger'}>{t(`attendance.flags.${f}`)}</Badge>)}
+                            {s.onBehalfReason ? <span className="text-xs text-stone-500">{s.onBehalfReason}</span> : null}
+                            {s.reviewComment ? <span className="text-xs text-stone-500">{s.reviewComment}</span> : null}
+                          </div>
+                          <div className="mt-1 flex flex-wrap gap-2 text-xs">
+                            {(Object.entries(s.photos) as [keyof typeof s.photos, string | null][]).filter(([, id]) => id).map(([k, id]) => (
+                              <a key={k} href={`/files/${id}`} target="_blank" rel="noreferrer" className="text-brand-800 hover:underline">{t(`attendance.photos.${k}`)}</a>
+                            ))}
+                          </div>
+                          {canManage && s.awaitingAuthorisation ? <Button size="sm" className="mt-1" onClick={() => authorise.run(s.id)} disabled={authorise.isPending}>{t('attendance.authorise')}</Button> : null}
+                          {canManage && s.flags.length > 0 && !s.reviewed && reviewing !== s.id ? <Button size="sm" variant="secondary" className="mt-1" onClick={() => setReviewing(s.id)}>{t('attendance.review')}</Button> : null}
+                          {reviewing === s.id ? (
+                            <form className="mt-2 flex flex-wrap items-end gap-2" noValidate onSubmit={(e: FormEvent<HTMLFormElement>) => {
+                              e.preventDefault();
+                              review.run({ id: s.id, comment: formText(new FormData(e.currentTarget), 'comment') });
+                            }}>
+                              <Field id={`rv-${s.id}`} label={t('attendance.reviewComment')}><Input id={`rv-${s.id}`} name="comment" maxLength={500} /></Field>
+                              <Button type="submit" size="sm" disabled={review.isPending}>{t('attendance.markReviewed')}</Button>
+                            </form>
+                          ) : null}
+                        </li>
+                      ))}
+                    </ul>
+                  </Cell>
+                  <Cell>
+                    {duration(d.totals.activeMs)}
+                    {d.attribution ? <div className="mt-1 text-xs text-stone-500">{d.attribution.map((a) => t('attendance.split', { date: format.date(a.date), hours: duration(a.activeMs), km: a.distanceKm ?? '—' })).join(' · ')}</div> : null}
+                  </Cell>
+                  <Cell>{d.totals.distanceKm === null ? '—' : t('vehicles.km', { km: format.number(d.totals.distanceKm) })}</Cell>
+                  <Cell><Badge tone={d.status === 'OPEN' ? 'success' : d.status === 'ON_BREAK' ? 'warning' : 'neutral'}>{t(`attendance.statuses.${d.status}`)}</Badge></Cell>
+                </tr>
+              );
+            })}
           </Table>
         ) : null}
       </Card>

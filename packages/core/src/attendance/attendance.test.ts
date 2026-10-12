@@ -3,7 +3,7 @@ import type { DomainError } from '../errors';
 import { compareClosing } from '../inventory/closing';
 import {
   activeMs, assertWorking, attributeByDay, checkInOdometerFlags, checkOutOdometerFlags, distanceMetres, sessionDistanceKm,
-  transitionDay, zoneCheck,
+  transitionDay, tripVehicleChanged, zoneCheck,
 } from './attendance';
 
 const code = (fn: () => unknown) => { try { fn(); return 'NO_ERROR'; } catch (e) { return (e as DomainError).code; } };
@@ -77,6 +77,26 @@ describe('odometer (ATT-012, VEH-004)', () => {
     expect(sessionDistanceKm(5000, 5180)).toBe(180);
     expect(sessionDistanceKm(5000, 4990)).toBe(0);
     expect(sessionDistanceKm(null, null)).toBeNull();
+  });
+});
+
+describe('the trip\'s vehicle (ATT-014, ADR-0056)', () => {
+  const trip = (vehicleId: string | null) => ({ vehicleId, checkedInAt: at('2026-10-12T08:00:00') });
+  const held = (vehicleId: string, since: string) => ({ vehicleId, startedAt: at(`2026-10-12T${since}:00`) });
+
+  it('ATT-014: a trip with the vehicle the seller still holds has not changed', () => {
+    expect(tripVehicleChanged(trip('A'), held('A', '07:00'))).toBe(false);
+  });
+
+  it('ATT-014: a trip with a vehicle the seller no longer holds — another one, or none — has changed', () => {
+    expect(tripVehicleChanged(trip('A'), held('B', '09:00'))).toBe(true);
+    expect(tripVehicleChanged(trip('A'), null)).toBe(true);
+  });
+
+  it('ATT-007, ATT-014: a trip declared without the vehicle has not changed; one given a vehicle after it began has', () => {
+    expect(tripVehicleChanged(trip(null), held('A', '07:00'))).toBe(false);
+    expect(tripVehicleChanged(trip(null), null)).toBe(false);
+    expect(tripVehicleChanged(trip(null), held('A', '09:00'))).toBe(true);
   });
 });
 

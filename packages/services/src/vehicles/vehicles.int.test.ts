@@ -4,8 +4,8 @@ import { ownerQuery } from '../../test/db';
 import { anAccount, ctxFor } from '../../test/factories';
 import { aPhoto } from '../../test/media';
 import { moreBags, okraInWarehouse } from '../../test/stock';
-import { aLoadedVehicle, aSeller, aVehicle, captureFor, checkInAs } from '../../test/vehicles';
-import { checkOut, closeFinishedDays } from '../attendance';
+import { aLoadedVehicle, aSeller, AWAY, aVehicle, captureFor, checkInAs, YARD } from '../../test/vehicles';
+import { checkOut, closeFinishedDays, createZone, getToday } from '../attendance';
 import { convertStock, getSkuStock, setClearancePriority, submitWriteOff } from '../inventory';
 import { listMyNotifications, markNotificationsRead } from '../notifications';
 import { setPriceListItems, listPriceLists } from '../pricing';
@@ -198,6 +198,7 @@ describe('handover on reassignment (VEH-009, VEH-010)', () => {
     expect(await code(confirmHandover(bystander.ctx, handover.id))).toBe('NOT_FOUND');
     expect((await confirmHandover(incoming.ctx, handover.id)).status).toBe('PROPOSED');
     expect(await code(confirmHandover(incoming.ctx, handover.id))).toBe('ALREADY_DECIDED');
+    await checkOut(seller.ctx, await captureFor(seller.ctx, 10_030)); // VEH-017: handing over ends the trip
     const done = await confirmHandover(seller.ctx, handover.id);
     expect(done).toMatchObject({ status: 'CONFIRMED', stockList: [{ skuId: bag.id, packs: 5 }] });
     expect((await getVehicle(ctx, vehicle.id)).seller?.id).toBe(incoming.account.id);
@@ -225,9 +226,95 @@ describe('handover on reassignment (VEH-009, VEH-010)', () => {
     expect(back).toMatchObject({ reason: 'SELLER_LEAVING', sellerId: seller.account.id, lines: [{ packs: 5 }] });
     expect(back.number).toMatch(/^VR-\d{4}-\d{4}$/);
     expect(await positions(ctx, bag.id)).toEqual({ warehouse: 20, vehicles: 0, dispatched: 0, total: 20 });
+    await checkOut(seller.ctx, await captureFor(seller.ctx, 10_020)); // back at the yard
     const incoming = await aSeller();
     expect((await assignVehicle(ctx, vehicle.id, { sellerId: incoming.account.id })).outcome).toBe('ASSIGNED');
     expect((await listMyNotifications(seller.ctx)).items.map((n) => n.kind)).toContain('VEHICLE_RETURN_RECORDED');
+  });
+});
+
+describe('taking a vehicle back from a seller who is out with it (VEH-016, VEH-017, ADR-0056)', () => {
+  /** A seller out with an empty vehicle: assigned, checked in with it at 10,000 km. */
+  async function outWithIt() {
+    const ctx = await admin();
+    const vehicle = await aVehicle(ctx, 10_000);
+    const seller = await aSeller();
+    await assignVehicle(ctx, vehicle.id, { sellerId: seller.account.id });
+    await checkInAs(seller.ctx, { odometer: 10_000 });
+    return { ctx, vehicle, seller };
+  }
+
+  it('VEH-016: reassigning asks whether the vehicle is back; until the manager says so, nothing changes', async () => {
+    const { ctx, vehicle, seller } = await outWithIt();
+    const next = await aSeller();
+    const asked = await assignVehicle(ctx, vehicle.id, { sellerId: next.account.id }).catch((e: DomainError) => e);
+    expect(asked).toMatchObject({ code: 'SELLER_OUT_WITH_VEHICLE', details: { sellerId: seller.account.id, awaitingAuthorisation: false, lastOdometer: 10_000 } });
+    const still = await getVehicle(ctx, vehicle.id);
+    expect(still).toMatchObject({ seller: { id: seller.account.id }, trip: { awaitingAuthorisation: false } });
+    expect((await getToday(seller.ctx)).live?.status).toBe('OPEN');
+    expect(await code(unassignVehicle(ctx, vehicle.id))).toBe('SELLER_OUT_WITH_VEHICLE');
+  });
+
+  it('VEH-016: back, at the reading the manager enters — the seller\'s trip ends there, marked as a manager\'s, the seller is told, and the vehicle passes', async () => {
+    const { vehicle, seller } = await outWithIt();
+    const next = await aSeller();
+    const moved = await assignVehicle(await admin(), vehicle.id, { sellerId: next.account.id, vehicleBack: { odometer: 10_042 } });
+    expect(moved).toMatchObject({ outcome: 'ASSIGNED', vehicle: { seller: { id: next.account.id }, trip: null, odometer: 10_042 } });
+    expect(moved.vehicle.readings[0]).toMatchObject({ readingKm: 10_042, source: 'CHECK_OUT' });
+
+    const theirs = await getToday(seller.ctx);
+    expect(theirs).toMatchObject({ live: null, day: { status: 'CHECKED_OUT' }, totals: { distanceKm: 42 }, assignedVehicle: null });
+    expect(theirs.sessions[0]).toMatchObject({ status: 'CLOSED', checkOutOdometer: 10_042, closedOnBehalf: true, vehicle: { id: vehicle.id } });
+    expect((await listMyNotifications(seller.ctx)).items.find((n) => n.kind === 'TRIP_CLOSED_ON_BEHALF')?.params).toEqual({ registration: vehicle.registration, odometer: 10_042 });
+    const [audit] = await ownerQuery<{ n: number }>(`select count(*)::int as n from audit_log where action = 'attendance.trip_closed_on_behalf'`);
+    expect(audit?.n).toBe(1);
+    // The next seller carries on from the manager's reading.
+    expect((await checkInAs(next.ctx, { odometer: 10_043 })).live?.flags).toEqual([]);
+  });
+
+  it('VEH-016: unassigning asks the same; a check-in still waiting for authorisation is withdrawn, its reading kept', async () => {
+    const ctx = await admin();
+    const vehicle = await aVehicle(ctx, 10_000);
+    const seller = await aSeller();
+    await assignVehicle(ctx, vehicle.id, { sellerId: seller.account.id });
+    await createZone(ctx, { name: 'Yard', lat: YARD.lat, lng: YARD.lng, radiusM: 300 });
+    await updateToggles(ctx, [{ key: 'attendance.restricted_check_in', enabled: true }]);
+    await checkInAs(seller.ctx, { location: AWAY, odometer: 10_000 });
+    const asked = await unassignVehicle(ctx, vehicle.id).catch((e: DomainError) => e);
+    expect(asked).toMatchObject({ code: 'SELLER_OUT_WITH_VEHICLE', details: { awaitingAuthorisation: true } });
+
+    const released = await unassignVehicle(await admin(), vehicle.id, { vehicleBack: { odometer: 10_001 } });
+    expect(released).toMatchObject({ seller: null, trip: null, odometer: 10_001 });
+    expect((await getToday(seller.ctx)).live).toBeNull();
+    const [row] = await ownerQuery<{ status: string }>(`select status from attendance_sessions where seller_id = $1`, [seller.account.id]);
+    expect(row?.status).toBe('WITHDRAWN');
+  });
+
+  it('VEH-016: a seller out without the vehicle is not asked — it is not with them', async () => {
+    const ctx = await admin();
+    const vehicle = await aVehicle(ctx);
+    const seller = await aSeller();
+    await assignVehicle(ctx, vehicle.id, { sellerId: seller.account.id });
+    await checkInAs(seller.ctx, { withoutVehicle: true });
+    expect((await assignVehicle(ctx, vehicle.id, { sellerId: (await aSeller()).account.id })).outcome).toBe('ASSIGNED');
+  });
+
+  it('VEH-017: handing over, the outgoing seller checks out first, and the handover does not complete while they are out with the vehicle', async () => {
+    const ctx = await admin();
+    const { vehicle, seller } = await aLoadedVehicle(ctx, 5); // checked in with it
+    const incoming = await aSeller();
+    expect((await assignVehicle(ctx, vehicle.id, { sellerId: incoming.account.id })).outcome).toBe('HANDOVER_PROPOSED'); // nothing passes yet: no question
+    const [handover] = await listMyHandovers(seller.ctx);
+    if (!handover) throw new Error('no handover');
+    expect(await code(confirmHandover(seller.ctx, handover.id))).toBe('CHECK_OUT_FIRST');
+
+    await checkOut(seller.ctx, await captureFor(seller.ctx, 10_030));
+    expect((await confirmHandover(await ctxFor(seller.account), handover.id)).status).toBe('PROPOSED');
+    await checkInAs(await ctxFor(seller.account), { odometer: 10_030 }); // still theirs until both confirm — and out with it again
+    expect(await code(confirmHandover(incoming.ctx, handover.id))).toBe('SELLER_OUT_WITH_VEHICLE');
+    await checkOut(await ctxFor(seller.account), await captureFor(await ctxFor(seller.account), 10_035));
+    expect((await confirmHandover(await ctxFor(incoming.account), handover.id)).status).toBe('CONFIRMED');
+    expect((await getVehicle(ctx, vehicle.id)).seller?.id).toBe(incoming.account.id);
   });
 });
 

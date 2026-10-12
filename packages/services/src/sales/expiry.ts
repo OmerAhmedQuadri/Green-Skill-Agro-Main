@@ -34,12 +34,16 @@ async function expire(tx: Tx, rows: readonly Expiring[], now: Date, origin: Orig
   await writeAudit(tx, origin, { action: 'sales.expired', entityType: 'sale', after: { sales: ids } });
 }
 
-/** PRC-015: at check-out every request of the seller's expires, and an approved sale not completed lapses. */
-export async function expireSellerSales(tx: Tx, ctx: Ctx): Promise<number> {
+/**
+ * PRC-015: at check-out every request of the seller's expires, and an approved
+ * sale not completed lapses. A manager ending the trip for them (VEH-016) does
+ * the same, and the seller is told.
+ */
+export async function expireSellerSales(tx: Tx, ctx: Ctx, sellerId: string = ctx.user.id): Promise<number> {
   const rows = await tx.select({ id: sales.id, sellerId: sales.sellerId, storeName: stores.name, open: sql<boolean>`${sales.storeId} is null` }).from(sales)
     .leftJoin(stores, eq(stores.id, sales.storeId))
-    .where(and(eq(sales.sellerId, ctx.user.id), inArray(sales.status, [...HOLDING_SALE_STATUSES]))).for('update', { of: sales });
-  await expire(tx, rows, ctx.now, { actorId: ctx.user.id, branchId: ctx.branchId, requestId: ctx.requestId, ip: ctx.ip }, false);
+    .where(and(eq(sales.sellerId, sellerId), inArray(sales.status, [...HOLDING_SALE_STATUSES]))).for('update', { of: sales });
+  await expire(tx, rows, ctx.now, { actorId: ctx.user.id, branchId: ctx.branchId, requestId: ctx.requestId, ip: ctx.ip }, sellerId !== ctx.user.id);
   return rows.length;
 }
 
