@@ -1,4 +1,4 @@
-import { sizeCode, type CountUnit, type CreditMode, type Money, type PackSize, type Percent } from '@gsa/core';
+import { BRAND_MARK, sizeCode, type CountUnit, type CreditMode, type Money, type PackSize, type Percent } from '@gsa/core';
 
 /**
  * The delivery document (DOC-001..010, ADR-0019, ADR-0053): Green Agro's own
@@ -59,8 +59,12 @@ const calendarDay = (iso: string) => iso.replaceAll('-', '/');
 const latin = (text: string) => `<bdi dir="ltr">${escape(text)}</bdi>`;
 const ar = (text: string) => `<span dir="rtl" lang="ar">${escape(text)}</span>`;
 
-/** The app's mark — the Sprout of the interface (lucide, ISC) — beside the name in both languages. */
-const LOGO = `<svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="#2d6a4f" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+/**
+ * The sprout of the interface (lucide, ISC), beside the name in both
+ * languages: the header's mark before Green Agro's logo, and still when the
+ * logo is switched off or its file is missing (ADR-0057).
+ */
+const SPROUT = `<svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="#2d6a4f" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
 <path d="M14 9.536V7a4 4 0 0 1 4-4h1.5a.5.5 0 0 1 .5.5V5a4 4 0 0 1-4 4 4 4 0 0 0-4 4c0 2 1 3 1 5a5 5 0 0 1-1 3"/><path d="M4 9a5 5 0 0 1 8 4 5 5 0 0 1-8-4"/><path d="M5 21h14"/></svg>`;
 
 /** A row of the header's table: English label, the value, Arabic label (the sample's three columns). */
@@ -108,7 +112,12 @@ function buyerBox(b: DocumentData['buyer'], open: boolean): string {
 </div>`;
 }
 
-export function deliveryDocumentHtml(data: DocumentData, opts: { readonly fontCss?: string } = {}): string {
+/** ADR-0057: Green Agro's logo — both names are in it — or, without it, the names beside the sprout. */
+const brand = (logo: string | null | undefined) => (BRAND_MARK === 'LOGO' && logo && /^data:image\/(webp|png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(logo)
+  ? `<img class="logo-img" src="${logo}" alt="Green Skill Agro">`
+  : `<div class="logo"><div class="names">${ar('غرين سكيل أغرو')}<br>Green Skill Agro</div>${SPROUT}</div>`);
+
+export function deliveryDocumentHtml(data: DocumentData, opts: { readonly fontCss?: string; readonly logo?: string | null } = {}): string {
   const title = data.open ? { en: 'Simplified delivery record', ar: 'سند تسليم مبسّط' } : { en: 'Delivery document', ar: 'سند تسليم' };
   const terms = termsText(data.terms);
   const due = data.terms.dueOn ? latin(calendarDay(data.terms.dueOn)) : null;
@@ -142,6 +151,7 @@ small { font-size: 6.5pt; font-weight: 400; }
 .title-ar { font-size: 15pt; font-weight: 700; color: #44403c; }
 .logo { display: flex; align-items: center; gap: 6px; text-align: end; }
 .logo .names { font-size: 8.5pt; font-weight: 700; color: #1b4332; line-height: 1.25; }
+.logo-img { height: 21mm; width: auto; display: block; }
 .meta { display: flex; align-items: center; gap: 12px; margin-top: 8px; padding-bottom: 6px; }
 .info { flex: 1; border-collapse: collapse; }
 .info th, .info td { padding: 3px 6px; border-bottom: 1px solid #c7d2fe; font-size: 8.5pt; }
@@ -195,7 +205,7 @@ small { font-size: 6.5pt; font-weight: 400; }
 <thead><tr><td>
   <div class="top">
     <div><div class="title-en">${escape(title.en)}</div><div class="title-ar">${ar(title.ar)}</div></div>
-    <div class="logo"><div class="names">${ar('غرين سكيل أغرو')}<br>Green Skill Agro</div>${LOGO}</div>
+    ${brand(opts.logo)}
   </div>
   <div class="meta">
     <table class="info">

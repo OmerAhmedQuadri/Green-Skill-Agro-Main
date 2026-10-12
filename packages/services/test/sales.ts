@@ -22,11 +22,12 @@ export async function aSellingSeller(admin: Ctx, opts: { packs?: number; creditM
 }
 
 /** A fake PDF printer: the HTML it was given, as bytes that start like a PDF. */
-export function aPdfRenderer(opts: { fail?: boolean } = {}) {
+export function aPdfRenderer(opts: { fail?: boolean; logo?: string | null } = {}) {
   const printed: string[] = [];
   return {
     printed,
     fontCss: '/* no fonts in tests */',
+    logo: opts.logo ?? null,
     render(html: string): Promise<Uint8Array> {
       if (opts.fail) return Promise.reject(new Error('chromium is not installed'));
       printed.push(html);
