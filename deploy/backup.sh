@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# Nightly database backup (ADR-0020, docs/handover/RUNBOOK.md §5). Run as root
-# on the VPS — this is the command cron calls:
+# Nightly database backup (ADR-0020, docs/handover/RUNBOOK.md §5) — of
+# production only (ADR-0058): staging holds test data. Run as root on the VPS —
+# this is the command cron calls:
 #
-#   bash /root/gsa-sales-inventory-app/Green-Skill-Agro-Main/deploy/backup.sh
+#   bash /root/gsa-sales-inventory-app/production/Green-Skill-Agro-Main/deploy/backup.sh
 #   bash .../deploy/backup.sh --dry-run     # prove it works, write nothing
 #
 # Dumps the database out of its container, uploads it to the backups bucket,
@@ -13,8 +14,8 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 # This app's own pnpm, as everywhere else on the VPS — never a system-wide one.
 export PATH=$PWD/.tools/node_modules/.bin:$PATH
-
-COMPOSE=(docker compose --env-file .env -f deploy/docker-compose.staging.yml)
+source deploy/lib.sh
+[[ $INSTANCE == production ]] || { echo "Backups are taken of production only (ADR-0058); this is $INSTANCE."; exit 1; }
 
 dump=$(mktemp -t gsa-backup.XXXXXXXX)
 chmod 600 "$dump"

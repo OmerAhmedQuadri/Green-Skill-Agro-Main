@@ -2,6 +2,7 @@
   "app": {
     "name": "Green Skill Agro",
     "tagline": "Field sales and inventory",
+    "stagingBanner": "Staging — for testing only. Nothing here is real, and it may be wiped.",
     "switchLanguage": "العربية"
   },
   "common": {

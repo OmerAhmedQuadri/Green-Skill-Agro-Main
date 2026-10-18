@@ -12,6 +12,8 @@ const Env = z.object({
   DATABASE_URL: z.url(),
   DATABASE_OWNER_URL: z.url().optional(),
   APP_URL: z.url(),
+  /** ADR-0058: which copy this is on the VPS. Blank on a laptop and in CI. Staging says so on every page. */
+  APP_INSTANCE: z.preprocess(blankIsAbsent, z.enum(['staging', 'production']).optional()),
   SESSION_SECRET: z.string().min(32),
   S3_ENDPOINT: z.url(),
   S3_REGION: z.string().min(1),

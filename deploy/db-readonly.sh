@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # A read-only database login for inspecting staging through an SSH tunnel the
-# project lead opens (ADR-0035). Run as root on the VPS, from the app folder:
+# project lead opens (ADR-0035) — staging only: production holds real people's
+# data (ADR-0058). Run as root on the VPS, from staging's folder:
 #
 #   bash deploy/db-readonly.sh
 #
@@ -9,9 +10,11 @@
 # reads every table and can change nothing.
 set -euo pipefail
 cd "$(dirname "$0")/.."
+source deploy/lib.sh
+[[ $INSTANCE == staging ]] || { echo "The read-only login is for staging only (ADR-0058); this is $INSTANCE."; exit 1; }
 pw=$(openssl rand -hex 24)
 # The SQL goes in on stdin, so the password never appears in a process list.
-docker compose --env-file .env -f deploy/docker-compose.staging.yml exec -T postgres \
+"${COMPOSE[@]}" exec -T postgres \
   psql -U gsa_owner -d gsa -q -v ON_ERROR_STOP=1 <<SQL
 \\set pw '$pw'
 SELECT 'CREATE ROLE gsa_readonly LOGIN' WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'gsa_readonly') \\gexec

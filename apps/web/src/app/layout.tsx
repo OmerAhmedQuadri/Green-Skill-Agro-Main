@@ -1,3 +1,4 @@
+import { loadConfig } from '@gsa/config';
 import type { Metadata, Viewport } from 'next';
 import { IBM_Plex_Sans_Arabic, Inter } from 'next/font/google';
 import { NextIntlClientProvider } from 'next-intl';
@@ -18,9 +19,13 @@ export const viewport: Viewport = { themeColor: '#1b4332', width: 'device-width'
 
 export default async function RootLayout({ children }: { children: ReactNode }) {
   const locale = await getLocale();
+  const t = await getTranslations('app');
+  // ADR-0058: the copy for trying things out says so on every page, so nobody takes it for the real one.
+  const staging = loadConfig().APP_INSTANCE === 'staging';
   return (
     <html lang={locale} dir={locale === 'ar' ? 'rtl' : 'ltr'} className={`${latin.variable} ${arabic.variable}`}>
       <body className="min-h-dvh bg-stone-50 font-sans text-stone-900 antialiased">
+        {staging ? <p role="note" className="bg-amber-300 px-4 py-1 text-center text-xs font-semibold text-amber-950" data-testid="staging-banner">{t('stagingBanner')}</p> : null}
         <NextIntlClientProvider>
           <Providers>{children}</Providers>
         </NextIntlClientProvider>
