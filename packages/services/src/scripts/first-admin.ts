@@ -1,11 +1,11 @@
 import { writeFileSync } from 'node:fs';
-import { createInterface } from 'node:readline/promises';
 import { normaliseEmail, normalisePhone } from '@gsa/core';
 import { schema } from '@gsa/db';
 import { sql } from 'drizzle-orm';
 import { hashPassword, newTemporaryPassword } from '../identity';
 import { writeAudit } from '../platform';
 import { closeDb, defaultBranchId, getDb } from '../runtime';
+import { confirmTarget, databaseTarget } from './target';
 
 /**
  * The first account on a new installation (USR-002).
@@ -45,15 +45,12 @@ if (accounts > 0) {
   throw new Error(`this database already has ${accounts} account(s) — create further accounts in the app, where it is audited`);
 }
 
-const target = { database: new URL(process.env.DATABASE_URL ?? '').pathname.replace(/^\//, ''), host: new URL(process.env.DATABASE_URL ?? '').hostname };
+const target = databaseTarget();
 console.log('');
-console.log(`  about to create the first Super Admin in  ${target.database} on ${target.host}`);
+console.log(`  about to create the first Super Admin in  ${target.database} on ${target.where}`);
 console.log(`  for                                       ${name}`);
 console.log('');
-const rl = createInterface({ input: process.stdin, output: process.stdout });
-const typed = await rl.question(`Type the host name (${target.host}) to continue, anything else to stop: `);
-rl.close();
-if (typed.trim() !== target.host) {
+if (!(await confirmTarget(target))) {
   console.log('stopped; nothing was created.');
   await closeDb();
   process.exit(1);

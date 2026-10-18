@@ -8,7 +8,8 @@ import { setTarget } from '../targets';
 import { closeDb, defaultBranchId, getDb } from '../runtime';
 
 // Development accounts only (DEVELOPMENT §7). Never production; never UI-v1's demo credentials (ADR-0014).
-if (process.env.NODE_ENV === 'production') throw new Error('Refusing to seed a production database');
+// On the VPS a shell does not set NODE_ENV — the copy's .env names production (ADR-0058).
+if (process.env.NODE_ENV === 'production' || process.env.APP_INSTANCE === 'production') throw new Error('Refusing to seed a production database');
 const password = process.env.DEV_SEED_PASSWORD ?? '';
 if (password.length < 10) throw new Error("Set DEV_SEED_PASSWORD (10+ characters) in .env first — in single quotes if it contains # (an unquoted # starts a comment)");
 // SEED_RESET_PASSWORDS=1: existing development accounts take the current DEV_SEED_PASSWORD
