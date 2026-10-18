@@ -85,16 +85,22 @@ if [[ ! -f $realip ]]; then
 fi
 
 log "nginx site for $DOMAIN"
-site=/etc/nginx/sites-available/green-agro-$INSTANCE
+site=/etc/nginx/sites-available/$DOMAIN   # named after its domain, like the VPS's other sites
+repoint="sed -i 's#127.0.0.1:[0-9]*;#127.0.0.1:$APP_PORT;#' %s && nginx -t && systemctl reload nginx"
 serving=$(grep -l "server_name[[:space:]]\+$DOMAIN;" /etc/nginx/sites-enabled/* 2>/dev/null | head -1 || true)
 if [[ -n $serving && $(readlink -f "$serving") != "$site" ]]; then
-  # Another site already answers for the domain — at the switch, the one staging used (ADR-0058).
-  echo "$serving already serves $DOMAIN — left as it is. To send it to this copy, change its port to $APP_PORT:"
-  echo "  sed -i 's#127.0.0.1:[0-9]*#127.0.0.1:$APP_PORT#' $(readlink -f "$serving") && nginx -t && systemctl reload nginx"
+  # Another file already answers for the domain — left alone (ADR-0058).
+  echo "$serving already serves $DOMAIN — left as it is. To send it to this copy (port $APP_PORT):"
+  printf "  $repoint\n" "$(readlink -f "$serving")"
 else
   if [[ ! -f $site ]]; then   # once written, certbot edits it — never overwrite
     sed -e "s/__DOMAIN__/$DOMAIN/g" -e "s/__PORT__/$APP_PORT/g" "$APP_DIR/deploy/nginx-site.conf" > "$site"
-    ln -sf "$site" "/etc/nginx/sites-enabled/green-agro-$INSTANCE"
+    ln -sf "$site" "/etc/nginx/sites-enabled/$DOMAIN"
+  fi
+  if ! grep -q "127.0.0.1:$APP_PORT;" "$site"; then
+    # At the split, app.greenskillagro.com still sends to staging until production is ready (RUNBOOK §9.3).
+    echo "$site sends $DOMAIN to another port — left as it is. To send it to this copy (port $APP_PORT):"
+    printf "  $repoint\n" "$site"
   fi
   nginx -t && systemctl reload nginx
   log "Certificate for $DOMAIN"
