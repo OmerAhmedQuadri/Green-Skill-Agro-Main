@@ -1,4 +1,3 @@
-import { createInterface } from 'node:readline/promises';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { effectivePermissions, type BranchId, type UserId } from '@gsa/core';
@@ -8,6 +7,7 @@ import readXlsxFile from 'read-excel-file/node';
 import { loadOverrides } from '../identity';
 import { assess, cleansingReport, exampleRows, loadWorkbook, survey, verificationReport, type Sheet } from '../migration';
 import { closeDb, getDb } from '../runtime';
+import { confirmTarget, databaseTarget } from './target';
 
 /**
  * Loading Green Skill Agro's setup workbook (MIG-001..006).
@@ -85,20 +85,13 @@ if (existing) {
   process.exit(1);
 }
 
-/** The host and database, never the password. */
-const target = (() => {
-  const url = new URL(process.env.DATABASE_URL ?? '');
-  return { host: url.hostname, database: url.pathname.replace(/^\//, '') };
-})();
+const target = databaseTarget();
 
 console.log('');
-console.log(`  about to import into  ${target.database} on ${target.host}`);
+console.log(`  about to import into  ${target.database} on ${target.where}`);
 console.log(`  as                    ${operator.name} (${operator.role})`);
 console.log('');
-const rl = createInterface({ input: process.stdin, output: process.stdout });
-const typed = await rl.question(`Type the host name (${target.host}) to continue, anything else to stop: `);
-rl.close();
-if (typed.trim() !== target.host) {
+if (!(await confirmTarget(target))) {
   console.log('stopped; nothing was written.');
   await closeDb();
   process.exit(1);

@@ -15,8 +15,10 @@ import { runMigrations } from './migrate-runner';
 const url = process.env.DATABASE_OWNER_URL;
 if (!url) throw new Error('DATABASE_OWNER_URL is required to reset the database');
 
-// A reset in an environment that holds real work would be unrecoverable.
+// A reset in an environment that holds real work would be unrecoverable. On the VPS a shell does
+// not set NODE_ENV, and both copies' databases are on 127.0.0.1 — the copy's .env names production (ADR-0058).
 if (process.env.NODE_ENV === 'production') throw new Error('refusing to reset the database with NODE_ENV=production');
+if (process.env.APP_INSTANCE === 'production') throw new Error('refusing to reset the production database (APP_INSTANCE=production)');
 if (!/localhost|127\.0\.0\.1/.test(url)) {
   throw new Error(`refusing to reset a database that is not local: ${url.replace(/:\/\/[^@]*@/, '://***@')}`);
 }
