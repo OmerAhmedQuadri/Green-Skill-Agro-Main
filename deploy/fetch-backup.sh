@@ -2,7 +2,7 @@
 # Fetch a backup from the backups bucket onto this server, to restore from
 # (ADR-0050, docs/handover/RUNBOOK.md §5.4). Run as root on the VPS:
 #
-#   bash /root/gsa-sales-inventory-app/Green-Skill-Agro-Main/deploy/fetch-backup.sh
+#   bash /root/gsa-sales-inventory-app/production/Green-Skill-Agro-Main/deploy/fetch-backup.sh
 #   bash .../deploy/fetch-backup.sh --key gsa-20261006T020000Z.dump    # a named one, not the newest
 #
 # It writes ~/gsa-<stamp>.dump, readable by root alone, and never overwrites a

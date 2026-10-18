@@ -1,8 +1,9 @@
-# PostgreSQL for staging on the VPS (ADR-0035): the development image and the
-# same setup scripts — the two roles (ADR-0008) and bootstrap.sql. Published
-# on loopback only: Docker's port rules bypass the host firewall.
-# Used by deploy/setup-vps.sh and deploy/deploy.sh with --env-file ../.env.
-name: green-agro-staging
+# PostgreSQL for a copy of the app on the VPS (ADR-0035, ADR-0058): the
+# development image and the same setup scripts — the two roles (ADR-0008) and
+# bootstrap.sql. Each copy runs its own, as Compose project green-agro-<copy>
+# (its own container and volume), on its own loopback port — never published
+# beyond loopback: Docker's port rules bypass the host firewall. Used through
+# deploy/lib.sh, which names the project and the port.
 
 services:
   postgres:
@@ -13,7 +14,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_OWNER_PASSWORD:?set in .env}
       POSTGRES_DB: gsa
       GSA_APP_PASSWORD: ${POSTGRES_APP_PASSWORD:?set in .env}
-    ports: ["127.0.0.1:5432:5432"]
+    ports: ["127.0.0.1:${POSTGRES_PORT:?set by deploy/lib.sh}:5432"]
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ../docker/postgres/init:/docker-entrypoint-initdb.d:ro

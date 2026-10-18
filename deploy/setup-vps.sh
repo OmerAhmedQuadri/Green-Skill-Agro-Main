@@ -1,19 +1,21 @@
 #!/usr/bin/env bash
-# One-time setup of Green Skill Agro staging on the VPS (ADR-0035). Run as root from
-# the cloned repository:
+# One-time setup of a copy of Green Skill Agro on the VPS — staging or
+# production (ADR-0035, ADR-0058). Run as root from that copy's cloned folder:
 #
-#   bash /root/gsa-sales-inventory-app/Green-Skill-Agro-Main/deploy/setup-vps.sh app.greenskillagro.com
+#   bash /root/gsa-sales-inventory-app/staging/Green-Skill-Agro-Main/deploy/setup-vps.sh staging.greenskillagro.com staging
+#   bash /root/gsa-sales-inventory-app/production/Green-Skill-Agro-Main/deploy/setup-vps.sh app.greenskillagro.com production
 #
-# Installs Docker for PostgreSQL; pnpm for this app only; writes the
-# app's .env with generated passwords; starts the database; adds the nginx site
-# and its certificate. The app itself runs under the existing pm2, beside the
-# other app. Safe to run again — it keeps what exists.
+# Installs Docker for PostgreSQL; pnpm for this app only; writes the copy's
+# .env with generated passwords; starts its database; adds its nginx site and
+# certificate. The app itself runs under the existing pm2, beside the other
+# app. Safe to run again — it keeps what exists.
 set -euo pipefail
 
-DOMAIN=${1:?usage: setup-vps.sh <domain>}
+DOMAIN=${1:?usage: setup-vps.sh <domain> <staging|production>}
+INSTANCE=${2:?usage: setup-vps.sh <domain> <staging|production>}
+[[ $INSTANCE == staging || $INSTANCE == production ]] || { echo "The copy is staging or production, not $INSTANCE."; exit 1; }
 APP_DIR=$(cd "$(dirname "$0")/.." && pwd)
 ENV_FILE=$APP_DIR/.env
-PORT=3000                       # loopback only; nginx proxies to it
 
 log() { printf '\n== %s\n' "$*"; }
 [[ $EUID -eq 0 ]] || { echo "Run as root."; exit 1; }
@@ -41,27 +43,35 @@ if ! command -v docker >/dev/null; then
 fi
 
 log "Configuration in $ENV_FILE"
-setenv() { # KEY VALUE — replaces that line only, so .env stays line for line like .env.example
+setenv() { # KEY VALUE — replaces that line, so .env stays line for line like .env.example; adds it if a .env predates the key
   local v=${2//\\/\\\\}; v=${v//&/\\&}; v=${v//|/\\|}
-  sed -i "s|^$1=.*|$1=$v|" "$ENV_FILE"
+  if grep -q "^$1=" "$ENV_FILE"; then sed -i "s|^$1=.*|$1=$v|" "$ENV_FILE"; else printf '%s=%s\n' "$1" "$2" >> "$ENV_FILE"; fi
 }
+fresh=false
 if [[ ! -f $ENV_FILE ]]; then
   cp "$APP_DIR/.env.example" "$ENV_FILE"
   chmod 600 "$ENV_FILE"
+  fresh=true
+fi
+setenv APP_INSTANCE "$INSTANCE"
+cd "$APP_DIR"
+source deploy/lib.sh   # the copy's ports and Compose project, from APP_INSTANCE
+if $fresh; then
   owner=$(openssl rand -hex 24)
   app=$(openssl rand -hex 24)
   setenv POSTGRES_OWNER_PASSWORD "$owner"
   setenv POSTGRES_APP_PASSWORD "$app"
-  setenv DATABASE_URL "postgres://gsa_app:$app@127.0.0.1:5432/gsa"
-  setenv DATABASE_OWNER_URL "postgres://gsa_owner:$owner@127.0.0.1:5432/gsa"
+  setenv DATABASE_URL "postgres://gsa_app:$app@127.0.0.1:$POSTGRES_PORT/gsa"
+  setenv DATABASE_OWNER_URL "postgres://gsa_owner:$owner@127.0.0.1:$POSTGRES_PORT/gsa"
   setenv SESSION_SECRET "$(openssl rand -hex 32)"
-  setenv S3_KEY_PREFIX "staging/"   # staging shares the test bucket, under its own prefix
+  # Staging shares the test bucket under its own prefix; production has a bucket of its own.
+  setenv S3_KEY_PREFIX "$([[ $INSTANCE == staging ]] && echo staging/ || echo '')"
   for key in S3_ACCESS_KEY S3_SECRET_KEY DEV_SEED_PASSWORD; do setenv "$key" ""; done
 fi
 setenv APP_URL "https://$DOMAIN"
 
-log "PostgreSQL in Docker, on 127.0.0.1:5432"
-docker compose --env-file "$ENV_FILE" -f "$APP_DIR/deploy/docker-compose.staging.yml" up -d --wait
+log "PostgreSQL in Docker for $INSTANCE, on 127.0.0.1:$POSTGRES_PORT"
+"${COMPOSE[@]}" up -d --wait
 
 log "Cloudflare's addresses, for the visitor's real IP (the domain is proxied)"
 realip=/etc/nginx/snippets/cloudflare-realip.conf
@@ -75,19 +85,29 @@ if [[ ! -f $realip ]]; then
 fi
 
 log "nginx site for $DOMAIN"
-site=/etc/nginx/sites-available/green-agro
-if [[ ! -f $site ]]; then   # once written, certbot edits it — never overwrite
-  sed -e "s/__DOMAIN__/$DOMAIN/g" -e "s/__PORT__/$PORT/g" "$APP_DIR/deploy/nginx-site.conf" > "$site"
-  ln -sf "$site" /etc/nginx/sites-enabled/green-agro
+site=/etc/nginx/sites-available/green-agro-$INSTANCE
+serving=$(grep -l "server_name[[:space:]]\+$DOMAIN;" /etc/nginx/sites-enabled/* 2>/dev/null | head -1 || true)
+if [[ -n $serving && $(readlink -f "$serving") != "$site" ]]; then
+  # Another site already answers for the domain — at the switch, the one staging used (ADR-0058).
+  echo "$serving already serves $DOMAIN — left as it is. To send it to this copy, change its port to $APP_PORT:"
+  echo "  sed -i 's#127.0.0.1:[0-9]*#127.0.0.1:$APP_PORT#' $(readlink -f "$serving") && nginx -t && systemctl reload nginx"
+else
+  if [[ ! -f $site ]]; then   # once written, certbot edits it — never overwrite
+    sed -e "s/__DOMAIN__/$DOMAIN/g" -e "s/__PORT__/$APP_PORT/g" "$APP_DIR/deploy/nginx-site.conf" > "$site"
+    ln -sf "$site" "/etc/nginx/sites-enabled/green-agro-$INSTANCE"
+  fi
+  nginx -t && systemctl reload nginx
+  log "Certificate for $DOMAIN"
+  certbot --nginx -d "$DOMAIN" --redirect --non-interactive --agree-tos \
+    || echo "certbot wants input — run:  certbot --nginx -d $DOMAIN --redirect"
 fi
-nginx -t && systemctl reload nginx
-
-log "Certificate for $DOMAIN"
-certbot --nginx -d "$DOMAIN" --redirect --non-interactive --agree-tos \
-  || echo "certbot wants input — run:  certbot --nginx -d $DOMAIN --redirect"
 
 if ! systemctl is-enabled --quiet pm2-root 2>/dev/null; then
   log "Note: pm2 does not start at boot on this VPS (no pm2-root service). 'pm2 startup' would enable it for every pm2 app, including the other one — your call."
 fi
 
-log "Done. Next: fill in the R2, email and seed values in $ENV_FILE, then:  bash $APP_DIR/deploy/deploy.sh --seed"
+if [[ $INSTANCE == staging ]]; then
+  log "Done. Next: fill in the R2, email and seed values in $ENV_FILE, then:  git checkout staging && bash $APP_DIR/deploy/deploy.sh --seed"
+else
+  log "Done. Next: fill in the production R2, email and backup values in $ENV_FILE, then:  bash $APP_DIR/deploy/deploy.sh"
+fi
