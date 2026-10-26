@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm';
 import { check, date, index, integer, numeric, pgEnum, pgTable, primaryKey, text, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import { createdAt, id, timestamptz } from './columns';
 import { users } from './identity';
+import { importBatches } from './imports';
 import { mediaAssets } from './media';
 import { mutable } from './mutable';
 import { branches } from './organisation';
@@ -12,6 +13,9 @@ export const storeStatus = pgEnum('store_status', ['PENDING_APPROVAL', 'ACTIVE',
 export const creditMode = pgEnum('credit_mode', ['BILL_TO_BILL', 'WEEKLY', 'MONTHLY', 'CUSTOM']);
 export const storeLedgerEntryType = pgEnum('store_ledger_entry_type', ['SALE', 'PAYMENT', 'CREDIT_NOTE', 'ADJUSTMENT']);
 export const paymentMethod = pgEnum('payment_method', ['CASH', 'BANK_TRANSFER']);
+// Mirror packages/core/src/imports (ADR-0059).
+export const entryOrigin = pgEnum('entry_origin', ['APP', 'IMPORT']);
+export const importedPaymentKind = pgEnum('imported_payment_kind', ['VOUCHER', 'PAID_AT_SALE']);
 
 const money = (name: string) => numeric(name, { precision: 14, scale: 2 });
 
@@ -95,6 +99,9 @@ export const storeLedgerEntries = pgTable(
     referenceType: text('reference_type').notNull(),
     referenceId: uuid('reference_id').notNull(),
     note: text('note'),
+    /** IMP-003: posted from Green Agro's books, from this batch (ADR-0059), or recorded in the app. */
+    origin: entryOrigin('origin').notNull().default('APP'),
+    importBatchId: uuid('import_batch_id').references(() => importBatches.id),
     branchId: uuid('branch_id').notNull().references(() => branches.id),
     createdAt: createdAt(),
     createdBy: uuid('created_by').notNull().references(() => users.id),
@@ -102,6 +109,10 @@ export const storeLedgerEntries = pgTable(
   (t) => [
     index('store_ledger_entries_store_idx').on(t.storeId, t.occurredAt),
     index('store_ledger_entries_reference_idx').on(t.referenceType, t.referenceId),
+    index('store_ledger_entries_import_batch_id_idx').on(t.importBatchId),
+    // IMP-005: an imported record goes into the account once.
+    uniqueIndex('store_ledger_entries_imported_once').on(t.referenceType, t.referenceId).where(sql`${t.origin} = 'IMPORT'`),
+    check('store_ledger_import_batch', sql`(${t.origin} = 'IMPORT') = (${t.importBatchId} is not null)`),
     check('store_ledger_amount_nonzero', sql`${t.amount} <> 0`),
     check('store_ledger_sign', sql`(${t.entryType} = 'SALE' and ${t.amount} > 0) or (${t.entryType} in ('PAYMENT', 'CREDIT_NOTE') and ${t.amount} < 0) or ${t.entryType} = 'ADJUSTMENT'`),
     check('store_ledger_debit_due', sql`(${t.amount} > 0) = (${t.dueOn} is not null)`),
@@ -132,11 +143,20 @@ export const payments = pgTable(
      */
     voucherNumber: text('voucher_number'),
     voucherPhotoId: uuid('voucher_photo_id').references(() => mediaAssets.id),
+    /** IMP-003: posted from an imported payment of Green Agro's books (ADR-0059), or taken in the app. */
+    origin: entryOrigin('origin').notNull().default('APP'),
+    importBatchId: uuid('import_batch_id').references(() => importBatches.id),
+    importedPaymentId: uuid('imported_payment_id').references(() => importedPayments.id),
     branchId: uuid('branch_id').notNull().references(() => branches.id),
     createdAt: createdAt(),
   },
   (t) => [
     index('payments_store_id_idx').on(t.storeId),
+    index('payments_import_batch_id_idx').on(t.importBatchId),
+    // IMP-005: an imported payment is posted once.
+    uniqueIndex('payments_imported_payment_unique').on(t.importedPaymentId).where(sql`${t.importedPaymentId} is not null`),
+    check('payments_import_source', sql`(${t.origin} = 'IMPORT') = (${t.importBatchId} is not null)
+      and (${t.origin} = 'IMPORT') = (${t.importedPaymentId} is not null)`),
     // A voucher number is used once in the whole business (ADR-0047).
     uniqueIndex('payments_voucher_number_unique').on(t.voucherNumber).where(sql`${t.voucherNumber} is not null`),
     index('payments_voucher_photo_id_idx').on(t.voucherPhotoId),
@@ -145,6 +165,46 @@ export const payments = pgTable(
     check('payments_amount_positive', sql`${t.amount} > 0`),
     check('payments_store_ledger', sql`(${t.storeId} is null) = (${t.ledgerEntryId} is null)`),
     check('payments_transfer_reference', sql`${t.method} <> 'BANK_TRANSFER' or ${t.reference} is not null`),
+  ],
+);
+
+/**
+ * IMP-002 (ADR-0059): a payment from a seller's books, as written — a voucher, or money a September invoice book
+ * shows paid against an invoice without one (PAID_AT_SALE, for its `invoice_serial`). Recorded, never posted at
+ * import: it becomes a `payments` row when the seller re-verifies the store (IMP-005). Nobody could place a payment
+ * with no store; it waits as a warning (IMP-009). Append-only.
+ */
+export const importedPayments = pgTable(
+  'imported_payments',
+  {
+    id: id(),
+    batchId: uuid('batch_id').notNull().references(() => importBatches.id),
+    storeId: uuid('store_id').references(() => stores.id),
+    sellerId: uuid('seller_id').notNull().references(() => users.id),
+    paidOn: date('paid_on').notNull(),
+    amount: money('amount').notNull(),
+    kind: importedPaymentKind('kind').notNull(),
+    method: paymentMethod('method').notNull(),
+    /** As written in the voucher book; a few vouchers carry none (IMP-009). */
+    voucherNumber: text('voucher_number'),
+    invoiceSerial: integer('invoice_serial'),
+    /** IMP-003: where it was written — the book and its row. */
+    book: text('book').notNull(),
+    bookRow: integer('book_row').notNull(),
+    storeNameWritten: text('store_name_written').notNull(),
+    branchId: uuid('branch_id').notNull().references(() => branches.id),
+    createdAt: createdAt(),
+    createdBy: uuid('created_by').notNull().references(() => users.id),
+  },
+  (t) => [
+    index('imported_payments_batch_id_idx').on(t.batchId),
+    index('imported_payments_store_id_idx').on(t.storeId),
+    index('imported_payments_seller_id_idx').on(t.sellerId),
+    uniqueIndex('imported_payments_voucher_unique').on(t.batchId, t.voucherNumber).where(sql`${t.voucherNumber} is not null`),
+    check('imported_payments_amount_positive', sql`${t.amount} > 0`),
+    check('imported_payments_kind', sql`(${t.kind} = 'PAID_AT_SALE') = (${t.invoiceSerial} is not null)
+      and (${t.kind} = 'VOUCHER' or ${t.voucherNumber} is null)`),
+    check('imported_payments_book_row', sql`${t.bookRow} > 0`),
   ],
 );
 
