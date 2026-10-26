@@ -26,7 +26,9 @@ export const MyPerformanceQuery = z.object({ month: z.string().regex(/^\d{4}-(0[
 export const SalesAnalyticsQuery = z.object({
   from: z.iso.date(), to: z.iso.date(),
   sellerId: z.uuid().optional(), storeId: z.uuid().optional(), vehicleId: z.uuid().optional(),
-  productId: z.uuid().optional(), categoryId: z.uuid().optional(), channel: z.enum(['VEHICLE', 'DISPATCH']).optional(),
+  productId: z.uuid().optional(), categoryId: z.uuid().optional(),
+  /** IMP-007: APP is both of the app's channels — the filter that hides imported sales; IMPORTED shows them alone. */
+  channel: z.enum(['VEHICLE', 'DISPATCH', 'APP', 'IMPORTED']).optional(),
 });
 
 /** RPT-008 (ADR-0048): collections answer to the period and the seller and store filters only. */

@@ -2558,7 +2558,9 @@
     },
     "channels": {
       "VEHICLE": "A vehicle",
-      "DISPATCH": "The warehouse"
+      "DISPATCH": "The warehouse",
+      "APP": "The app only (vehicles and warehouse)",
+      "IMPORTED": "Imported from the books"
     },
     "tiles": {
       "net": "Net sales",
@@ -2628,6 +2630,13 @@
         "OVER_90": "Over 90 days"
       }
     },
-    "openSales": "Open sales"
+    "openSales": "Open sales",
+    "imported": {
+      "note": "{amount} of these sales were imported from the sellers' books, from before the app. They count here, but never towards targets, commission or seller performance.",
+      "only": "These are the sales imported from the sellers' books, from before the app: {amount}. They count here, but never towards targets, commission or seller performance.",
+      "hide": "Hide imported sales",
+      "notInCatalogue": "Not in the catalogue",
+      "notListed": "Imported sales are not listed here: they were never made in the app."
+    }
   }
 }

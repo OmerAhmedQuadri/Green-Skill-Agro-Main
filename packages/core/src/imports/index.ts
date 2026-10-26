@@ -10,6 +10,9 @@ import { dec, Dec, money, toMoney, type Money } from '../numeric';
 export const ENTRY_ORIGINS = ['APP', 'IMPORT'] as const;
 export type EntryOrigin = (typeof ENTRY_ORIGINS)[number];
 
+/** IMP-007: in sales analytics, the one row for imported lines that name no catalogue product. */
+export const IMPORTED_UNMATCHED_KEY = 'UNMATCHED';
+
 /** IMP-004: a batch is loaded, or undone as a whole. */
 export const IMPORT_BATCH_STATUSES = ['LOADED', 'UNDONE'] as const;
 export type ImportBatchStatus = (typeof IMPORT_BATCH_STATUSES)[number];

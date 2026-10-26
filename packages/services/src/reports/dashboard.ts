@@ -59,10 +59,12 @@ export async function dashboardSales(ctx: Ctx, filter: AnalyticsFilter): Promise
   const view = await salesAnalytics(ctx, filter);
   const before = comparisonRange(view.range.from, view.range.to);
   const totals = await salesTotals(ctx, { ...filter, ...before });
-  const latest = can(ctx, 'sales.view_all') ? (await listSales(ctx, {
+  // The latest are the app's own sales: imported sales were never made in it (IMP-007).
+  const channel = filter.channel === 'VEHICLE' || filter.channel === 'DISPATCH' ? filter.channel : undefined;
+  const latest = !can(ctx, 'sales.view_all') ? null : filter.channel === 'IMPORTED' ? [] : (await listSales(ctx, {
     status: 'COMPLETED', from: filter.from, to: filter.to, sellerId: filter.sellerId, storeId: filter.storeId, vehicleId: filter.vehicleId,
-    channel: filter.channel, productId: filter.productId, categoryId: filter.categoryId, limit: DASHBOARD_LIST_LENGTH,
-  })).items : null;
+    channel, productId: filter.productId, categoryId: filter.categoryId, limit: DASHBOARD_LIST_LENGTH,
+  })).items;
   return { ...view, previous: { ...before, totals }, change: percentChange(view.totals.net, totals.net), latest };
 }
 

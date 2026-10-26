@@ -1,6 +1,6 @@
 'use client';
 
-import { businessDate, OPEN_SALES_KEY, sumMoney, type Money } from '@gsa/core';
+import { businessDate, IMPORTED_UNMATCHED_KEY, OPEN_SALES_KEY, sumMoney, type Money } from '@gsa/core';
 import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
@@ -19,6 +19,7 @@ import { useErrorText } from '@/lib/hooks';
 import { keys } from '@/lib/query-keys';
 import { BarList, ColumnChart, type BarRow } from './charts';
 import { Choice, PRESETS, PresetButtons } from './filters';
+import { ImportedNote } from './imported';
 import type { AnalyticsOptions, BreakdownRow, Collections, SalesAnalytics, SellerPerformance } from './types';
 
 const DIMENSIONS = ['sellerId', 'storeId', 'vehicleId', 'categoryId', 'productId', 'channel'] as const;
@@ -95,7 +96,7 @@ export function SalesAnalyticsPage({ canListSales, canSeeCollections }: { canLis
           <Choice id="an-product" label={t('filters.product')} value={filter.productId} onChange={(v) => set({ productId: v })} all={t('filters.all')}
             options={products.map((p) => ({ value: p.id, label: format.name(p) }))} />
           <Choice id="an-channel" label={t('filters.channel')} value={filter.channel} onChange={(v) => set({ channel: v })} all={t('filters.all')}
-            options={(['VEHICLE', 'DISPATCH'] as const).map((c) => ({ value: c, label: t(`channels.${c}`) }))} />
+            options={(['VEHICLE', 'DISPATCH', 'APP', 'IMPORTED'] as const).map((c) => ({ value: c, label: t(`channels.${c}`) }))} />
         </div>
         {narrowed ? (
           <Button size="sm" variant="ghost" onClick={() => set({ sellerId: '', storeId: '', vehicleId: '', categoryId: '', productId: '', channel: '' })}>{t('filters.clear')}</Button>
@@ -106,6 +107,7 @@ export function SalesAnalyticsPage({ canListSales, canSeeCollections }: { canLis
       {view.data ? (
         <div className={cn('space-y-6 transition-opacity', view.isPlaceholderData && 'opacity-60')} data-testid="analytics-view">
           <Figures data={view.data} />
+          <ImportedNote amount={view.data.channels.IMPORTED} channel={filter.channel} onHide={() => set({ channel: 'APP' })} testId="analytics-imported" />
           {/* A one-day view is one column: the tiles say it all, so there is no chart to draw. */}
           {view.data.series.length > 1 ? (
             <Section title={t(view.data.range.bucket === 'DAY' ? 'overTimeByDay' : 'overTimeByMonth')} description={t('netHint')}>
@@ -119,12 +121,18 @@ export function SalesAnalyticsPage({ canListSales, canSeeCollections }: { canLis
             {/* SAL-019: open sales are one line of their own — not a store to narrow to. */}
             <Breakdown title={t('byStore')} rows={view.data.byStore} name={(r) => (r.id === OPEN_SALES_KEY ? t('openSales') : r.label.nameEn)}
               onPick={(id) => { if (id !== OPEN_SALES_KEY) set({ storeId: id }); }} testId="by-store" />
-            <Breakdown title={t('byProduct')} rows={view.data.byProduct} name={(r) => format.name(r.label)} onPick={(id) => set({ productId: id })} testId="by-product" />
-            <Breakdown title={t('byCategory')} rows={view.data.byCategory} name={(r) => format.name(r.label)} onPick={(id) => set({ categoryId: id })} testId="by-category" />
+            {/* IMP-007: imported lines naming no catalogue product are one row of their own — not a product to narrow to. */}
+            <Breakdown title={t('byProduct')} rows={view.data.byProduct} name={(r) => (r.id === IMPORTED_UNMATCHED_KEY ? t('imported.notInCatalogue') : format.name(r.label))}
+              onPick={(id) => { if (id !== IMPORTED_UNMATCHED_KEY) set({ productId: id }); }} testId="by-product" />
+            <Breakdown title={t('byCategory')} rows={view.data.byCategory} name={(r) => (r.id === IMPORTED_UNMATCHED_KEY ? t('imported.notInCatalogue') : format.name(r.label))}
+              onPick={(id) => { if (id !== IMPORTED_UNMATCHED_KEY) set({ categoryId: id }); }} testId="by-category" />
           </div>
           <SellersSection filter={filter} />
           {canSeeCollections ? <CollectionsSection filter={filter} /> : null}
-          {canListSales ? <SalesList query={query} /> : null}
+          {/* The list is of the app's own sales; imported sales were never made in it (IMP-007). */}
+          {!canListSales ? null : filter.channel === 'IMPORTED'
+            ? <p className="text-sm text-stone-500" data-testid="imported-not-listed">{t('imported.notListed')}</p>
+            : <SalesList query={queryOf({ ...filter, channel: filter.channel === 'APP' ? '' : filter.channel })} />}
         </div>
       ) : view.isPending ? <p className="text-sm text-stone-500">{t('loading')}</p> : null}
     </div>

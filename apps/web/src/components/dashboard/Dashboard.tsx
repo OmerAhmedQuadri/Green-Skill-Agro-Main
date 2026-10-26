@@ -117,7 +117,7 @@ function Filters({ tab, filter, set, today }: { tab: DashboardTab; filter: Dashb
         ) : null}
         {uses('channel') ? (
           <Choice id="dash-channel" label={ta('filters.channel')} value={filter.channel} onChange={(v) => set({ channel: v })} all={ta('filters.all')}
-            options={(['VEHICLE', 'DISPATCH'] as const).map((c) => ({ value: c, label: ta(`channels.${c}`) }))} />
+            options={(['VEHICLE', 'DISPATCH', 'APP', 'IMPORTED'] as const).map((c) => ({ value: c, label: ta(`channels.${c}`) }))} />
         ) : null}
         {uses('quiet') ? (
           <Field id="dash-quiet" label={t('quiet')}>

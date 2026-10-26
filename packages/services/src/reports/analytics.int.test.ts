@@ -1,4 +1,4 @@
-import { businessDate, type DomainError } from '@gsa/core';
+import { analyticsRange, businessDate, IMPORTED_UNMATCHED_KEY, type DomainError } from '@gsa/core';
 import { describe, expect, it } from 'vitest';
 import { anAccount, ctxFor } from '../../test/factories';
 import { aPhoto } from '../../test/media';
@@ -8,7 +8,10 @@ import { confirmReceipt, raiseDispatchOrder, releaseOrder } from '../dispatch';
 import { setPriceListItems } from '../pricing';
 import { getReturnable, recordReturn } from '../returns';
 import { listSales, recordSale } from '../sales';
-import { analyticsOptions, salesAnalytics } from './analytics';
+import { openImportBatch, recordImportedSale } from '../migration/history';
+import { inTx } from '../platform';
+import { getDb } from '../runtime';
+import { analyticsOptions, salesAnalytics, salesBySeller } from './analytics';
 
 const code = async (p: Promise<unknown>) => p.then(() => 'NO_ERROR', (e: DomainError) => e.code ?? String(e));
 const today = businessDate(new Date());
@@ -55,7 +58,7 @@ describe('sales analytics (ADR-0048)', () => {
     // 270 + 180 by vehicle, 220 dispatched; a bag (90) and a pouch (20) back.
     expect(view.totals).toMatchObject({ sold: '670.00', returned: '110.00', net: '560.00', sales: 3, packs: 7 });
     expect(view.totals.average).toBe('223.33');
-    expect(view.channels).toEqual({ VEHICLE: '360.00', DISPATCH: '200.00' });
+    expect(view.channels).toEqual({ VEHICLE: '360.00', DISPATCH: '200.00', IMPORTED: '0.00' });
     expect(view.range).toMatchObject({ from: today, to: today, days: 1, bucket: 'DAY' });
     expect(view.series).toEqual([{ period: today, sold: '670.00', returned: '110.00', net: '560.00', sales: 3, packs: 7 }]);
   });
@@ -115,5 +118,55 @@ describe('sales analytics (ADR-0048)', () => {
     const options = await analyticsOptions(day.admin);
     expect(options.sellers.map((s) => s.id)).toContain(day.seller.account.id);
     expect(options.vehicles.map((v) => v.id)).toContain(day.vehicle.id);
+  });
+});
+
+/**
+ * Two invoices of a seller's book before the app, in January: three Okra bags (270.00) and two packs of a seed the
+ * catalogue does not carry (100.00); then one bag at 90.00 with 5.00 off the invoice. Synthetic, like every test.
+ */
+async function aSellersBook() {
+  const admin = await ctxFor(await anAccount('ADMIN'));
+  const setup = await aSellingSeller(admin);
+  const written = { storeId: setup.store.id, sellerId: setup.seller.account.id, book: 'Seller Invoices.xlsx', storeNameWritten: 'A Store' };
+  await inTx(admin, async (tx) => {
+    const { id } = await openImportBatch(tx, admin, { files: [{ name: 'Seller Invoices.xlsx', sha256: 'c'.repeat(64), bytes: 1000 }] });
+    await recordImportedSale(tx, admin, id, { ...written, soldOn: '2026-01-15', bookRow: 5, serial: 1, lines: [
+      { item: 'Okra', skuId: setup.bag.id, packs: '3', unitPrice: '90.00', amount: '270.00' },
+      { item: 'A seed nobody stocks', packs: '2', unitPrice: '50.00', amount: '100.00' },
+    ] });
+    await recordImportedSale(tx, admin, id, { ...written, soldOn: '2026-01-20', bookRow: 9, serial: 2, discount: '5.00', lines: [
+      { item: 'Okra', skuId: setup.bag.id, packs: '1', unitPrice: '90.00', amount: '90.00' },
+    ] });
+  });
+  return { ...setup, admin, january: { from: '2026-01-01', to: '2026-01-31', sellerId: setup.seller.account.id } };
+}
+
+describe('imported sales in the analytics (IMP-007)', () => {
+  it("IMP-007: imported sales count in the sales analytics, as a channel of their own, net of each invoice's discount", async () => {
+    const book = await aSellersBook();
+    const view = await salesAnalytics(book.admin, book.january);
+    expect(view.totals).toMatchObject({ sold: '455.00', returned: '0.00', net: '455.00', sales: 2, packs: 6 });
+    expect(view.channels).toEqual({ VEHICLE: '0.00', DISPATCH: '0.00', IMPORTED: '455.00' });
+    expect(view.series.filter((p) => p.sales > 0).map((p) => [p.period, p.net])).toEqual([['2026-01-15', '370.00'], ['2026-01-20', '85.00']]);
+    expect(view.bySeller.map((r) => [r.id, r.net])).toEqual([[book.seller.account.id, '455.00']]);
+    expect(view.byStore.map((r) => [r.id, r.net])).toEqual([[book.store.id, '455.00']]);
+    // The bag's two lines, the second less its invoice's 5.00; the line naming no catalogue product, a row of its own.
+    expect(view.byProduct.map((r) => [r.id, r.net])).toEqual([[book.product.id, '355.00'], [IMPORTED_UNMATCHED_KEY, '100.00']]);
+  });
+
+  it('IMP-007: a filter hides them — or shows them alone — and a vehicle or product cut applies to them too', async () => {
+    const book = await aSellersBook();
+    expect((await salesAnalytics(book.admin, { ...book.january, channel: 'APP' })).totals.sold).toBe('0.00');
+    expect((await salesAnalytics(book.admin, { ...book.january, channel: 'IMPORTED' })).totals.sold).toBe('455.00');
+    expect((await salesAnalytics(book.admin, { ...book.january, channel: 'VEHICLE' })).totals.sold).toBe('0.00');
+    expect((await salesAnalytics(book.admin, { ...book.january, productId: book.product.id })).totals).toMatchObject({ sold: '355.00', sales: 2 });
+    expect((await salesAnalytics(book.admin, { ...book.january, vehicleId: book.vehicle.id })).totals.sold).toBe('0.00');
+  });
+
+  it("IMP-006: imported sales never count towards a seller's performance", async () => {
+    const book = await aSellersBook();
+    const range = analyticsRange(book.january.from, book.january.to);
+    expect((await salesBySeller(getDb(), range, book.seller.account.id)).get(book.seller.account.id)).toBeUndefined();
   });
 });
