@@ -103,7 +103,8 @@
     "targets": "Targets",
     "reports": "Reports",
     "riyadh": "Riyadh",
-    "riyadhHint": "Every time in the app is Riyadh time."
+    "riyadhHint": "Every time in the app is Riyadh time.",
+    "corrections": "Corrections"
   },
   "dashboard": {
     "welcome": "Welcome, {name}",
@@ -471,7 +472,8 @@
       "set_limits": "Cash-in-hand and vehicle stock ceilings",
       "view_audit_log": "View the audit log",
       "manage_storage": "How long files are kept, and storage use",
-      "keep_files": "Keep a single file forever"
+      "keep_files": "Keep a single file forever",
+      "correct_history": "Correct history, inside a correction session"
     },
     "catalogue": {
       "view": "View the catalogue",
@@ -701,7 +703,10 @@
     "RANGE_TOO_LONG": "A period can be a year at most.",
     "OPEN_SALE_PAID_IN_FULL": "An open sale is paid in full as it is made — take the whole total.",
     "OPEN_SALE_NOT_RETURNABLE": "An open sale cannot be returned.",
-    "OPEN_SALE_NEEDS_APPROVAL": "This open sale needs approval. Give a reason to ask for it."
+    "OPEN_SALE_NEEDS_APPROVAL": "This open sale needs approval. Give a reason to ask for it.",
+    "WRONG_PASSWORD": "That password isn't right.",
+    "CORRECTION_SESSION_OPEN": "You already have a correction session. Close it first.",
+    "NO_CORRECTION_SESSION": "Open a correction session first. History can be corrected only inside one."
   },
   "format": {
     "grams": "{value} g",
@@ -2637,6 +2642,64 @@
       "hide": "Hide imported sales",
       "notInCatalogue": "Not in the catalogue",
       "notListed": "Imported sales are not listed here: they were never made in the app."
+    }
+  },
+  "corrections": {
+    "title": "Corrections",
+    "subtitle": "Every correction session: who opened it, when, and why.",
+    "settings": {
+      "title": "Correct history",
+      "hint": "Off unless you open a correction session. Inside it, you alone can correct history, for one hour. Every change is logged against the reason you give.",
+      "off": "Off. Nobody can correct history now.",
+      "open": "Open a correction session",
+      "password": "Your password",
+      "reason": "Why you are opening it",
+      "reasonHint": "Be specific: which store, bill or payment, and what is wrong. A vague reason makes every change in this session hard to explain later.",
+      "warning": "While it is open, Admins and Managers see that you are correcting history.",
+      "submit": "Open the session",
+      "isOpen": "On until {time}.",
+      "ended": "Ended at {time}. Settle its reason to close it.",
+      "cancel": "Cancel",
+      "close": "Close the session"
+    },
+    "banner": {
+      "mine": "Correction session {number} is open until {time}. Reason: {reason}",
+      "ended": "Your correction session {number} ended at {time}. Settle its reason to close it.",
+      "others": "{name} is correcting history until {time}.",
+      "close": "Close the session"
+    },
+    "close": {
+      "title": "Close correction session {number}",
+      "reason": "The reason given when it opened",
+      "KEPT": "Keep the reason",
+      "ADDED": "Add to it",
+      "EDITED": "Edit it",
+      "addText": "What to add",
+      "editText": "The corrected reason",
+      "editHint": "The original stays on record, struck through.",
+      "submit": "Close the session",
+      "cancel": "Cancel"
+    },
+    "list": {
+      "number": "No.",
+      "by": "Opened by",
+      "opened": "Opened",
+      "ended": "Ended",
+      "reason": "Reason",
+      "state": "State",
+      "empty": "No correction sessions yet.",
+      "more": "Show more",
+      "states": {
+        "OPEN": "Open",
+        "ENDED": "Waiting for its reason",
+        "CLOSED": "Closed"
+      },
+      "endedBy": {
+        "CLOSED": "closed",
+        "HOUR": "after its hour"
+      },
+      "added": "Added when closed:",
+      "edited": "Edited when closed:"
     }
   }
 }

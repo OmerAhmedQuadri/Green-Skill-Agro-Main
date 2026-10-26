@@ -7,7 +7,7 @@ import type { PermissionCode } from '@gsa/core';
  */
 export type NavIcon =
   | 'dashboard' | 'users' | 'catalogue' | 'vendors' | 'pricing' | 'settings' | 'purchaseOrders' | 'incoming' | 'stock' | 'writeOffs' | 'expiry'
-  | 'vehicles' | 'attendance' | 'closingStock' | 'stores' | 'sales' | 'dispatch' | 'cash' | 'audits' | 'targets' | 'reports' | 'auditLog' | 'storage';
+  | 'vehicles' | 'attendance' | 'closingStock' | 'stores' | 'sales' | 'dispatch' | 'cash' | 'audits' | 'targets' | 'reports' | 'auditLog' | 'storage' | 'corrections';
 type Can = (p: ReadonlySet<PermissionCode>) => boolean;
 type NavItem = { href: string; key: NavIcon; icon: NavIcon; visible: Can };
 
@@ -36,8 +36,10 @@ export const canSeeReports = any('reports.view_trends', 'reports.view_forecast')
 export const canSeeAuditLog = any('system.view_audit_log');
 /** ADR-0049: the Super Admin's alone. */
 export const canSeeStorage = any('system.manage_storage');
-// ADR-0052: a manager given the open-sales switch finds it under Settings.
-export const canSeeSettings = any('system.configure', 'system.manage_templates', 'system.set_limits', 'returns.set_rules', 'targets.manage', 'sales.manage_open_sales');
+/** ADR-0059: the sessions in which history was corrected — beside the audit log. */
+export const canSeeCorrections = any('system.correct_history', 'system.view_audit_log');
+// ADR-0052: a manager given the open-sales switch finds it under Settings. ADR-0059: so does correcting history.
+export const canSeeSettings = any('system.configure', 'system.manage_templates', 'system.set_limits', 'returns.set_rules', 'targets.manage', 'sales.manage_open_sales', 'system.correct_history');
 
 export const CONSOLE_NAV: readonly NavItem[] = [
   { href: '/console/dashboard', key: 'dashboard', icon: 'dashboard', visible: () => true },
@@ -62,5 +64,6 @@ export const CONSOLE_NAV: readonly NavItem[] = [
   { href: '/console/users', key: 'users', icon: 'users', visible: canAdministerUsers },
   { href: '/console/settings', key: 'settings', icon: 'settings', visible: canSeeSettings },
   { href: '/console/storage', key: 'storage', icon: 'storage', visible: canSeeStorage },
+  { href: '/console/corrections', key: 'corrections', icon: 'corrections', visible: canSeeCorrections },
   { href: '/console/audit-log', key: 'auditLog', icon: 'auditLog', visible: canSeeAuditLog },
 ];

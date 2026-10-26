@@ -11,6 +11,7 @@ export default async function Page() {
     <SettingsPage can={{
       configure: p.has('system.configure'), templates: p.has('system.manage_templates'), limits: p.has('system.set_limits'),
       returns: p.has('returns.set_rules'), commission: p.has('targets.manage'), openSales: p.has('sales.manage_open_sales'),
+      corrections: p.has('system.correct_history'),
     }} />
   );
 }

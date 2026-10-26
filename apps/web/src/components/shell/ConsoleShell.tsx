@@ -1,11 +1,12 @@
 'use client';
 
-import { Banknote, ChartColumn, ListChecks, Target, CalendarCheck, CalendarClock, Car, ClipboardCheck, ClipboardList, HardDrive, History, LayoutDashboard, Menu, Package, PackageOpen, PackageX, Receipt, Settings, Ship, Store, Tag, Truck, Users, Warehouse, X } from 'lucide-react';
+import { Banknote, ChartColumn, ListChecks, Target, CalendarCheck, CalendarClock, Car, ClipboardCheck, ClipboardList, FilePen, HardDrive, History, LayoutDashboard, Menu, Package, PackageOpen, PackageX, Receipt, Settings, Ship, Store, Tag, Truck, Users, Warehouse, X } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Button, cn } from '@gsa/ui';
+import { CorrectionBanner } from '@/components/corrections/CorrectionBanner';
 import type { NavIcon } from '@/lib/navigation';
 import { BrandMark } from './BrandMark';
 import { LocaleSwitch } from './LocaleSwitch';
@@ -16,7 +17,7 @@ import { SignOutButton } from './SignOutButton';
 const ICONS = {
   dashboard: LayoutDashboard, users: Users, catalogue: Package, vendors: Truck, pricing: Tag, settings: Settings,
   purchaseOrders: ClipboardList, incoming: Ship, stock: Warehouse, writeOffs: PackageX, expiry: CalendarClock,
-  vehicles: Car, attendance: CalendarCheck, closingStock: ClipboardCheck, stores: Store, sales: Receipt, dispatch: PackageOpen, cash: Banknote, audits: ListChecks, targets: Target, reports: ChartColumn, auditLog: History, storage: HardDrive,
+  vehicles: Car, attendance: CalendarCheck, closingStock: ClipboardCheck, stores: Store, sales: Receipt, dispatch: PackageOpen, cash: Banknote, audits: ListChecks, targets: Target, reports: ChartColumn, auditLog: History, storage: HardDrive, corrections: FilePen,
 } satisfies Record<NavIcon, unknown>;
 
 type Props = { items: { href: string; label: string; icon: NavIcon }[]; user: { name: string; role: string }; children: ReactNode };
@@ -105,7 +106,10 @@ export function ConsoleShell({ items, user, children }: Props) {
         </div>
       ) : null}
 
-      <main className="min-w-0 flex-1 p-4 sm:p-6 lg:p-8">{children}</main>
+      <main className="min-w-0 flex-1 p-4 sm:p-6 lg:p-8">
+        <CorrectionBanner />
+        {children}
+      </main>
     </div>
   );
 }
