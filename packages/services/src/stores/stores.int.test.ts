@@ -29,7 +29,7 @@ describe('onboarding (workflow H, STO-001..010)', () => {
       status: 'PENDING_APPROVAL', seller: { id: seller.account.id },
     });
     expect(store.storefrontMediaId).toBeTruthy();
-    expect(store.location.lat).toBeGreaterThan(SHOP.lat);
+    expect(store.location?.lat).toBeGreaterThan(SHOP.lat);
     const other = await aSeller();
     const theirs = await aPhoto(other.ctx, 'STOREFRONT');
     expect(await code(aStore(seller.ctx, { storefrontPhotoId: theirs }))).toBe('EVIDENCE_REQUIRED');

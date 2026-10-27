@@ -51,6 +51,20 @@ export function LedgerTable({ entries, compact = false, area = 'console', onCorr
             </Cell>
             <Cell>
               {href ? <Link href={href} className="font-medium text-brand-800 hover:underline">{label}</Link> : label}
+              {/* IMP-003: an entry from Green Agro's books says so, and where it was written. */}
+              {e.imported ? (
+                <div className="mt-1 space-y-0.5" data-testid="ledger-imported">
+                  <Badge tone="neutral">{t('importedBadge')}</Badge>
+                  {/* Where it was written is for the console; on the phone the label says enough. */}
+                  {e.imported.book && !compact ? (
+                    <div className="text-xs text-stone-500">
+                      {e.imported.serial ? t('importedSourceSale', { book: e.imported.book, row: e.imported.row ?? 0, serial: e.imported.serial, batch: e.imported.batch })
+                        : e.imported.voucherNumber ? t('importedSourceVoucher', { book: e.imported.book, row: e.imported.row ?? 0, number: e.imported.voucherNumber, batch: e.imported.batch })
+                        : t('importedSource', { book: e.imported.book, row: e.imported.row ?? 0, batch: e.imported.batch })}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
               {e.correctionOf ? <div className="mt-1"><Badge tone="warning" title={e.correctionOf.reason}>{tc('ledger.corrected', { number: e.correctionOf.number })}</Badge></div> : null}
               {e.correctionOf?.movedFrom ? <div className="text-xs text-stone-500">{tc('ledger.movedFrom', { store: e.correctionOf.movedFrom })}</div> : null}
               {e.replacedBy ? (

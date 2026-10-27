@@ -195,13 +195,14 @@ export function decideDiscount(
  * their way count against it, whichever channel the new sale comes by.
  */
 export function assertSaleCredit(
-  credit: CreditStatus, mode: CreditMode, total: Money,
+  credit: CreditStatus, mode: CreditMode | null, total: Money,
   opts: {
     /** ADR-0038: orders waiting for delivery, less any being confirmed now. All of them unless said. */ readonly committed?: Money | undefined;
     /** ADR-0047: what the store pays with this sale. */ readonly paidNow?: Money | undefined;
   } = {},
 ): { readonly usesOverride: boolean } {
-  const store = credit.reasons.filter((r) => r.code === 'NOT_APPROVED' || r.code === 'REJECTED' || r.code === 'INACTIVE');
+  // IMP-008: a store awaiting re-verification cannot trade, and no override lifts that.
+  const store = credit.reasons.filter((r) => r.code === 'NOT_APPROVED' || r.code === 'REJECTED' || r.code === 'INACTIVE' || r.code === 'NOT_VERIFIED');
   if (store.length > 0) throw new DomainError('STORE_NOT_ACTIVE', { reasons: store });
   const committed = opts.committed ?? credit.committed;
   const paidNow = dec(opts.paidNow ?? '0');

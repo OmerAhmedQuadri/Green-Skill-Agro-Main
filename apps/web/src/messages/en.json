@@ -713,7 +713,9 @@
     "ALREADY_CORRECTED": "This entry has been corrected already. Correct the corrected entry instead.",
     "CORRECTION_LEAVES_CREDIT": "The store has paid towards this and owes nothing else to put that money towards. Correct the payment first.",
     "CORRECTION_EXCEEDS_CASH_IN_HAND": "The collector doesn't hold that much cash. Correct the store's account only, and settle the cash separately.",
-    "TRANSFER_NOT_DECIDED": "Check this bank transfer first (confirmed or not received), then correct it."
+    "TRANSFER_NOT_DECIDED": "Check this bank transfer first (confirmed or not received), then correct it.",
+    "IMPORTED_BALANCE_CHANGED": "What the books say for this store has changed. Show the store the new balance.",
+    "IMPORTED_HISTORY_IN_CREDIT": "The books show this store paid more than it was billed. Ask the Super Admin to check them."
   },
   "format": {
     "grams": "{value} g",
@@ -1505,7 +1507,8 @@
       "OPEN_SALE_APPROVED": "Your open sale of {total} SAR was approved — complete it, paid in full.",
       "OPEN_SALE_REJECTED": "Your open sale of {total} SAR was rejected.",
       "OPEN_SALE_EXPIRED": "Your pending open sale expired and its items were released.",
-      "TRIP_CLOSED_ON_BEHALF": "A manager took back vehicle {registration} and ended your trip at {odometer} km."
+      "TRIP_CLOSED_ON_BEHALF": "A manager took back vehicle {registration} and ended your trip at {odometer} km.",
+      "STORE_BALANCE_DISPUTED": "{name} disputes its balance from the books, {amount}: {note}"
     },
     "resolvedLine": "{outcome} · {time}",
     "resolved": {
@@ -1802,7 +1805,8 @@
       "PAST_DUE": "{amount} past due since {date}",
       "OVER_LIMIT": "Owes {outstanding}, over the limit of {limit}",
       "UNPAID_BILL": "An earlier bill of {amount} is unpaid — bill to bill takes no new bill until it is cleared",
-      "DISPATCH_PENDING": "An order of {amount} is still on its way from the warehouse — it is a bill of its own"
+      "DISPATCH_PENDING": "An order of {amount} is still on its way from the warehouse — it is a bill of its own",
+      "NOT_VERIFIED": "Imported from the books — its seller re-verifies it before its first sale"
     },
     "reassign": "Reassign",
     "reassignTo": "Reassign to",
@@ -1822,7 +1826,8 @@
       "PENDING_APPROVAL": "Waiting for approval",
       "ACTIVE": "Active",
       "REJECTED": "Rejected",
-      "INACTIVE": "Inactive"
+      "INACTIVE": "Inactive",
+      "AWAITING_REVERIFICATION": "Awaiting re-verification"
     },
     "stillOwed": "Still owed",
     "storefront": "Storefront photo",
@@ -1871,7 +1876,34 @@
       "fullHintExact": "The total, {total}.",
       "partTooMuch": "Part means less than the total, {total}. To pay it all, choose In full now.",
       "fullTooLittle": "In full means at least the total, {total}. To pay less, choose Part now."
-    }
+    },
+    "reverifyTitle": "Re-verify {name}",
+    "reverifyAction": "Re-verify this store",
+    "reverifyHint": "This store came from the books. Before its first sale, fill in its details and show the owner what the books say it owes.",
+    "importedTitle": "What the books say",
+    "importedBills": "Bills",
+    "importedPayments": "Payments",
+    "importedBill": "Invoice {serial}, {date}",
+    "importedPaymentVoucher": "{date}, voucher {voucher}",
+    "importedPaymentNoVoucher": "{date}, no voucher",
+    "importedBalance": "Balance from the books",
+    "importedNothing": "The books show nothing for this store.",
+    "balanceQuestion": "Does the store agree with this balance?",
+    "AGREED": "The store agrees",
+    "DISPUTED": "The store disputes it",
+    "disputeNote": "What the store says",
+    "disputeHint": "The Super Admin is told, and checks the books.",
+    "reverify": "Re-verify the store",
+    "reverifiedTitle": "Re-verified",
+    "reverifiedLine": "Re-verified by {name} on {date}; the books came to {amount}.",
+    "agreedLine": "The store agreed.",
+    "disputedLine": "The store disputed it: {note}",
+    "importedBadge": "Imported",
+    "awaitingBalance": "Awaiting re-verification — the books come to {amount}.",
+    "importedSource": "{book}, row {row} · import {batch}",
+    "balanceShown": "Balance from the books: {amount}",
+    "importedSourceSale": "{book}, row {row}, invoice {serial} · import {batch}",
+    "importedSourceVoucher": "{book}, row {row}, voucher {number} · import {batch}"
   },
   "sales": {
     "title": "Sales",
@@ -2766,6 +2798,25 @@
       "cashInHand": "Cash in hand corrected too",
       "empty": "No corrections yet.",
       "more": "Show more"
+    },
+    "unassigned": {
+      "title": "Payments nobody could place",
+      "hint": "From the voucher books, with a store name that matches no store. Attach each to its store in a correction session.",
+      "date": "Date",
+      "amount": "Amount",
+      "voucher": "Voucher",
+      "written": "Name written",
+      "seller": "Seller",
+      "book": "Book",
+      "attach": "Attach to a store",
+      "store": "Store",
+      "reason": "Reason",
+      "confirm": "Attach",
+      "cancel": "Cancel",
+      "empty": "None.",
+      "attached": "Attached.",
+      "needSession": "Open a correction session to attach them.",
+      "bookRow": "{book}, row {row}"
     }
   }
 }

@@ -149,7 +149,9 @@ export type ErrorCode =
   | 'ALREADY_CORRECTED'
   | 'CORRECTION_LEAVES_CREDIT'
   | 'CORRECTION_EXCEEDS_CASH_IN_HAND'
-  | 'TRANSFER_NOT_DECIDED';
+  | 'TRANSFER_NOT_DECIDED'
+  | 'IMPORTED_BALANCE_CHANGED'
+  | 'IMPORTED_HISTORY_IN_CREDIT';
 
 export class DomainError extends Error {
   readonly code: ErrorCode;

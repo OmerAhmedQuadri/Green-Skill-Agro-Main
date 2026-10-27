@@ -8,7 +8,7 @@ import { cashInHand, postCashCorrection } from '../cash';
 import { authorize, authorizeAny, type Ctx } from '../context';
 import { audit, inTx, mapUniqueViolations, pageLimit, type Executor, type Tx } from '../platform';
 import { getDb } from '../runtime';
-import { creditStatuses, lockStoreLedgers, postStoreCredit, postStoreDebit, reinstateSettled } from '../stores';
+import { assertVoucherNotInBooks, creditStatuses, lockStoreLedgers, postStoreCredit, postStoreDebit, reinstateSettled } from '../stores';
 import { readSettings } from '../system';
 import { requireCorrectionSession } from './sessions';
 
@@ -159,6 +159,7 @@ async function apply(
     await reinstateSettled(tx, ctx, { storeId: original.storeId, creditEntryId: entryId, referenceType: 'CORRECTION_REVERSAL', referenceId: id, note: null, ...posted });
     await tx.update(payments).set({ supersededBy: id }).where(eq(payments.id, payment.id));
     if (after) {
+      if (after.voucherNumber && after.voucherNumber !== original.voucherNumber) await assertVoucherNotInBooks(tx, after.voucherNumber);
       const paymentId = newId();
       const receivedAt = onDate(payment.receivedAt, original.date, after.date);
       const { entryId: creditId } = await placed(after.storeId, postStoreCredit(tx, ctx, {
@@ -227,8 +228,10 @@ async function placed<T>(storeId: string, work: Promise<T>): Promise<T> {
 
 /** A corrected bill's due date, by its store's credit terms from its own date (ADR-0036). */
 async function dueOnFor(tx: Tx, storeId: string, date: string): Promise<string> {
-  const [store] = await tx.select({ mode: stores.creditMode, days: stores.creditCycleDays }).from(stores).where(eq(stores.id, storeId));
+  const [store] = await tx.select({ mode: stores.creditMode, days: stores.creditCycleDays, status: stores.status }).from(stores).where(eq(stores.id, storeId));
   if (!store) throw new DomainError('NOT_FOUND', { entity: 'store', id: storeId });
+  // IMP-008: a store awaiting re-verification has no terms yet; its history goes into its account when it gets them.
+  if (!store.mode) throw new DomainError('STORE_NOT_ACTIVE', { status: store.status });
   return dueDateFor(store.mode, store.days, date, (await readSettings(tx))['credit.week_closes_on']);
 }
 

@@ -41,7 +41,7 @@ export type DispatchItem = {
 };
 
 export type DispatchOptions = {
-  readonly store: { readonly id: string; readonly name: string; readonly status: StoreStatus; readonly creditMode: CreditMode; readonly credit: CreditStatus };
+  readonly store: { readonly id: string; readonly name: string; readonly status: StoreStatus; readonly creditMode: CreditMode | null; readonly credit: CreditStatus };
   readonly seller: { readonly id: string; readonly name: string } | null;
   readonly notWorking: ErrorCode | null;
   readonly items: readonly DispatchItem[];

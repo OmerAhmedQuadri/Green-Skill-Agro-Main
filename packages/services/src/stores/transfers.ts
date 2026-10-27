@@ -19,8 +19,9 @@ export type AwaitingTransfer = {
 };
 
 /** A store's bank transfer nobody has decided on yet. */
-// COR-005: a payment a correction replaced no longer stands; its corrected payment does.
-const awaiting = and(eq(payments.method, 'BANK_TRANSFER'), isNull(transferDecisions.id), isNull(payments.supersededBy));
+// COR-005: a payment a correction replaced no longer stands; its corrected payment does. IMP-006: a transfer from the
+// books arrived long ago — nobody checks it again.
+const awaiting = and(eq(payments.method, 'BANK_TRANSFER'), isNull(transferDecisions.id), isNull(payments.supersededBy), eq(payments.origin, 'APP'));
 
 /**
  * ADR-0046: the bank transfers nobody has checked yet, oldest first — the list

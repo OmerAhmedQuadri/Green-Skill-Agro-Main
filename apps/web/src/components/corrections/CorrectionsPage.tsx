@@ -1,15 +1,16 @@
 'use client';
 
-import { useInfiniteQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
-import { Alert, Badge, Button, Card } from '@gsa/ui';
+import { useState } from 'react';
+import { Alert, Badge, Button, Card, Field, Select, Textarea } from '@gsa/ui';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Cell, Table } from '@/components/common/Table';
 import { api } from '@/lib/api';
 import { useFormat } from '@/lib/format';
-import { useErrorText } from '@/lib/hooks';
+import { useCommand, useErrorText } from '@/lib/hooks';
 import { keys } from '@/lib/query-keys';
-import type { CorrectionSession } from './status';
+import { useCorrectionStatus, type CorrectionSession } from './status';
 
 type Values = { amount: string; date: string; storeId: string; voucherNumber: string | null };
 type StoreCorrection = {
@@ -37,6 +38,7 @@ export function CorrectionsPage() {
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <PageHeader title={t('title')} subtitle={t('subtitle')} />
+      <Unassigned />
       <Changes />
       <h2 className="text-base font-semibold text-stone-900">{t('changes.sessions')}</h2>
       <Card>
@@ -135,6 +137,86 @@ function Changes() {
           <div className="border-t border-stone-200 p-4">
             <Button variant="secondary" onClick={() => void list.fetchNextPage()} disabled={list.isFetchingNextPage}>{t('more')}</Button>
           </div>
+        ) : null}
+      </Card>
+    </>
+  );
+}
+
+type Unplaced = {
+  id: string; paidOn: string; amount: string; method: 'CASH' | 'BANK_TRANSFER'; voucherNumber: string | null;
+  book: string; bookRow: number; storeNameWritten: string; seller: string;
+};
+
+/** IMP-009, COR-005: imported payments nobody could place, attached to their store in a correction session. */
+function Unassigned() {
+  const t = useTranslations('corrections.unassigned');
+  const format = useFormat();
+  const errorText = useErrorText();
+  const queryClient = useQueryClient();
+  const status = useCorrectionStatus();
+  const sessionOpen = status.data?.mine?.state === 'OPEN';
+  const list = useQuery({ queryKey: keys.unassignedPayments, queryFn: () => api<Unplaced[]>('/corrections/imported-payments') });
+  const stores = useQuery({ queryKey: keys.stores(), queryFn: () => api<{ id: string; name: string }[]>('/stores'), enabled: sessionOpen });
+  const [attaching, setAttaching] = useState<string | null>(null);
+  const [storeId, setStoreId] = useState('');
+  const [reason, setReason] = useState('');
+  const [attached, setAttached] = useState(false);
+  const attach = useCommand((body: { id: string; storeId: string; reason: string }, key) =>
+    api(`/corrections/imported-payments/${body.id}/attach`, { method: 'POST', body: { storeId: body.storeId, reason: body.reason }, idempotencyKey: key }), {
+    onSuccess: () => {
+      for (const k of [keys.unassignedPayments, keys.stores(), keys.store(storeId), keys.storeLedger(storeId), keys.storeImported(storeId)]) {
+        void queryClient.invalidateQueries({ queryKey: k });
+      }
+      setAttaching(null); setStoreId(''); setReason(''); setAttached(true);
+    },
+  });
+  const rows = list.data ?? [];
+
+  return (
+    <>
+      <h2 className="text-base font-semibold text-stone-900">{t('title')}</h2>
+      <Card data-testid="unassigned-payments">
+        <p className="border-b border-stone-200 px-5 py-3 text-sm text-stone-600">{t('hint')}</p>
+        {list.error ? <div className="p-4"><Alert>{errorText(list.error)}</Alert></div> : null}
+        {attached ? <div className="p-4"><Alert tone="success">{t('attached')}</Alert></div> : null}
+        {list.data && rows.length === 0 ? <p className="p-5 text-sm text-stone-500">{t('empty')}</p> : null}
+        {rows.length > 0 && !sessionOpen ? <p className="px-5 py-3 text-xs text-stone-500">{t('needSession')}</p> : null}
+        {rows.length > 0 ? (
+          <Table head={[t('date'), t('amount'), t('voucher'), t('written'), t('seller'), t('book'), '']}>
+            {rows.map((p) => (
+              <tr key={p.id} data-testid={`unassigned-${p.id}`}>
+                <Cell className="whitespace-nowrap">{format.date(p.paidOn)}</Cell>
+                <Cell className="tabular-nums">{format.money(p.amount)}</Cell>
+                <Cell>{p.voucherNumber ? <bdi dir="ltr">{p.voucherNumber}</bdi> : '—'}</Cell>
+                <Cell>{p.storeNameWritten}</Cell>
+                <Cell>{p.seller}</Cell>
+                <Cell className="text-xs">{t('bookRow', { book: p.book, row: p.bookRow })}</Cell>
+                <Cell className="min-w-64">
+                  {attaching === p.id ? (
+                    <div className="space-y-2">
+                      {attach.error ? <Alert>{errorText(attach.error)}</Alert> : null}
+                      <Field id={`attach-${p.id}-store`} label={t('store')}>
+                        <Select id={`attach-${p.id}-store`} value={storeId} onChange={(e) => setStoreId(e.target.value)}>
+                          <option value="" />
+                          {(stores.data ?? []).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                        </Select>
+                      </Field>
+                      <Field id={`attach-${p.id}-reason`} label={t('reason')}>
+                        <Textarea id={`attach-${p.id}-reason`} value={reason} maxLength={1000} onChange={(e) => setReason(e.target.value)} />
+                      </Field>
+                      <div className="flex gap-2">
+                        <Button size="sm" disabled={!storeId || attach.isPending} onClick={() => attach.run({ id: p.id, storeId, reason })}>{t('confirm')}</Button>
+                        <Button size="sm" variant="ghost" onClick={() => setAttaching(null)}>{t('cancel')}</Button>
+                      </div>
+                    </div>
+                  ) : sessionOpen ? (
+                    <Button size="sm" variant="secondary" onClick={() => { setAttached(false); setAttaching(p.id); setStoreId(''); setReason(''); }}>{t('attach')}</Button>
+                  ) : null}
+                </Cell>
+              </tr>
+            ))}
+          </Table>
         ) : null}
       </Card>
     </>

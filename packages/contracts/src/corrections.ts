@@ -25,3 +25,6 @@ export const StoreCorrectionPreviewQuery = z.object({
   amount: MoneyString.optional(), date: z.string().trim().max(10).optional(), storeId: z.uuid().optional(),
   voucherNumber: z.string().trim().max(60).optional(), remove: QueryBoolean.optional(), cashInHand: QueryBoolean.optional(),
 });
+
+/** COR-005, IMP-009: the store an imported payment nobody could place belongs to, and why. */
+export const AttachImportedPaymentRequest = z.object({ storeId: z.uuid(), reason: z.string().max(1000) });

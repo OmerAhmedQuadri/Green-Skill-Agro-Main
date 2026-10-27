@@ -7,3 +7,7 @@ export { loadWorkbook, type LoadResult, type Loaded, type NewAccount, type Refus
 export { cleansingReport, type ReportInput } from './report';
 export { EXAMPLE_FILL, exampleRows } from './styles';
 export { verificationReport, type VerificationInput } from './verify';
+export {
+  openImportBatch, recordImportedStore, recordImportedSale, recordImportedPayment,
+  type ImportFile, type ImportedSaleInput, type ImportedPaymentInput,
+} from './history';

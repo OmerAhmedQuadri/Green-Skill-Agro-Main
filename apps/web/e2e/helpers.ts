@@ -109,7 +109,7 @@ export async function freshSeller(browser: Browser, admin: Page, origin: string,
     headers: { origin }, data: { currentPassword: created.temporaryPassword, newPassword: `${PASSWORD}-${Date.now()}` },
   });
   expect(changed.status(), 'fresh seller sets a password').toBe(204);
-  return { id: created.account.id, name, page: await context.newPage() };
+  return { id: created.account.id, name, email, page: await context.newPage() };
 }
 
 /** A vehicle with a unique registration, created through the API. */

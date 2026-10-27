@@ -265,7 +265,7 @@ export async function dashboardMoney(ctx: Ctx, filter: { from: string; to: strin
       ? await db.select({ count: sql<number>`count(*)::int`, amount: sql<string>`coalesce(sum(${payments.amount}), 0)::numeric(14,2)::text` }).from(payments)
         .leftJoin(transferDecisions, eq(transferDecisions.paymentId, payments.id))
         .where(and(
-          eq(payments.method, 'BANK_TRANSFER'), isNull(transferDecisions.id), isNull(payments.supersededBy),
+          eq(payments.method, 'BANK_TRANSFER'), isNull(transferDecisions.id), isNull(payments.supersededBy), eq(payments.origin, 'APP'),
           filter.sellerId ? eq(payments.receivedBy, filter.sellerId) : undefined, filter.storeId ? eq(payments.storeId, filter.storeId) : undefined,
         ))
       : [];

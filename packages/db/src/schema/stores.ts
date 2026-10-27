@@ -10,7 +10,8 @@ import { branches } from './organisation';
 import { priceLists } from './pricing';
 
 // Mirror packages/core/src/stores.
-export const storeStatus = pgEnum('store_status', ['PENDING_APPROVAL', 'ACTIVE', 'REJECTED', 'INACTIVE']);
+export const storeStatus = pgEnum('store_status', ['PENDING_APPROVAL', 'ACTIVE', 'REJECTED', 'INACTIVE', 'AWAITING_REVERIFICATION']);
+export const balanceConfirmation = pgEnum('balance_confirmation', ['AGREED', 'DISPUTED']);
 export const creditMode = pgEnum('credit_mode', ['BILL_TO_BILL', 'WEEKLY', 'MONTHLY', 'CUSTOM']);
 export const storeLedgerEntryType = pgEnum('store_ledger_entry_type', ['SALE', 'PAYMENT', 'CREDIT_NOTE', 'ADJUSTMENT']);
 export const paymentMethod = pgEnum('payment_method', ['CASH', 'BANK_TRANSFER']);
@@ -32,16 +33,17 @@ export const stores = pgTable(
     /** DOC-009 (ADR-0053): GSA-S-0001…, the Customer ID its delivery documents carry. */
     code: text('code').notNull().unique(),
     name: text('name').notNull(),
-    ownerName: text('owner_name').notNull(),
-    contactNumber: text('contact_number').notNull(),
+    // IMP-008: owner, phone, location and terms are empty only while an imported store awaits re-verification.
+    ownerName: text('owner_name'),
+    contactNumber: text('contact_number'),
     category: text('category'),
-    latitude: numeric('latitude', { precision: 9, scale: 6 }).notNull(),   // STO-003, captured automatically
-    longitude: numeric('longitude', { precision: 9, scale: 6 }).notNull(),
+    latitude: numeric('latitude', { precision: 9, scale: 6 }),   // STO-003, captured automatically
+    longitude: numeric('longitude', { precision: 9, scale: 6 }),
     address: text('address'),
     crNumber: text('cr_number'),                // STO-004: all three optional
     vatNumber: text('vat_number'),
     nationalAddress: text('national_address'),
-    creditMode: creditMode('credit_mode').notNull(),
+    creditMode: creditMode('credit_mode'),
     creditCycleDays: integer('credit_cycle_days'),  // CUSTOM only
     creditLimit: money('credit_limit').notNull().default('0'),
     priceListId: uuid('price_list_id').notNull().references(() => priceLists.id),
@@ -50,11 +52,17 @@ export const stores = pgTable(
     decidedAt: timestamptz('decided_at'),
     decidedBy: uuid('decided_by').references(() => users.id),
     decisionReason: text('decision_reason'),
+    /** IMP-008: imported from Green Agro's books in this batch, rather than onboarded in the app. */
+    importBatchId: uuid('import_batch_id').references(() => importBatches.id),
     branchId: uuid('branch_id').notNull().references(() => branches.id),
     ...mutable(),
   },
   (t) => [
     index('stores_location_idx').on(t.latitude, t.longitude), // STO-008: the candidate box
+    index('stores_import_batch_id_idx').on(t.importBatchId),
+    // Written without naming AWAITING_REVERIFICATION, which this migration adds: every other status has the details.
+    check('stores_details', sql`${t.status} not in ('PENDING_APPROVAL', 'ACTIVE', 'REJECTED', 'INACTIVE') or (${t.ownerName} is not null
+      and ${t.contactNumber} is not null and ${t.latitude} is not null and ${t.longitude} is not null and ${t.creditMode} is not null)`),
     index('stores_status_idx').on(t.status),
     index('stores_price_list_id_idx').on(t.priceListId),
     index('stores_storefront_media_id_idx').on(t.storefrontMediaId),
@@ -255,5 +263,30 @@ export const creditOverrides = pgTable(
   (t) => [
     uniqueIndex('credit_overrides_one_open').on(t.storeId, t.businessDate).where(sql`${t.usedAt} is null`),
     index('credit_overrides_store_id_idx').on(t.storeId),
+  ],
+);
+
+/**
+ * IMP-005, IMP-008 (ADR-0059): an imported store re-verified by its seller — the balance its books came to, shown to
+ * the store, and whether the store agreed. A dispute carries the store's words and is flagged for the Super Admin.
+ * Its imported sales and payments went into its account at this moment. Append-only.
+ */
+export const storeReverifications = pgTable(
+  'store_reverifications',
+  {
+    id: id(),
+    storeId: uuid('store_id').notNull().references(() => stores.id),
+    importedBalance: money('imported_balance').notNull(),
+    confirmation: balanceConfirmation('confirmation').notNull(),
+    disputeNote: text('dispute_note'),
+    reverifiedAt: timestamptz('reverified_at').notNull(),
+    reverifiedBy: uuid('reverified_by').notNull().references(() => users.id),
+    branchId: uuid('branch_id').notNull().references(() => branches.id),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    uniqueIndex('store_reverifications_store_unique').on(t.storeId),
+    index('store_reverifications_reverified_by_idx').on(t.reverifiedBy),
+    check('store_reverifications_dispute', sql`(${t.confirmation} = 'DISPUTED') = (${t.disputeNote} is not null)`),
   ],
 );

@@ -57,10 +57,21 @@ export function FieldStoreScreen({ id }: { id: string }) {
       <PageHeader title={s.name} back={{ href: '/field/stores', label: t('myStores') }} />
       <div className="flex flex-wrap items-center gap-2">
         <Badge tone={STATUS_TONE[s.status]}>{t(`statuses.${s.status}`)}</Badge>
-        <span className="text-sm text-stone-600">{s.ownerName}</span>
+        {s.ownerName ? <span className="text-sm text-stone-600">{s.ownerName}</span> : null}
         <bdi dir="ltr" className="text-sm text-stone-600" data-testid="customer-id">{s.code}</bdi>
-        <a href={`tel:${s.contactNumber}`} className="inline-flex items-center gap-1 text-sm text-brand-800"><Phone className="size-4" aria-hidden /><bdi dir="ltr">{s.contactNumber}</bdi></a>
+        {s.contactNumber ? (
+          <a href={`tel:${s.contactNumber}`} className="inline-flex items-center gap-1 text-sm text-brand-800"><Phone className="size-4" aria-hidden /><bdi dir="ltr">{s.contactNumber}</bdi></a>
+        ) : null}
       </div>
+      {/* IMP-008: imported from the books; the seller re-verifies it before its first sale. */}
+      {s.status === 'AWAITING_REVERIFICATION' ? (
+        <Card className="space-y-3 border-amber-300 bg-amber-50 p-4" data-testid="awaiting-reverification">
+          <p className="text-sm text-amber-900">{t('reverifyHint')}</p>
+          <Link href={`/field/stores/${id}/reverify`} className="inline-flex h-12 w-full items-center justify-center rounded-md bg-brand-800 text-base font-medium text-white">
+            {t('reverifyAction')}
+          </Link>
+        </Card>
+      ) : null}
       {s.status === 'PENDING_APPROVAL' ? <Alert tone="info">{t('waitingApproval')}</Alert> : null}
       {s.status === 'REJECTED' && s.decisionReason ? <Alert>{t('rejectedBecause', { reason: s.decisionReason })}</Alert> : null}
 
@@ -86,7 +97,7 @@ export function FieldStoreScreen({ id }: { id: string }) {
       ) : s.status === 'ACTIVE' && s.credit.outstanding !== '0.00'
         ? <Button block variant="secondary" onClick={() => setPaying(true)}>{t('collect')}</Button> : null}
 
-      <Card className="space-y-2 p-4 text-sm">
+      {s.creditMode ? <Card className="space-y-2 p-4 text-sm">
         <div className="flex items-center justify-between">
           <span className="font-semibold">{t('terms')}</span>
           {!editingCycle ? <Button size="sm" variant="ghost" onClick={() => setEditingCycle(true)}>{t('changeCycle')}</Button> : null}
@@ -109,7 +120,7 @@ export function FieldStoreScreen({ id }: { id: string }) {
             <div className="flex gap-2"><Button type="submit" size="sm" disabled={cycle.isPending}>{t('save')}</Button><Button size="sm" variant="ghost" onClick={() => setEditingCycle(false)}>{t('cancel')}</Button></div>
           </form>
         ) : null}
-      </Card>
+      </Card> : null}
 
       <Card>
         <div className="border-b border-stone-200 p-4 font-semibold">{t('ledger')}</div>
