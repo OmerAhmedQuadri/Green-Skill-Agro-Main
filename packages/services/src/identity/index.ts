@@ -1,6 +1,6 @@
 export { signIn, signOut, type SignInResult } from './sign-in';
 export { resolveSession, type RequestMeta, type ResolvedSession } from './request-context';
-export { getMe, updateMyPreferences, changeMyPassword, type Me } from './me';
+export { getMe, updateMyPreferences, changeMyPassword, isMyPassword, type Me } from './me';
 export {
   listAccounts, getAccount, createAccount, updateAccount, setAccountStatus, resetAccountPassword,
   changeAccountPermissions, applyPresetToAccount, listPresets, type AccountSummary, type AccountDetail,

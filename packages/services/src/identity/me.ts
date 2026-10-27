@@ -42,6 +42,11 @@ export async function updateMyPreferences(ctx: Ctx, input: { locale: 'en' | 'ar'
   await getDb().update(users).set({ locale: input.locale, updatedAt: ctx.now }).where(eq(users.id, ctx.user.id));
 }
 
+/** The signed-in person's password, entered again to confirm a serious step — opening a correction session (COR-001). */
+export async function isMyPassword(ctx: Ctx, password: string): Promise<boolean> {
+  return verifyPassword((await loadSelf(ctx)).passwordHash, password);
+}
+
 /**
  * Changing a password ends every other session and rotates this one
  * (SECURITY §1). Returns the new session token.

@@ -11,11 +11,15 @@ import { api } from '@/lib/api';
 import { decimalText, formText, latinDigits, wholeNumber } from '@/lib/forms';
 import { useCommand, useErrorText } from '@/lib/hooks';
 import { keys } from '@/lib/query-keys';
+import { CorrectionsSection } from '@/components/corrections/CorrectionsSection';
 import { CeilingsSection, CommissionSection } from './LimitsSections';
 import { ProductTypesSection } from './ProductTypesSection';
 import { ZonesSection } from './ZonesSection';
 
-export type SettingsCan = { configure: boolean; templates: boolean; limits: boolean; returns: boolean; commission: boolean; /** ADR-0052 */ openSales: boolean };
+export type SettingsCan = {
+  configure: boolean; templates: boolean; limits: boolean; returns: boolean; commission: boolean; /** ADR-0052 */ openSales: boolean;
+  /** ADR-0059 */ corrections: boolean;
+};
 
 export function SettingsPage({ can }: { can: SettingsCan }) {
   const t = useTranslations();
@@ -28,6 +32,7 @@ export function SettingsPage({ can }: { can: SettingsCan }) {
       {can.templates ? <ProductTypesSection /> : null}
       {can.limits ? <CeilingsSection /> : null}
       {can.commission ? <CommissionSection /> : null}
+      {can.corrections ? <CorrectionsSection /> : null}
     </div>
   );
 }

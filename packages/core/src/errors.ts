@@ -139,7 +139,10 @@ export type ErrorCode =
   | 'INVALID_PERIOD'
   | 'TARGET_EMPTY'
   | 'TARGET_NOT_POSITIVE'
-  | 'PERIOD_CLOSED';
+  | 'PERIOD_CLOSED'
+  | 'WRONG_PASSWORD'
+  | 'CORRECTION_SESSION_OPEN'
+  | 'NO_CORRECTION_SESSION';
 
 export class DomainError extends Error {
   readonly code: ErrorCode;
