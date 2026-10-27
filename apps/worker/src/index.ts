@@ -1,6 +1,6 @@
 import { loadConfig } from '@gsa/config';
 import { BUSINESS_TIME_ZONE } from '@gsa/core';
-import { attendance, cash, getMailer, media, notifications, reports, sales, system, targets } from '@gsa/services';
+import { attendance, cash, getMailer, media, notifications, reports, sales, stores, system, targets } from '@gsa/services';
 import { PgBoss } from 'pg-boss';
 import { runBackupScript } from './backup';
 import { chromiumRenderer } from './pdf';
@@ -132,9 +132,9 @@ await boss.work('reports.forecast', async () => {
   if (result.built > 0) console.log(`[worker] reports.forecast ${result.built} forecast, ${result.toOrder} to order`);
 });
 
-// ADR-0019, ADR-0037: print delivery documents from their outbox. Chromium starts with the first
-// document and stays open while more keep coming — launching is the expensive part — then closes
-// after a minute with nothing to print.
+// ADR-0019, ADR-0037: print delivery documents from their outbox, and store statements (IMP-010).
+// Chromium starts with the first document and stays open while more keep coming — launching is the
+// expensive part — then closes after a minute with nothing to print.
 const renderer = chromiumRenderer();
 const IDLE_CLOSE_MS = 60_000;
 let rendering = false;
@@ -147,6 +147,11 @@ const renderDocuments = async () => {
     if (result.rendered + result.failed > 0) {
       lastPrinted = Date.now();
       console.log(`[worker] delivery documents: ${result.rendered} ready, ${result.failed} failed`);
+    }
+    const statements = await stores.renderPendingStatements(renderer, new Date());
+    if (statements.rendered + statements.failed > 0) {
+      lastPrinted = Date.now();
+      console.log(`[worker] store statements: ${statements.rendered} ready, ${statements.failed} failed`);
     }
   } catch (error) {
     console.error('[worker] delivery document pass failed', error);

@@ -3,7 +3,7 @@ import {
   type CreditStatus, type Money, type StoreCorrectionKind, type StoreEntryValues,
 } from '@gsa/core';
 import { newId, schema } from '@gsa/db';
-import { aliasedTable, and, asc, eq, inArray, isNull, or, sql } from 'drizzle-orm';
+import { aliasedTable, and, asc, eq, inArray, isNull, lte, or, sql } from 'drizzle-orm';
 import { assertSellerWorking } from '../attendance';
 import { postCashCollection } from '../cash';
 import { authorize, authorizeAny, type Ctx } from '../context';
@@ -319,6 +319,14 @@ export async function listStoreLedger(ctx: Ctx, storeId: string): Promise<Ledger
   authorizeAny(ctx, ['stores.onboard', 'stores.view_all']);
   const db = getDb();
   await loadStore(db, ctx, storeId);
+  return storeLedger(db, storeId);
+}
+
+/**
+ * A store's ledger as `listStoreLedger` gives it — or, with `asOf`, as it stood then (IMP-010): only what was posted,
+ * settled and corrected by that moment. The ledger is only ever added to, so the past is exact.
+ */
+export async function storeLedger(db: Executor, storeId: string, asOf?: Date): Promise<LedgerEntry[]> {
   const by = aliasedTable(users, 'by');
   // ADR-0046: debt put back by a transfer that never arrived names that transfer.
   const reinstated = aliasedTable(payments, 'reinstated');
@@ -326,18 +334,19 @@ export async function listStoreLedger(ctx: Ctx, storeId: string): Promise<Ledger
     e: storeLedgerEntries, byName: by.name, paymentNumber: sql<string | null>`coalesce(${payments.number}, ${reinstated.number})`,
     voucherNumber: payments.voucherNumber, voucherPhotoId: payments.voucherPhotoId, method: payments.method, paymentCorrectionId: payments.correctionId,
     importedPaymentId: payments.importedPaymentId,
-    settled: sql<string>`coalesce((select sum(${paymentAllocations.amount}) from ${paymentAllocations} where ${paymentAllocations.debitEntryId} = ${storeLedgerEntries.id}), 0)`,
+    settled: sql<string>`coalesce((select sum(${paymentAllocations.amount}) from ${paymentAllocations} where ${paymentAllocations.debitEntryId} = ${storeLedgerEntries.id}
+      ${asOf ? sql`and ${paymentAllocations.createdAt} <= ${asOf}` : sql``}), 0)`,
   }).from(storeLedgerEntries)
     .innerJoin(by, eq(by.id, storeLedgerEntries.createdBy))
     .leftJoin(payments, eq(payments.ledgerEntryId, storeLedgerEntries.id))
     .leftJoin(reinstated, and(eq(storeLedgerEntries.referenceType, 'TRANSFER_NOT_RECEIVED'), eq(reinstated.id, storeLedgerEntries.referenceId)))
-    .where(eq(storeLedgerEntries.storeId, storeId))
+    .where(and(eq(storeLedgerEntries.storeId, storeId), asOf ? lte(storeLedgerEntries.createdAt, asOf) : undefined))
     .orderBy(asc(storeLedgerEntries.occurredAt), asc(storeLedgerEntries.id));
   const sources = await importedSources(db, rows.map((r) => ({ entry: r.e, importedPaymentId: r.importedPaymentId })));
   const corrections = await correctionsAround(db, rows.map((r) => r.e.id), rows.flatMap((r) => [
     ...(r.e.referenceType === 'CORRECTION' || r.e.referenceType === 'CORRECTION_REVERSAL' ? [r.e.referenceId] : []),
     ...(r.paymentCorrectionId ? [r.paymentCorrectionId] : []),
-  ]));
+  ]), asOf);
   let running = dec('0');
   return rows.map((r) => {
     running = running.plus(dec(r.e.amount));
@@ -416,12 +425,15 @@ type CorrectionRow = {
 };
 
 /** The corrections a store's entries were made by or replaced by, and the names of the stores they moved between. */
-async function correctionsAround(db: Executor, entryIds: readonly string[], correctionIds: readonly string[]) {
+async function correctionsAround(db: Executor, entryIds: readonly string[], correctionIds: readonly string[], asOf?: Date) {
   const rows = entryIds.length === 0 ? [] : await db.select({
     id: storeCorrections.id, number: storeCorrections.number, reason: storeCorrections.reason, storeId: storeCorrections.storeId,
     toStoreId: storeCorrections.toStoreId, originalEntryId: storeCorrections.originalEntryId, before: storeCorrections.before, after: storeCorrections.after,
   }).from(storeCorrections)
-    .where(or(inArray(storeCorrections.originalEntryId, [...entryIds]), correctionIds.length ? inArray(storeCorrections.id, [...correctionIds]) : undefined));
+    .where(and(
+      or(inArray(storeCorrections.originalEntryId, [...entryIds]), correctionIds.length ? inArray(storeCorrections.id, [...correctionIds]) : undefined),
+      asOf ? lte(storeCorrections.createdAt, asOf) : undefined,
+    ));
   const all = rows.map((r) => ({ ...r, before: r.before as StoreEntryValues, after: r.after as StoreEntryValues | null }));
   const storeIds = [...new Set(all.flatMap((c) => (c.toStoreId ? [c.storeId, c.toStoreId] : [])))];
   const names = storeIds.length === 0 ? [] : await db.select({ id: stores.id, name: stores.name }).from(stores).where(inArray(stores.id, storeIds));

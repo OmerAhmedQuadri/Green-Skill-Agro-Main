@@ -12,6 +12,7 @@ import { priceLists } from './pricing';
 // Mirror packages/core/src/stores.
 export const storeStatus = pgEnum('store_status', ['PENDING_APPROVAL', 'ACTIVE', 'REJECTED', 'INACTIVE', 'AWAITING_REVERIFICATION']);
 export const balanceConfirmation = pgEnum('balance_confirmation', ['AGREED', 'DISPUTED']);
+export const storeStatementStatus = pgEnum('store_statement_status', ['PENDING', 'READY', 'FAILED']);
 export const creditMode = pgEnum('credit_mode', ['BILL_TO_BILL', 'WEEKLY', 'MONTHLY', 'CUSTOM']);
 export const storeLedgerEntryType = pgEnum('store_ledger_entry_type', ['SALE', 'PAYMENT', 'CREDIT_NOTE', 'ADJUSTMENT']);
 export const paymentMethod = pgEnum('payment_method', ['CASH', 'BANK_TRANSFER']);
@@ -288,5 +289,36 @@ export const storeReverifications = pgTable(
     uniqueIndex('store_reverifications_store_unique').on(t.storeId),
     index('store_reverifications_reverified_by_idx').on(t.reverifiedBy),
     check('store_reverifications_dispute', sql`(${t.confirmation} = 'DISPUTED') = (${t.disputeNote} is not null)`),
+  ],
+);
+
+/**
+ * IMP-010 (ADR-0059): a store's statement — its account as it stood when it was asked for (`as_of`), every entry
+ * labelled, imported and app alike — printed to PDF by the worker as a stored file of kind STORE_STATEMENT, which the
+ * storage policy keeps for its period. Mutable while it is printed.
+ */
+export const storeStatements = pgTable(
+  'store_statements',
+  {
+    id: id(),
+    /** ST-YYYY-NNNN. */
+    number: text('number').notNull().unique(),
+    storeId: uuid('store_id').notNull().references(() => stores.id),
+    asOf: timestamptz('as_of').notNull(),
+    status: storeStatementStatus('status').notNull().default('PENDING'),
+    mediaId: uuid('media_id').references(() => mediaAssets.id),
+    attempts: integer('attempts').notNull().default(0),
+    nextAttemptAt: timestamptz('next_attempt_at').notNull().defaultNow(),
+    lastError: text('last_error'),
+    requestedBy: uuid('requested_by').notNull().references(() => users.id),
+    branchId: uuid('branch_id').notNull().references(() => branches.id),
+    ...mutable(),
+  },
+  (t) => [
+    index('store_statements_store_id_idx').on(t.storeId, t.asOf),
+    index('store_statements_media_id_idx').on(t.mediaId),
+    index('store_statements_requested_by_idx').on(t.requestedBy),
+    index('store_statements_due_idx').on(t.nextAttemptAt).where(sql`${t.status} = 'PENDING'`),
+    check('store_statements_ready', sql`(${t.status} = 'READY') = (${t.mediaId} is not null)`),
   ],
 );

@@ -5,6 +5,8 @@ export type StoreSummary = stores.StoreSummary;
 export type LedgerEntry = stores.LedgerEntry;
 /** IMP-005: what an imported store's books come to, not in its account yet. */
 export type ImportedHistory = stores.ImportedHistory;
+/** IMP-010: a statement of the store's account, printed by the worker. */
+export type StoreStatement = stores.StoreStatement;
 export type StoreOptions = Awaited<ReturnType<typeof stores.storeOptions>>;
 export type Payment = stores.Payment;
 export type CreditStatus = Store['credit'];

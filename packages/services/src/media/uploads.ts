@@ -34,6 +34,8 @@ const summary = (a: typeof mediaAssets.$inferSelect): MediaSummary =>
  */
 export async function requestUpload(ctx: Ctx, input: UploadRequest): Promise<UploadTicket> {
   const policy = MEDIA_POLICY[input.kind];
+  // A kind the app makes itself (a store statement) is never uploaded, whoever asks.
+  if (policy.generated) throw new DomainError('FORBIDDEN', { permission: policy.upload });
   authorize(ctx, policy.upload);
   if (!policy.contentTypes.includes(input.contentType)) {
     throw new DomainError('MEDIA_TYPE_NOT_ALLOWED', { kind: input.kind, contentType: input.contentType, allowed: policy.contentTypes });

@@ -14,12 +14,13 @@ function anImportedStore(sellerEmail: string, name: string): { storeId: string; 
 }
 
 /**
- * IMP-005, IMP-008, IMP-003, in English and Arabic: a store imported from the books awaits re-verification. Its seller
- * opens it, fills in what the books lack, shows the owner what the books say and records that the store disputes it;
- * the imported bills and payment go into its account, labelled. The Super Admin keeps an import warning with a note.
+ * IMP-005, IMP-008, IMP-003, IMP-010, in English and Arabic: a store imported from the books awaits re-verification.
+ * Its seller opens it, fills in what the books lack, shows the owner what the books say and records that the store
+ * disputes it; the imported bills and payment go into its account, labelled, and a statement of it is printed for the
+ * store. The Super Admin keeps an import warning with a note.
  */
 for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
-  test(`Store re-verification (${locale}) — IMP-005, IMP-008, IMP-003, IMP-009: an imported store re-verified on the phone, disputed; a warning kept`, async ({ browser, baseURL }) => {
+  test(`Store re-verification (${locale}) — IMP-005, IMP-008, IMP-003, IMP-009, IMP-010: an imported store re-verified on the phone, disputed, its statement printed; a warning kept`, async ({ browser, baseURL }) => {
     test.setTimeout(240_000);
     const origin = baseURL ?? '';
     const stamp = String(Date.now()).slice(-6);
@@ -58,10 +59,23 @@ for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
     await expect(phone.getByTestId('ledger-imported').first()).toContainText(m.stores.importedBadge);
     await phone.screenshot({ path: shot(`store-reverified-${locale}`), fullPage: true });
 
-    // The console shows the re-verification and the store's words.
+    // IMP-010: a statement of the account for the store — numbered at once, printed by the worker, opened as a PDF.
+    const statements = phone.getByTestId('statements');
+    await statements.getByRole('button', { name: m.stores.statement.request, exact: true }).click();
+    const statement = statements.getByTestId('statement').first();
+    await expect(statement).toContainText(/ST-\d{4}-\d{4}/);
+    const open = statement.getByTestId('statement-open');
+    await expect(open).toBeVisible({ timeout: 60_000 });
+    const pdf = await phone.request.get(`${origin}${(await open.getAttribute('href')) ?? ''}`);
+    expect(pdf.headers()['content-type']).toBe('application/pdf');
+    expect((await pdf.body()).subarray(0, 5).toString()).toBe('%PDF-');
+    await phone.screenshot({ path: shot(`store-statement-${locale}`), fullPage: true });
+
+    // The console shows the re-verification and the store's words, and the statement the seller made.
     await admin.goto(`/console/stores/${storeId}`);
     await expect(admin.getByTestId('reverification')).toContainText(`e2e ${locale}: the owner says one more payment`);
     await expect(admin.getByTestId('ledger-imported')).toHaveCount(3);
+    await expect(admin.getByTestId('statements').getByTestId('statement-open')).toHaveCount(1);
 
     // IMP-009: what the import could not settle waits on the Super Admin's dashboard, and is kept with a note.
     const owner = await sessionPage(browser, 'superadmin@dev.local', locale, origin);
