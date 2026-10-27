@@ -15,7 +15,7 @@ export async function signIn(page: Page, identifier: string): Promise<void> {
 }
 
 /** Accounts signed in once by the global setup and shared by every spec. */
-export const SESSIONS = ['admin@dev.local', 'warehouse@dev.local', 'manager@dev.local'] as const;
+export const SESSIONS = ['admin@dev.local', 'warehouse@dev.local', 'manager@dev.local', 'superadmin@dev.local'] as const;
 export type SessionAccount = (typeof SESSIONS)[number];
 export const sessionFile = (account: SessionAccount) => `.auth/${account.replace(/[^a-z]/g, '-')}.json`;
 
@@ -96,8 +96,15 @@ export async function freshSeller(browser: Browser, admin: Page, origin: string,
   const created = (await post(admin, origin, '/users', { role: 'SELLER', name, email, locale })) as unknown as { account: { id: string }; temporaryPassword: string };
   const context = await browser.newContext({ baseURL: origin, ...PHONE });
   await context.addCookies([{ name: 'NEXT_LOCALE', value: locale, url: origin }]);
-  const signedIn = await context.request.post('/api/v1/auth/sign-in', { headers: { origin }, data: { identifier: email, password: created.temporaryPassword } });
-  expect(signedIn.ok(), 'fresh seller signs in').toBe(true);
+  const signIn = () => context.request.post('/api/v1/auth/sign-in', { headers: { origin }, data: { identifier: email, password: created.temporaryPassword } });
+  let signedIn = await signIn();
+  // Sign-in allows 20 a minute from one address (SECURITY §1). In CI every test shares one, and the fast first minute
+  // of a run can reach it; wait out the window once rather than fail on a limit doing its job.
+  if (signedIn.status() === 429) {
+    await new Promise((resolve) => setTimeout(resolve, (Number(signedIn.headers()['retry-after'] ?? '60') + 1) * 1000));
+    signedIn = await signIn();
+  }
+  expect(signedIn.ok(), `fresh seller signs in (${signedIn.status()})`).toBe(true);
   const changed = await context.request.post('/api/v1/auth/password/change', {
     headers: { origin }, data: { currentPassword: created.temporaryPassword, newPassword: `${PASSWORD}-${Date.now()}` },
   });
@@ -191,15 +198,20 @@ export async function paidWith(page: Page, origin: string, amount: string, metho
   return { amount, method, ...(reference ? { reference } : {}), voucher: { number: `E2E-${crypto.randomUUID().slice(0, 8)}`, photoId } };
 }
 
-/** A store the seller onboards through the API, somewhere no earlier run put one (workflow H). */
-export async function aStoreByApi(phone: Page, origin: string, name: string, terms: { creditMode: 'WEEKLY' | 'BILL_TO_BILL'; creditLimit: string }) {
+/**
+ * A store the seller onboards through the API, somewhere no earlier run put one (workflow H). Onboarded from the
+ * console instead, it names the seller who manages it (`sellerId`).
+ */
+export async function aStoreByApi(
+  phone: Page, origin: string, name: string, terms: { creditMode: 'WEEKLY' | 'BILL_TO_BILL'; creditLimit: string }, sellerId?: string,
+) {
   await phone.goto('/field/stores');
   const photo = await anUpload(phone, origin, 'STOREFRONT');
   const options = (await (await phone.request.get('/api/v1/stores/options')).json()) as { priceLists: { id: string; isBase: boolean }[] };
   const base = options.priceLists.find((l) => l.isBase);
   return post(phone, origin, '/stores', {
     name, ownerName: 'Owner', contactNumber: '0501234567', location: { lat: 18 + Math.random() * 10, lng: 40 + Math.random() * 10 },
-    ...terms, priceListId: base?.id, storefrontPhotoId: photo, acknowledgeDuplicates: true,
+    ...terms, priceListId: base?.id, storefrontPhotoId: photo, acknowledgeDuplicates: true, ...(sellerId ? { sellerId } : {}),
   });
 }
 

@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import ar from '../src/messages/ar.json' with { type: 'json' };
 import en from '../src/messages/en.json' with { type: 'json' };
-import { aStoreByApi, freshSeller, PASSWORD, post, sessionPage, shot, signIn } from './helpers';
+import { aStoreByApi, PASSWORD, post, sessionPage, shot } from './helpers';
 
 /** The text of a message before its first placeholder. */
 const opening = (message: string) => message.slice(0, message.indexOf('{')).trim();
@@ -15,10 +15,8 @@ for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
   test(`Correction sessions (${locale}) — COR-001, COR-003, COR-004: opened with a password, seen by others, closed with its reason`, async ({ browser, baseURL }) => {
     test.setTimeout(120_000);
     const origin = baseURL ?? '';
-    const context = await browser.newContext({ baseURL: origin });
-    const owner = await context.newPage();
-    await signIn(owner, 'superadmin@dev.local');
-    await context.addCookies([{ name: 'NEXT_LOCALE', value: locale, url: origin }]);
+    // Signed in once by the global setup: every sign-in here would count towards the run's limit (SECURITY §1).
+    const owner = await sessionPage(browser, 'superadmin@dev.local', locale, origin);
     // A session left by an earlier, interrupted run would block opening another: close it first.
     const before = (await (await owner.request.get('/api/v1/corrections/status')).json()) as { mine: { id: string; version: number } | null };
     if (before.mine) await post(owner, origin, `/corrections/sessions/${before.mine.id}/close`, { version: before.mine.version, closing: 'KEPT' });
@@ -94,17 +92,17 @@ for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
     test.setTimeout(180_000);
     const origin = baseURL ?? '';
     const stamp = String(Date.now()).slice(-6);
-    const context = await browser.newContext({ baseURL: origin });
-    const owner = await context.newPage();
-    await signIn(owner, 'superadmin@dev.local');
-    await context.addCookies([{ name: 'NEXT_LOCALE', value: locale, url: origin }]);
+    const owner = await sessionPage(browser, 'superadmin@dev.local', locale, origin);
     const before = (await (await owner.request.get('/api/v1/corrections/status')).json()) as { mine: { id: string; version: number } | null };
     if (before.mine) await post(owner, origin, `/corrections/sessions/${before.mine.id}/close`, { version: before.mine.version, closing: 'KEPT' });
 
-    // A store with a bill on its account.
+    // A store with a bill on its account, onboarded by the Admin for a new seller who never signs in: each sign-in
+    // counts towards the run's limit (SECURITY §1).
     const admin = await sessionPage(browser, 'admin@dev.local', locale, origin);
-    const seller = await freshSeller(browser, admin, origin, locale, `COR Seller ${locale} ${stamp}`);
-    const store = await aStoreByApi(seller.page, origin, `COR Store ${locale} ${stamp}`, { creditMode: 'WEEKLY', creditLimit: '5000.00' });
+    const seller = (await post(admin, origin, '/users', {
+      role: 'SELLER', name: `COR Seller ${locale} ${stamp}`, email: `cor-seller-${locale}-${Date.now()}@e2e.local`, locale,
+    })) as unknown as { account: { id: string } };
+    const store = await aStoreByApi(admin, origin, `COR Store ${locale} ${stamp}`, { creditMode: 'WEEKLY', creditLimit: '5000.00' }, seller.account.id);
     // Store approval is an Admin switch; where it is off, the store is active already.
     if (store.status === 'PENDING_APPROVAL') await post(owner, origin, `/stores/${store.id}/approve`, { version: store.version });
     await post(owner, origin, `/stores/${store.id}/adjustments`, { amount: '300.00', reason: 'Opening balance', dueOn: '2026-09-01' });
