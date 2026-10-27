@@ -4,7 +4,7 @@ import { createdAt, id, timestamptz } from './columns';
 import { users } from './identity';
 import { mutable } from './mutable';
 import { branches } from './organisation';
-import { payments, storeLedgerEntries, stores } from './stores';
+import { importedPayments, payments, storeLedgerEntries, stores } from './stores';
 
 // Mirror packages/core/src/corrections.
 export const correctionClosing = pgEnum('correction_closing', ['KEPT', 'ADDED', 'EDITED']);
@@ -88,5 +88,30 @@ export const storeCorrections = pgTable(
     check('store_corrections_payment', sql`(${t.kind} = 'PAYMENT') = (${t.originalPaymentId} is not null)`),
     check('store_corrections_moved', sql`${t.toStoreId} is null or (${t.after} is not null and ${t.toStoreId} <> ${t.storeId})`),
     check('store_corrections_cash', sql`not ${t.cashInHand} or ${t.kind} = 'PAYMENT'`),
+  ],
+);
+
+/**
+ * COR-005, IMP-009 (ADR-0059): an imported payment nobody could place, attached to its store by a Super Admin in a
+ * correction session. It goes into that store's account at re-verification, or at once if the store is verified
+ * already. Append-only: a wrong attachment is corrected on the account (store corrections).
+ */
+export const importedPaymentAssignments = pgTable(
+  'imported_payment_assignments',
+  {
+    id: id(),
+    importedPaymentId: uuid('imported_payment_id').notNull().references((): AnyPgColumn => importedPayments.id),
+    storeId: uuid('store_id').notNull().references(() => stores.id),
+    sessionId: uuid('session_id').notNull().references(() => correctionSessions.id),
+    reason: text('reason').notNull(),
+    branchId: uuid('branch_id').notNull().references(() => branches.id),
+    createdAt: createdAt(),
+    createdBy: uuid('created_by').notNull().references(() => users.id),
+  },
+  (t) => [
+    uniqueIndex('imported_payment_assignments_payment_unique').on(t.importedPaymentId),
+    index('imported_payment_assignments_store_id_idx').on(t.storeId),
+    index('imported_payment_assignments_session_id_idx').on(t.sessionId),
+    check('imported_payment_assignments_reason', sql`length(btrim(${t.reason})) > 0`),
   ],
 );

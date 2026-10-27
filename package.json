@@ -18,6 +18,7 @@
     "db:seed": "pnpm --filter @gsa/services seed",
     "db:admin": "pnpm --filter @gsa/services run first-admin",
     "db:import": "pnpm --filter @gsa/services run import-workbook",
+    "db:import-history": "pnpm --filter @gsa/services run import-history",
     "test:integration": "turbo run test:integration",
     "db:sync": "pnpm --filter @gsa/services sync",
     "test:e2e": "turbo run test:e2e",

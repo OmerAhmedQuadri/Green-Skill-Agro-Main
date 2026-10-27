@@ -37,7 +37,7 @@ export async function checkDuplicates(ctx: Ctx, input: GeoPoint & { name: string
   return duplicatesOf(getDb(), input);
 }
 
-async function duplicatesOf(db: Executor, input: GeoPoint & { name: string }): Promise<DuplicateMatch[]> {
+export async function duplicatesOf(db: Executor, input: GeoPoint & { name: string }): Promise<DuplicateMatch[]> {
   const point = assertLocation(input);
   const settings = await readSettings(db);
   const thresholds = {
@@ -54,15 +54,48 @@ async function duplicatesOf(db: Executor, input: GeoPoint & { name: string }): P
   return findDuplicates({ ...point, name: input.name }, rows.map((r) => ({ id: r.id, name: r.name, lat: Number(r.lat), lng: Number(r.lng) })), thresholds);
 }
 
-export type OnboardInput = {
+export type OnboardInput = StoreDetailsInput & { sellerId?: string | null | undefined; acknowledgeDuplicates?: boolean | undefined };
+
+/** STO-001..004: who and where the store is, its photo, and its terms — asked at onboarding and at re-verification (IMP-008). */
+export type StoreDetailsInput = {
   name: string; ownerName: string; contactNumber: string; category?: string | null | undefined;
   location: GeoPoint & { accuracyM?: number | null | undefined }; address?: string | null | undefined;
   crNumber?: string | null | undefined; vatNumber?: string | null | undefined; nationalAddress?: string | null | undefined;
   creditMode: CreditMode; creditCycleDays?: number | null | undefined; creditLimit: string; priceListId: string;
-  storefrontPhotoId: string; sellerId?: string | null | undefined; acknowledgeDuplicates?: boolean | undefined;
+  storefrontPhotoId: string;
 };
 
 const text = (v: string | null | undefined) => v?.trim() || null;
+
+/**
+ * The details checked as onboarding checks them: a name and owner, a contact number, a real location, terms from the
+ * modes the Admin allows, the caller's own storefront photo, an active price list. Returned as the store's columns.
+ */
+export async function checkedStoreDetails(tx: Executor, ctx: Ctx, input: StoreDetailsInput) {
+  const name = input.name.trim();
+  const ownerName = input.ownerName.trim();
+  if (!name || !ownerName) throw new DomainError('INVALID_NAME');
+  const contactNumber = normaliseContactNumber(input.contactNumber);
+  const location = assertLocation(input.location);
+  const creditLimit = money(input.creditLimit);
+  if (dec(creditLimit).isNegative()) throw new DomainError('INVALID_MONEY', { value: creditLimit });
+  const settings = await readSettings(tx);
+  const cycleDays = assertCreditTerms(input.creditMode, input.creditCycleDays, availableCreditModes(settings));
+  await assertOwnEvidence(tx, ctx, input.storefrontPhotoId, 'STOREFRONT');
+  const [list] = await tx.select({ id: priceLists.id, active: priceLists.isActive }).from(priceLists).where(eq(priceLists.id, input.priceListId));
+  if (!list) throw new DomainError('NOT_FOUND', { entity: 'price_list', id: input.priceListId });
+  if (!list.active) throw new DomainError('REFERENCE_INACTIVE', { entity: 'price_list', id: input.priceListId });
+  return {
+    location,
+    columns: {
+      name, ownerName, contactNumber, category: text(input.category),
+      latitude: location.lat.toFixed(6), longitude: location.lng.toFixed(6), address: text(input.address),
+      crNumber: text(input.crNumber), vatNumber: text(input.vatNumber), nationalAddress: text(input.nationalAddress),
+      creditMode: input.creditMode, creditCycleDays: cycleDays, creditLimit, priceListId: input.priceListId,
+      storefrontMediaId: input.storefrontPhotoId,
+    },
+  };
+}
 
 /**
  * Workflow H (STO-001..010): identity, a storefront photo from the phone,
@@ -73,20 +106,9 @@ const text = (v: string | null | undefined) => v?.trim() || null;
  */
 export async function onboardStore(ctx: Ctx, input: OnboardInput): Promise<Store> {
   authorize(ctx, 'stores.onboard');
-  const name = input.name.trim();
-  const ownerName = input.ownerName.trim();
-  if (!name || !ownerName) throw new DomainError('INVALID_NAME');
-  const contactNumber = normaliseContactNumber(input.contactNumber);
-  const location = assertLocation(input.location);
-  const creditLimit = money(input.creditLimit);
-  if (dec(creditLimit).isNegative()) throw new DomainError('INVALID_MONEY', { value: creditLimit });
   return inTx(ctx, async (tx) => {
-    const settings = await readSettings(tx);
-    const cycleDays = assertCreditTerms(input.creditMode, input.creditCycleDays, availableCreditModes(settings));
-    await assertOwnEvidence(tx, ctx, input.storefrontPhotoId, 'STOREFRONT');
-    const [list] = await tx.select({ id: priceLists.id, active: priceLists.isActive }).from(priceLists).where(eq(priceLists.id, input.priceListId));
-    if (!list) throw new DomainError('NOT_FOUND', { entity: 'price_list', id: input.priceListId });
-    if (!list.active) throw new DomainError('REFERENCE_INACTIVE', { entity: 'price_list', id: input.priceListId });
+    const { location, columns } = await checkedStoreDetails(tx, ctx, input);
+    const { name } = columns;
 
     // STO-006: a seller manages what they onboard; anyone else names the seller.
     const sellerId = ctx.user.role === 'SELLER' ? ctx.user.id : input.sellerId;
@@ -101,11 +123,7 @@ export async function onboardStore(ctx: Ctx, input: OnboardInput): Promise<Store
     // DOC-009 (ADR-0053): its Customer ID, the next in the stores' series.
     const code = customerCode('STORE', await nextInSeries(tx, CUSTOMER_CODE_PREFIX.STORE));
     const [row] = await tx.insert(stores).values({
-      code, name, ownerName, contactNumber, category: text(input.category),
-      latitude: location.lat.toFixed(6), longitude: location.lng.toFixed(6), address: text(input.address),
-      crNumber: text(input.crNumber), vatNumber: text(input.vatNumber), nationalAddress: text(input.nationalAddress),
-      creditMode: input.creditMode, creditCycleDays: cycleDays, creditLimit, priceListId: input.priceListId, status,
-      storefrontMediaId: input.storefrontPhotoId, branchId: ctx.branchId, createdBy: ctx.user.id, updatedBy: ctx.user.id,
+      code, ...columns, status, branchId: ctx.branchId, createdBy: ctx.user.id, updatedBy: ctx.user.id,
     }).returning({ id: stores.id });
     if (!row) throw new Error('store insert returned nothing');
     await tx.insert(storeAssignments).values({ storeId: row.id, sellerId, startedAt: ctx.now, assignedBy: ctx.user.id, branchId: ctx.branchId });
@@ -114,7 +132,10 @@ export async function onboardStore(ctx: Ctx, input: OnboardInput): Promise<Store
     }
     await audit(tx, ctx, {
       action: 'stores.onboarded', entityType: 'store', entityId: row.id,
-      after: { name, status, sellerId, creditMode: input.creditMode, creditCycleDays: cycleDays, creditLimit, priceListId: input.priceListId, duplicatesAcknowledged: duplicates.map((d) => d.storeId) },
+      after: {
+        name, status, sellerId, creditMode: columns.creditMode, creditCycleDays: columns.creditCycleDays, creditLimit: columns.creditLimit,
+        priceListId: columns.priceListId, duplicatesAcknowledged: duplicates.map((d) => d.storeId),
+      },
     });
     return loadStore(tx, readingAsManager(ctx), row.id);
   });

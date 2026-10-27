@@ -1,14 +1,21 @@
 import { sql } from 'drizzle-orm';
-import { check, date, index, integer, jsonb, numeric, pgEnum, pgTable, text, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { check, date, index, integer, jsonb, numeric, pgEnum, pgTable, text, uniqueIndex, uuid, type AnyPgColumn } from 'drizzle-orm/pg-core';
 import { skus } from './catalogue';
 import { createdAt, id, timestamptz } from './columns';
+import { correctionSessions } from './corrections';
 import { users } from './identity';
 import { mutable } from './mutable';
 import { branches } from './organisation';
-import { stores } from './stores';
+import { importedPayments, stores } from './stores';
 
 // Mirror packages/core/src/imports.
 export const importBatchStatus = pgEnum('import_batch_status', ['LOADED', 'UNDONE']);
+export const importWarningKind = pgEnum('import_warning_kind', [
+  'VOUCHER_MISSING', 'VOUCHER_NOT_IN_BOOKS', 'NAME_JOINED_BY_GUESS', 'PAYMENT_NO_STORE', 'PAYMENT_HELD_BACK', 'NAMES_MAY_BE_ONE_STORE',
+  'LINE_DOES_NOT_ADD_UP', 'LINE_NOT_IN_CATALOGUE', 'LINE_READ_AS_OTHER_PACK', 'DATE_DIFFERS_FROM_STATEMENT', 'RETURN_NOT_IMPORTED',
+  'BALANCE_DIFFERS_FROM_STATEMENT',
+]);
+export const importWarningResolution = pgEnum('import_warning_resolution', ['KEPT', 'CORRECTED']);
 
 const money = (name: string) => numeric(name, { precision: 14, scale: 2 });
 
@@ -96,5 +103,45 @@ export const importedSaleLines = pgTable(
     uniqueIndex('imported_sale_lines_line_unique').on(t.importedSaleId, t.lineNo),
     index('imported_sale_lines_sku_id_idx').on(t.skuId),
     check('imported_sale_lines_figures', sql`${t.lineNo} > 0 and ${t.packs} > 0 and ${t.unitPrice} >= 0 and ${t.amount} >= 0`),
+  ],
+);
+
+/**
+ * IMP-009 (ADR-0059): what the import could not settle, about one store, imported sale or imported payment, with the
+ * figures that explain it. The Super Admin keeps it as it is, with a note, or marks it corrected in a correction
+ * session — once; only those columns may change (migration 0035).
+ */
+export const importWarnings = pgTable(
+  'import_warnings',
+  {
+    id: id(),
+    batchId: uuid('batch_id').notNull().references(() => importBatches.id),
+    kind: importWarningKind('kind').notNull(),
+    storeId: uuid('store_id').references(() => stores.id),
+    importedSaleId: uuid('imported_sale_id').references(() => importedSales.id),
+    importedPaymentId: uuid('imported_payment_id').references((): AnyPgColumn => importedPayments.id),
+    params: jsonb('params').notNull().default({}),
+    resolution: importWarningResolution('resolution'),
+    resolutionNote: text('resolution_note'),
+    /** The correction session a warning was marked corrected in. */
+    sessionId: uuid('session_id').references((): AnyPgColumn => correctionSessions.id),
+    resolvedAt: timestamptz('resolved_at'),
+    resolvedBy: uuid('resolved_by').references(() => users.id),
+    branchId: uuid('branch_id').notNull().references(() => branches.id),
+    createdAt: createdAt(),
+    createdBy: uuid('created_by').notNull().references(() => users.id),
+  },
+  (t) => [
+    index('import_warnings_batch_id_idx').on(t.batchId),
+    index('import_warnings_store_id_idx').on(t.storeId),
+    index('import_warnings_imported_sale_id_idx').on(t.importedSaleId),
+    index('import_warnings_imported_payment_id_idx').on(t.importedPaymentId),
+    index('import_warnings_session_id_idx').on(t.sessionId),
+    index('import_warnings_open_idx').on(t.batchId).where(sql`${t.resolution} is null`),
+    check('import_warnings_subject', sql`num_nonnulls(${t.storeId}, ${t.importedSaleId}, ${t.importedPaymentId}) = 1`),
+    check('import_warnings_resolved', sql`(${t.resolution} is null) = (${t.resolvedAt} is null)
+      and (${t.resolution} is null) = (${t.resolvedBy} is null)
+      and (${t.resolution} is null) = (length(btrim(coalesce(${t.resolutionNote}, ''))) = 0)`),
+    check('import_warnings_corrected', sql`coalesce(${t.resolution} = 'CORRECTED', false) = (${t.sessionId} is not null)`),
   ],
 );

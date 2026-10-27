@@ -155,6 +155,8 @@ const STATUS: Record<ErrorCode, number> = {
   CORRECTION_LEAVES_CREDIT: 409,
   CORRECTION_EXCEEDS_CASH_IN_HAND: 409,
   TRANSFER_NOT_DECIDED: 409,
+  IMPORTED_BALANCE_CHANGED: 409,
+  IMPORTED_HISTORY_IN_CREDIT: 409,
 };
 
 export function problem(status: number, code: string, requestId: string, details?: Record<string, unknown>, headers?: HeadersInit): Response {

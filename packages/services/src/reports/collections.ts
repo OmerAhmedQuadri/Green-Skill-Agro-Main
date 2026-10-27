@@ -52,7 +52,7 @@ export async function collectionsView(ctx: Ctx, filter: CollectionsFilter): Prom
   }).from(payments)
     .innerJoin(users, eq(users.id, payments.receivedBy))
     .where(and(
-      gte(payments.receivedAt, range.start), lt(payments.receivedAt, range.end), isNull(payments.supersededBy),
+      gte(payments.receivedAt, range.start), lt(payments.receivedAt, range.end), isNull(payments.supersededBy), eq(payments.origin, 'APP'),
       filter.sellerId ? eq(payments.receivedBy, filter.sellerId) : undefined, filter.storeId ? eq(payments.storeId, filter.storeId) : undefined,
     ))
     .groupBy(payments.receivedBy, users.name, payments.method);

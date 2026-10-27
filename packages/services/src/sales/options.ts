@@ -92,7 +92,7 @@ export type OpenSaleOptions = {
 };
 
 export type SaleOptions = {
-  readonly store: { readonly id: string; readonly name: string; readonly status: StoreStatus; readonly creditMode: CreditMode; readonly credit: CreditStatus };
+  readonly store: { readonly id: string; readonly name: string; readonly status: StoreStatus; readonly creditMode: CreditMode | null; readonly credit: CreditStatus };
   /** ATT-010: why the seller cannot sell now, if they cannot — shown before anything else. */
   readonly notWorking: ErrorCode | null;
   readonly vehicle: { readonly id: string } | null;

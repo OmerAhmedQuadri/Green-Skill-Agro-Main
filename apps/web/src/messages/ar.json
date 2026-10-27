@@ -128,7 +128,8 @@
         "WRITE_OFFS": "طلبات الشطب",
         "PURCHASE_ORDERS": "أوامر شراء بانتظار الاعتماد",
         "CLOSING_VARIANCES": "فروقات مخزون نهاية اليوم بانتظار المراجعة",
-        "OPEN_SALES": "عمليات بيع مفتوح بانتظار الموافقة"
+        "OPEN_SALES": "عمليات بيع مفتوح بانتظار الموافقة",
+        "IMPORT_WARNINGS": "تنبيهات النقل للمراجعة"
       }
     },
     "sales": {
@@ -713,7 +714,9 @@
     "ALREADY_CORRECTED": "صُحّح هذا القيد من قبل. صحّح القيد المصحَّح بدلًا منه.",
     "CORRECTION_LEAVES_CREDIT": "دفع المتجر جزءًا من هذا، ولا يدين بشيء آخر يُحسب له هذا المبلغ. صحّح الدفعة أولًا.",
     "CORRECTION_EXCEEDS_CASH_IN_HAND": "لا يحمل المحصِّل هذا القدر من النقد. صحّح حساب المتجر فقط، وسوِّ النقد بشكل منفصل.",
-    "TRANSFER_NOT_DECIDED": "تحقّق من هذا التحويل البنكي أولًا (مؤكَّد أو لم يصل)، ثم صحّحه."
+    "TRANSFER_NOT_DECIDED": "تحقّق من هذا التحويل البنكي أولًا (مؤكَّد أو لم يصل)، ثم صحّحه.",
+    "IMPORTED_BALANCE_CHANGED": "تغيّر ما تقوله الدفاتر لهذا المتجر. اعرض على المتجر الرصيد الجديد.",
+    "IMPORTED_HISTORY_IN_CREDIT": "تُظهر الدفاتر أن هذا المتجر دفع أكثر مما فُوتر به. اطلب من المدير العام مراجعتها."
   },
   "format": {
     "grams": "{value} جم",
@@ -1505,7 +1508,8 @@
       "OPEN_SALE_APPROVED": "تمت الموافقة على بيعك المفتوح بقيمة {total} ر.س — أتمّه مدفوعًا بالكامل.",
       "OPEN_SALE_REJECTED": "رُفض بيعك المفتوح بقيمة {total} ر.س.",
       "OPEN_SALE_EXPIRED": "انتهت مهلة بيعك المفتوح المعلّق وتحرّرت أصنافه.",
-      "TRIP_CLOSED_ON_BEHALF": "استعاد المدير المركبة {registration} وأنهى رحلتك عند {odometer} كم."
+      "TRIP_CLOSED_ON_BEHALF": "استعاد المدير المركبة {registration} وأنهى رحلتك عند {odometer} كم.",
+      "STORE_BALANCE_DISPUTED": "يعترض {name} على رصيده حسب الدفاتر، {amount}: {note}"
     },
     "resolvedLine": "{outcome} · {time}",
     "resolved": {
@@ -1802,7 +1806,8 @@
       "PAST_DUE": "{amount} متأخرة منذ {date}",
       "OVER_LIMIT": "عليه {outstanding}، فوق الحد البالغ {limit}",
       "UNPAID_BILL": "فاتورة سابقة بمبلغ {amount} غير مسددة — فاتورة بفاتورة لا تقبل فاتورة جديدة قبل سدادها",
-      "DISPATCH_PENDING": "طلب بمبلغ {amount} ما زال في الطريق من المستودع — وهو فاتورة قائمة بذاتها"
+      "DISPATCH_PENDING": "طلب بمبلغ {amount} ما زال في الطريق من المستودع — وهو فاتورة قائمة بذاتها",
+      "NOT_VERIFIED": "منقول من الدفاتر — يعيد مندوبه التحقق منه قبل أول عملية بيع"
     },
     "reassign": "نقل",
     "reassignTo": "النقل إلى",
@@ -1822,7 +1827,8 @@
       "PENDING_APPROVAL": "بانتظار الاعتماد",
       "ACTIVE": "نشط",
       "REJECTED": "مرفوض",
-      "INACTIVE": "غير نشط"
+      "INACTIVE": "غير نشط",
+      "AWAITING_REVERIFICATION": "بانتظار إعادة التحقق"
     },
     "stillOwed": "المتبقي",
     "storefront": "صورة واجهة المتجر",
@@ -1871,7 +1877,34 @@
       "fullHintExact": "الإجمالي، {total}.",
       "partTooMuch": "الدفع الجزئي أقل من الإجمالي، {total}. لدفع المبلغ كله اختر «كاملًا الآن».",
       "fullTooLittle": "الدفع الكامل لا يقل عن الإجمالي، {total}. لدفع أقل اختر «جزء الآن»."
-    }
+    },
+    "reverifyTitle": "إعادة التحقق من {name}",
+    "reverifyAction": "إعادة التحقق من هذا المتجر",
+    "reverifyHint": "هذا المتجر منقول من الدفاتر. قبل أول عملية بيع، أكمل بياناته واعرض على المالك ما تقول الدفاتر إنه مستحق عليه.",
+    "importedTitle": "ما تقوله الدفاتر",
+    "importedBills": "الفواتير",
+    "importedPayments": "الدفعات",
+    "importedBill": "فاتورة {serial}، {date}",
+    "importedPaymentVoucher": "{date}، سند {voucher}",
+    "importedPaymentNoVoucher": "{date}، بدون سند",
+    "importedBalance": "الرصيد حسب الدفاتر",
+    "importedNothing": "لا تُظهر الدفاتر شيئًا لهذا المتجر.",
+    "balanceQuestion": "هل يوافق المتجر على هذا الرصيد؟",
+    "AGREED": "المتجر موافق",
+    "DISPUTED": "المتجر يعترض عليه",
+    "disputeNote": "ما يقوله المتجر",
+    "disputeHint": "يُبلَّغ المدير العام ويراجع الدفاتر.",
+    "reverify": "إعادة التحقق من المتجر",
+    "reverifiedTitle": "تمت إعادة التحقق",
+    "reverifiedLine": "أعاد {name} التحقق في {date}؛ وكان الرصيد حسب الدفاتر {amount}.",
+    "agreedLine": "وافق المتجر.",
+    "disputedLine": "اعترض المتجر: {note}",
+    "importedBadge": "منقول من الدفاتر",
+    "awaitingBalance": "بانتظار إعادة التحقق — الرصيد حسب الدفاتر {amount}.",
+    "importedSource": "{book}، الصف {row} · النقل {batch}",
+    "balanceShown": "الرصيد حسب الدفاتر: {amount}",
+    "importedSourceSale": "{book}، الصف {row}، فاتورة {serial} · النقل {batch}",
+    "importedSourceVoucher": "{book}، الصف {row}، سند {number} · النقل {batch}"
   },
   "sales": {
     "title": "المبيعات",
@@ -2766,6 +2799,57 @@
       "cashInHand": "صُحّح النقد المتوفر أيضًا",
       "empty": "لا توجد تصحيحات بعد.",
       "more": "عرض المزيد"
+    },
+    "unassigned": {
+      "title": "دفعات لم يُعرف متجرها",
+      "hint": "من دفاتر السندات، باسم متجر لا يطابق أي متجر. اربط كلًّا منها بمتجره في جلسة تصحيح.",
+      "date": "التاريخ",
+      "amount": "المبلغ",
+      "voucher": "السند",
+      "written": "الاسم المكتوب",
+      "seller": "المندوب",
+      "book": "الدفتر",
+      "attach": "ربط بمتجر",
+      "store": "المتجر",
+      "reason": "السبب",
+      "confirm": "ربط",
+      "cancel": "إلغاء",
+      "empty": "لا يوجد.",
+      "attached": "تم الربط.",
+      "needSession": "افتح جلسة تصحيح لربطها.",
+      "bookRow": "{book}، الصف {row}"
+    },
+    "importWarnings": {
+      "title": "تنبيهات النقل من الدفاتر",
+      "hint": "ما لم يستطع النقل من الدفاتر حسمه. أبقِ كلًّا منها كما هو مع ملاحظة — أو صحّحه في جلسة تصحيح، ثم علّمه مصحَّحًا واذكر كيف.",
+      "kinds": {
+        "VOUCHER_MISSING": "بلا رقم سند.",
+        "VOUCHER_NOT_IN_BOOKS": "دُفعت عند البيع بالسند {voucher}، وهو غير موجود في أي من دفتري السندات.",
+        "NAME_JOINED_BY_GUESS": "رُبط \"{written}\" بهذا المتجر بالتهجئة وحدها.",
+        "PAYMENT_NO_STORE": "مكتوبة باسم \"{written}\"، ولا يطابق أي متجر.",
+        "PAYMENT_HELD_BACK": "محجوزة: كانت ستجعل {store} دائنًا. اربطها بمتجرها، أو أبقها جانبًا.",
+        "NAMES_MAY_BE_ONE_STORE": "قد يكون المتجر نفسه {other}.",
+        "LINE_DOES_NOT_ADD_UP": "السطر {line}: العدد × السعر = {computed}، لا المبلغ المكتوب. نُقل كما هو مكتوب.",
+        "LINE_NOT_IN_CATALOGUE": "السطر {line}، \"{item}\"، لا يطابق أي منتج في الكتالوج.",
+        "LINE_READ_AS_OTHER_PACK": "السطر {line}، \"{item}\"، قُرئ كغير هجين لكن سعره كسعر الهجين F1.",
+        "DATE_DIFFERS_FROM_STATEMENT": "يؤرخه كشف سبتمبر بـ {statement}.",
+        "RETURN_NOT_IMPORTED": "مرتجع بقيمة {amount} في {date} في كشف سبتمبر — لم يُنقل. سجّله كتصحيح.",
+        "BALANCE_DIFFERS_FROM_STATEMENT": "الرصيد حسب الدفاتر {books}؛ ويقول كشف سبتمبر {statement}."
+      },
+      "sale": "{store}: الفاتورة {serial} بتاريخ {date}، {total} — {book}، الصف {row}",
+      "payment": "\"{written}\": {amount} في {date}، السند {voucher} — {book}، الصف {row}",
+      "paymentNoVoucher": "\"{written}\": {amount} في {date}، بلا سند — {book}، الصف {row}",
+      "keep": "إبقاء كما هو",
+      "corrected": "تعليم كمصحَّح",
+      "note": "ملاحظة",
+      "save": "حفظ",
+      "cancel": "إلغاء",
+      "needSession": "تعليم التنبيه كمصحَّح يحتاج إلى جلسة تصحيح.",
+      "empty": "لا توجد تنبيهات مفتوحة.",
+      "showResolved": "عرض المحسومة",
+      "showOpen": "عرض المفتوحة",
+      "KEPT": "أبقاه {name}، {date}: {note}",
+      "CORRECTED": "صحّحه {name}، {date}: {note}"
     }
   }
 }

@@ -19,7 +19,7 @@ import { keys } from '@/lib/query-keys';
 import { CreditPanel } from './CreditPanel';
 import { LedgerSummary } from './LedgerSummary';
 import { LedgerTable } from './LedgerTable';
-import { STATUS_TONE, type LedgerEntry, type Store, type StoreOptions } from './types';
+import { STATUS_TONE, type ImportedHistory, type LedgerEntry, type Store, type StoreOptions } from './types';
 
 type Can = { approve: boolean; editTerms: boolean; reassign: boolean; override: boolean; adjust: boolean; /** ADR-0059 */ correct: boolean };
 
@@ -37,6 +37,11 @@ export function StoreDetail({ id, can }: { id: string; can: Can }) {
   const queryClient = useQueryClient();
   const store = useQuery({ queryKey: keys.store(id), queryFn: () => api<Store>(`/stores/${id}`) });
   const ledger = useQuery({ queryKey: keys.storeLedger(id), queryFn: () => api<LedgerEntry[]>(`/stores/${id}/ledger`) });
+  // IMP-005: what the books come to while the store awaits re-verification.
+  const imported = useQuery({
+    queryKey: keys.storeImported(id), queryFn: () => api<ImportedHistory>(`/stores/${id}/imported`),
+    enabled: store.data?.status === 'AWAITING_REVERIFICATION',
+  });
   const options = useQuery({ queryKey: keys.storeOptions, queryFn: () => api<StoreOptions>('/stores/options'), enabled: can.editTerms });
   const sellers = useQuery({ queryKey: keys.sellers, queryFn: () => api<Seller[]>('/sellers'), enabled: can.reassign });
   const refresh = () => { for (const k of [keys.store(id), keys.storeLedger(id), keys.stores()]) void queryClient.invalidateQueries({ queryKey: k }); };
@@ -56,9 +61,25 @@ export function StoreDetail({ id, can }: { id: string; can: Can }) {
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
-      <PageHeader title={s.name} subtitle={s.ownerName} back={{ href: '/console/stores', label: t('title') }}
-        actions={<Badge tone={STATUS_TONE[s.status]}>{t(`statuses.${s.status}`)}</Badge>} />
+      <PageHeader title={s.name} subtitle={s.ownerName ?? undefined} back={{ href: '/console/stores', label: t('title') }}
+        actions={<div className="flex gap-2">
+          {s.imported ? <Badge tone="neutral">{t('importedBadge')}</Badge> : null}
+          <Badge tone={STATUS_TONE[s.status]}>{t(`statuses.${s.status}`)}</Badge>
+        </div>} />
       {act.error ? <Alert>{errorText(act.error)}</Alert> : null}
+      {s.status === 'AWAITING_REVERIFICATION' ? (
+        <Alert tone="warning" data-testid="awaiting-reverification">{t('awaitingBalance', { amount: format.money(imported.data?.balance ?? '0.00') })}</Alert>
+      ) : null}
+      {s.reverification ? (
+        <Section title={t('reverifiedTitle')}>
+          <div className="space-y-1 p-5 text-sm" data-testid="reverification">
+            <p>{t('reverifiedLine', { name: s.reverification.by, date: format.dateTime(s.reverification.at), amount: format.money(s.reverification.importedBalance) })}</p>
+            {s.reverification.confirmation === 'DISPUTED'
+              ? <p className="font-medium text-red-800">{t('disputedLine', { note: s.reverification.disputeNote ?? '' })}</p>
+              : <p>{t('agreedLine')}</p>}
+          </div>
+        </Section>
+      ) : null}
 
       {s.status === 'PENDING_APPROVAL' && can.approve ? (
         <Section title={t('approval')} description={t('approvalHint')}>
@@ -99,10 +120,10 @@ export function StoreDetail({ id, can }: { id: string; can: Can }) {
           <Facts items={[
             { label: t('customerId'), value: <bdi dir="ltr" data-testid="customer-id">{s.code}</bdi> },
             { label: t('seller'), value: s.seller?.name ?? '—' },
-            { label: t('contactNumber'), value: <bdi dir="ltr">{s.contactNumber}</bdi> },
+            { label: t('contactNumber'), value: s.contactNumber ? <bdi dir="ltr">{s.contactNumber}</bdi> : '—' },
             { label: t('category'), value: s.category ?? '—' },
             { label: t('address'), value: s.address ?? '—' },
-            { label: t('location'), value: <a className="text-brand-800 hover:underline" target="_blank" rel="noreferrer" href={`https://www.google.com/maps?q=${s.location.lat},${s.location.lng}`}><bdi dir="ltr">{`${s.location.lat.toFixed(5)}, ${s.location.lng.toFixed(5)}`}</bdi></a> },
+            { label: t('location'), value: s.location ? <a className="text-brand-800 hover:underline" target="_blank" rel="noreferrer" href={`https://www.google.com/maps?q=${s.location.lat},${s.location.lng}`}><bdi dir="ltr">{`${s.location.lat.toFixed(5)}, ${s.location.lng.toFixed(5)}`}</bdi></a> : '—' },
             { label: t('storefront'), value: s.storefrontMediaId ? <a className="text-brand-800 hover:underline" target="_blank" rel="noreferrer" href={`/files/${s.storefrontMediaId}`}>{t('viewPhoto')}</a> : '—' },
             { label: t('crNumber'), value: s.crNumber ?? '—' },
             { label: t('vatNumber'), value: s.vatNumber ?? '—' },
@@ -118,7 +139,7 @@ export function StoreDetail({ id, can }: { id: string; can: Can }) {
             label: t('creditMode'),
             value: (
               <>
-                {s.creditMode === 'CUSTOM' ? t('customCycle', { days: s.creditCycleDays ?? 0 }) : t(`modes.${s.creditMode}`)}
+                {!s.creditMode ? '—' : s.creditMode === 'CUSTOM' ? t('customCycle', { days: s.creditCycleDays ?? 0 }) : t(`modes.${s.creditMode}`)}
                 {dec(s.credit.outstanding).gt(0) ? <div className="mt-1 text-xs text-stone-500">{t('cycleKeepsDueDates')}</div> : null}
               </>
             ),

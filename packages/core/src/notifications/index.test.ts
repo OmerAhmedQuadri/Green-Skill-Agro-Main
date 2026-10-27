@@ -34,8 +34,9 @@ describe('what waits for a decision (ADR-0051)', () => {
     expect(decisionQueuesFor(new Set())).toEqual([]);
   });
 
-  it('SYS-016: an Admin decides every queue; a seller none', () => {
-    expect(decisionQueuesFor(effectivePermissions('ADMIN', new Map()))).toEqual(Object.keys(DECISION_QUEUES));
+  it('SYS-016, IMP-009: a Super Admin decides every queue, an Admin all but the import\'s warnings, a seller none', () => {
+    expect(decisionQueuesFor(effectivePermissions('SUPER_ADMIN', new Map()))).toEqual(Object.keys(DECISION_QUEUES));
+    expect(decisionQueuesFor(effectivePermissions('ADMIN', new Map()))).toEqual(Object.keys(DECISION_QUEUES).filter((q) => q !== 'IMPORT_WARNINGS'));
     expect(decisionQueuesFor(effectivePermissions('SELLER', new Map()))).toEqual([]);
   });
 });

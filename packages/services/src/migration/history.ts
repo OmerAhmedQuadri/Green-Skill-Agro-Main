@@ -1,11 +1,13 @@
 import {
-  dec, DomainError, importedPaymentAmount, importedSaleFigures, isoDate, money, quantity, type ImportedPaymentKind, type Money,
+  CUSTOMER_CODE_PREFIX, customerCode, dec, DomainError, importedPaymentAmount, importedSaleFigures, isoDate, money, quantity,
+  type ImportedPaymentKind, type Money,
 } from '@gsa/core';
 import { newId, schema } from '@gsa/db';
+import { eq } from 'drizzle-orm';
 import type { Ctx } from '../context';
-import { audit, type Tx } from '../platform';
+import { audit, nextInSeries, type Tx } from '../platform';
 
-const { importBatches, importedSales, importedSaleLines, importedPayments } = schema;
+const { importBatches, importedSales, importedSaleLines, importedPayments, priceLists, storeAssignments, stores, users } = schema;
 
 /**
  * Imported history (M13, ADR-0059): Green Agro's sellers' invoice and payment books, recorded as written in the
@@ -37,6 +39,31 @@ export async function openImportBatch(
   if (!row) throw new Error('import batch insert returned nothing');
   await audit(tx, ctx, { action: 'migration.import_batch_opened', entityType: 'import_batch', entityId: row.id, after: { number: row.number, files } });
   return row;
+}
+
+/**
+ * IMP-008: a store from the books, with only what they give — its name and the seller whose books name it. It awaits
+ * re-verification: its seller fills in the rest then, and its imported history goes into its account. It takes its
+ * Customer ID now (DOC-009) and the base price list until re-verified.
+ */
+export async function recordImportedStore(
+  tx: Tx, ctx: Ctx, batchId: string, input: { name: string; sellerId: string },
+): Promise<{ id: string; code: string }> {
+  const name = input.name.trim();
+  if (!name) throw new Error('an imported store needs a name');
+  const [seller] = await tx.select({ role: users.role, status: users.status }).from(users).where(eq(users.id, input.sellerId));
+  if (seller?.role !== 'SELLER' || seller.status !== 'ACTIVE') throw new DomainError('NOT_FOUND', { entity: 'seller', id: input.sellerId });
+  const [base] = await tx.select({ id: priceLists.id }).from(priceLists).where(eq(priceLists.isBase, true));
+  if (!base) throw new Error('no base price list');
+  const id = newId();
+  const code = customerCode('STORE', await nextInSeries(tx, CUSTOMER_CODE_PREFIX.STORE));
+  await tx.insert(stores).values({
+    id, code, name, status: 'AWAITING_REVERIFICATION', priceListId: base.id, importBatchId: batchId,
+    branchId: ctx.branchId, createdBy: ctx.user.id, updatedBy: ctx.user.id,
+  });
+  await tx.insert(storeAssignments).values({ storeId: id, sellerId: input.sellerId, startedAt: ctx.now, assignedBy: ctx.user.id, branchId: ctx.branchId });
+  await audit(tx, ctx, { action: 'migration.store_imported', entityType: 'store', entityId: id, after: { name, code, sellerId: input.sellerId, batchId } });
+  return { id, code };
 }
 
 /** Where a record was written (IMP-003): the book, its row, and the store's name as written there. */

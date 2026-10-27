@@ -77,6 +77,8 @@ export function allocateCredit(amount: Money, debits: readonly OpenDebit[], firs
 
 export type BlockReason =
   | { readonly code: 'NOT_APPROVED' } | { readonly code: 'REJECTED' } | { readonly code: 'INACTIVE' }
+  /** IMP-008: imported, and not re-verified by its seller yet. */
+  | { readonly code: 'NOT_VERIFIED' }
   | { readonly code: 'PAST_DUE'; readonly amount: Money; readonly oldestDueOn: string }
   | { readonly code: 'OVER_LIMIT'; readonly outstanding: Money; readonly limit: Money }
   /** ADR-0047: bill to bill — an earlier bill is not cleared yet. */
@@ -109,7 +111,9 @@ export type CreditStatus = {
  * "past due" would, so it is the reason given instead.
  */
 export function creditStatus(input: {
-  status: 'PENDING_APPROVAL' | 'ACTIVE' | 'REJECTED' | 'INACTIVE'; mode: CreditMode;
+  status: 'PENDING_APPROVAL' | 'ACTIVE' | 'REJECTED' | 'INACTIVE' | 'AWAITING_REVERIFICATION';
+  /** Null only for a store awaiting re-verification, whose terms the seller sets then (IMP-008). */
+  mode: CreditMode | null;
   limit: Money; openDebits: readonly { dueOn: string; open: Money }[]; graceDays: number; today: string; overrideActive: boolean;
   /** Dispatch orders to the store still waiting for delivery (ADR-0038). */ committed: Money;
   /** A custom cycle's days, and the day a weekly cycle closes (CRD-001). */ cycleDays?: number | null; weekClosesOn?: Weekday;
@@ -121,6 +125,7 @@ export function creditStatus(input: {
   if (input.status === 'PENDING_APPROVAL') reasons.push({ code: 'NOT_APPROVED' });
   if (input.status === 'REJECTED') reasons.push({ code: 'REJECTED' });
   if (input.status === 'INACTIVE') reasons.push({ code: 'INACTIVE' });
+  if (input.status === 'AWAITING_REVERIFICATION') reasons.push({ code: 'NOT_VERIFIED' });
   const creditReasons: BlockReason[] = [];
   if (input.mode === 'BILL_TO_BILL') {
     if (outstanding.gt(0)) creditReasons.push({ code: 'UNPAID_BILL', amount: toMoney(outstanding) });
@@ -137,6 +142,6 @@ export function creditStatus(input: {
     outstanding: toMoney(outstanding), pastDue: toMoney(pastDue), limit: input.limit, available: toMoney(available.gt(0) ? available : new Dec(0)),
     committed: input.committed,
     blocked: all.length > 0, reasons: [...reasons, ...creditReasons], overridden, overrideAvailable: input.overrideActive && reasons.length === 0,
-    dueIfOnCredit: dueDateFor(input.mode, input.cycleDays ?? null, input.today, input.weekClosesOn),
+    dueIfOnCredit: input.mode ? dueDateFor(input.mode, input.cycleDays ?? null, input.today, input.weekClosesOn) : input.today,
   };
 }

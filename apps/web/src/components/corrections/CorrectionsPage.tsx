@@ -1,15 +1,16 @@
 'use client';
 
-import { useInfiniteQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
-import { Alert, Badge, Button, Card } from '@gsa/ui';
+import { useState } from 'react';
+import { Alert, Badge, Button, Card, Field, Select, Textarea } from '@gsa/ui';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Cell, Table } from '@/components/common/Table';
 import { api } from '@/lib/api';
 import { useFormat } from '@/lib/format';
-import { useErrorText } from '@/lib/hooks';
+import { useCommand, useErrorText } from '@/lib/hooks';
 import { keys } from '@/lib/query-keys';
-import type { CorrectionSession } from './status';
+import { useCorrectionStatus, type CorrectionSession } from './status';
 
 type Values = { amount: string; date: string; storeId: string; voucherNumber: string | null };
 type StoreCorrection = {
@@ -37,6 +38,8 @@ export function CorrectionsPage() {
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <PageHeader title={t('title')} subtitle={t('subtitle')} />
+      <ImportWarnings />
+      <Unassigned />
       <Changes />
       <h2 className="text-base font-semibold text-stone-900">{t('changes.sessions')}</h2>
       <Card>
@@ -136,6 +139,171 @@ function Changes() {
             <Button variant="secondary" onClick={() => void list.fetchNextPage()} disabled={list.isFetchingNextPage}>{t('more')}</Button>
           </div>
         ) : null}
+      </Card>
+    </>
+  );
+}
+
+type Unplaced = {
+  id: string; paidOn: string; amount: string; method: 'CASH' | 'BANK_TRANSFER'; voucherNumber: string | null;
+  book: string; bookRow: number; storeNameWritten: string; seller: string;
+};
+
+/** IMP-009, COR-005: imported payments nobody could place, attached to their store in a correction session. */
+function Unassigned() {
+  const t = useTranslations('corrections.unassigned');
+  const format = useFormat();
+  const errorText = useErrorText();
+  const queryClient = useQueryClient();
+  const status = useCorrectionStatus();
+  const sessionOpen = status.data?.mine?.state === 'OPEN';
+  const list = useQuery({ queryKey: keys.unassignedPayments, queryFn: () => api<Unplaced[]>('/corrections/imported-payments') });
+  const stores = useQuery({ queryKey: keys.stores(), queryFn: () => api<{ id: string; name: string }[]>('/stores'), enabled: sessionOpen });
+  const [attaching, setAttaching] = useState<string | null>(null);
+  const [storeId, setStoreId] = useState('');
+  const [reason, setReason] = useState('');
+  const [attached, setAttached] = useState(false);
+  const attach = useCommand((body: { id: string; storeId: string; reason: string }, key) =>
+    api(`/corrections/imported-payments/${body.id}/attach`, { method: 'POST', body: { storeId: body.storeId, reason: body.reason }, idempotencyKey: key }), {
+    onSuccess: () => {
+      for (const k of [keys.unassignedPayments, keys.stores(), keys.store(storeId), keys.storeLedger(storeId), keys.storeImported(storeId)]) {
+        void queryClient.invalidateQueries({ queryKey: k });
+      }
+      setAttaching(null); setStoreId(''); setReason(''); setAttached(true);
+    },
+  });
+  const rows = list.data ?? [];
+
+  return (
+    <>
+      <h2 className="text-base font-semibold text-stone-900">{t('title')}</h2>
+      <Card data-testid="unassigned-payments">
+        <p className="border-b border-stone-200 px-5 py-3 text-sm text-stone-600">{t('hint')}</p>
+        {list.error ? <div className="p-4"><Alert>{errorText(list.error)}</Alert></div> : null}
+        {attached ? <div className="p-4"><Alert tone="success">{t('attached')}</Alert></div> : null}
+        {list.data && rows.length === 0 ? <p className="p-5 text-sm text-stone-500">{t('empty')}</p> : null}
+        {rows.length > 0 && !sessionOpen ? <p className="px-5 py-3 text-xs text-stone-500">{t('needSession')}</p> : null}
+        {rows.length > 0 ? (
+          <Table head={[t('date'), t('amount'), t('voucher'), t('written'), t('seller'), t('book'), '']}>
+            {rows.map((p) => (
+              <tr key={p.id} data-testid={`unassigned-${p.id}`}>
+                <Cell className="whitespace-nowrap">{format.date(p.paidOn)}</Cell>
+                <Cell className="tabular-nums">{format.money(p.amount)}</Cell>
+                <Cell>{p.voucherNumber ? <bdi dir="ltr">{p.voucherNumber}</bdi> : '—'}</Cell>
+                <Cell>{p.storeNameWritten}</Cell>
+                <Cell>{p.seller}</Cell>
+                <Cell className="text-xs">{t('bookRow', { book: p.book, row: p.bookRow })}</Cell>
+                <Cell className="min-w-64">
+                  {attaching === p.id ? (
+                    <div className="space-y-2">
+                      {attach.error ? <Alert>{errorText(attach.error)}</Alert> : null}
+                      <Field id={`attach-${p.id}-store`} label={t('store')}>
+                        <Select id={`attach-${p.id}-store`} value={storeId} onChange={(e) => setStoreId(e.target.value)}>
+                          <option value="" />
+                          {(stores.data ?? []).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                        </Select>
+                      </Field>
+                      <Field id={`attach-${p.id}-reason`} label={t('reason')}>
+                        <Textarea id={`attach-${p.id}-reason`} value={reason} maxLength={1000} onChange={(e) => setReason(e.target.value)} />
+                      </Field>
+                      <div className="flex gap-2">
+                        <Button size="sm" disabled={!storeId || attach.isPending} onClick={() => attach.run({ id: p.id, storeId, reason })}>{t('confirm')}</Button>
+                        <Button size="sm" variant="ghost" onClick={() => setAttaching(null)}>{t('cancel')}</Button>
+                      </div>
+                    </div>
+                  ) : sessionOpen ? (
+                    <Button size="sm" variant="secondary" onClick={() => { setAttached(false); setAttaching(p.id); setStoreId(''); setReason(''); }}>{t('attach')}</Button>
+                  ) : null}
+                </Cell>
+              </tr>
+            ))}
+          </Table>
+        ) : null}
+      </Card>
+    </>
+  );
+}
+
+type Warning = {
+  id: string; kind: string; batch: number; params: Record<string, string | number>;
+  store: { id: string; name: string } | null;
+  sale: { book: string; bookRow: number; serial: number; soldOn: string; total: string; store: { name: string } } | null;
+  payment: { book: string; bookRow: number; voucherNumber: string | null; paidOn: string; amount: string; storeNameWritten: string } | null;
+  resolution: { as: 'KEPT' | 'CORRECTED'; note: string; by: string; at: string; session: number | null } | null;
+};
+
+const MONEY_PARAMS = new Set(['amount', 'computed', 'books', 'statement']);
+
+/** IMP-009: what the import could not settle — each kept with a note, or marked corrected in a correction session. */
+function ImportWarnings() {
+  const t = useTranslations('corrections.importWarnings');
+  const format = useFormat();
+  const errorText = useErrorText();
+  const queryClient = useQueryClient();
+  const status = useCorrectionStatus();
+  const sessionOpen = status.data?.mine?.state === 'OPEN';
+  const [resolved, setResolved] = useState(false);
+  const list = useQuery({ queryKey: keys.importWarnings(resolved), queryFn: () => api<Warning[]>(`/corrections/import-warnings?resolved=${String(resolved)}`) });
+  const [acting, setActing] = useState<{ id: string; as: 'KEPT' | 'CORRECTED' } | null>(null);
+  const [note, setNote] = useState('');
+  const resolve = useCommand((body: { id: string; resolution: 'KEPT' | 'CORRECTED'; note: string }, key) =>
+    api(`/corrections/import-warnings/${body.id}/resolve`, { method: 'POST', body: { resolution: body.resolution, note: body.note }, idempotencyKey: key }), {
+    onSuccess: () => {
+      for (const r of [true, false]) void queryClient.invalidateQueries({ queryKey: keys.importWarnings(r) });
+      setActing(null); setNote('');
+    },
+  });
+  // Figures and dates in a warning read as the rest of the app shows them.
+  const shown = (params: Record<string, string | number>) => Object.fromEntries(Object.entries(params).map(([k, v]) => [k,
+    MONEY_PARAMS.has(k) && /^-?\d+(\.\d+)?$/.test(String(v)) ? format.money(String(v))
+      : k === 'date' && /^\d{4}-\d{2}-\d{2}$/.test(String(v)) ? format.date(String(v)) : v]));
+  const rows = list.data ?? [];
+
+  return (
+    <>
+      <div className="flex flex-wrap items-center justify-between gap-2" id="import-warnings">
+        <h2 className="text-base font-semibold text-stone-900">{t('title')}</h2>
+        <Button size="sm" variant="ghost" onClick={() => setResolved(!resolved)}>{resolved ? t('showOpen') : t('showResolved')}</Button>
+      </div>
+      <Card data-testid="import-warnings">
+        <p className="border-b border-stone-200 px-5 py-3 text-sm text-stone-600">{t('hint')}</p>
+        {list.error ? <div className="p-4"><Alert>{errorText(list.error)}</Alert></div> : null}
+        {list.data && rows.length === 0 ? <p className="p-5 text-sm text-stone-500">{t('empty')}</p> : null}
+        <ul className="divide-y divide-stone-100">
+          {rows.map((w) => (
+            <li key={w.id} className="space-y-2 px-5 py-3 text-sm" data-testid={`import-warning-${w.kind}`}>
+              <p className="font-medium text-stone-900">{t(`kinds.${w.kind}` as 'kinds.VOUCHER_MISSING', shown(w.params))}</p>
+              <p className="text-xs text-stone-500">
+                {w.sale ? t('sale', { store: w.sale.store.name, serial: w.sale.serial, date: format.date(w.sale.soldOn), total: format.money(w.sale.total), book: w.sale.book, row: w.sale.bookRow })
+                  : w.payment ? (w.payment.voucherNumber
+                    ? t('payment', { written: w.payment.storeNameWritten, amount: format.money(w.payment.amount), date: format.date(w.payment.paidOn), voucher: w.payment.voucherNumber, book: w.payment.book, row: w.payment.bookRow })
+                    : t('paymentNoVoucher', { written: w.payment.storeNameWritten, amount: format.money(w.payment.amount), date: format.date(w.payment.paidOn), book: w.payment.book, row: w.payment.bookRow }))
+                  : w.store?.name}
+              </p>
+              {w.resolution ? (
+                <p className="text-xs text-stone-700">{t(w.resolution.as, { name: w.resolution.by, date: format.dateTime(w.resolution.at), note: w.resolution.note })}</p>
+              ) : acting?.id === w.id ? (
+                <div className="max-w-xl space-y-2">
+                  {resolve.error ? <Alert>{errorText(resolve.error)}</Alert> : null}
+                  <Field id={`warning-${w.id}-note`} label={t('note')}>
+                    <Textarea id={`warning-${w.id}-note`} value={note} maxLength={1000} onChange={(e) => setNote(e.target.value)} />
+                  </Field>
+                  <div className="flex gap-2">
+                    <Button size="sm" disabled={resolve.isPending} onClick={() => resolve.run({ id: w.id, resolution: acting.as, note })}>{t('save')}</Button>
+                    <Button size="sm" variant="ghost" onClick={() => setActing(null)}>{t('cancel')}</Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button size="sm" variant="secondary" onClick={() => { setNote(''); setActing({ id: w.id, as: 'KEPT' }); }}>{t('keep')}</Button>
+                  {sessionOpen
+                    ? <Button size="sm" variant="secondary" onClick={() => { setNote(''); setActing({ id: w.id, as: 'CORRECTED' }); }}>{t('corrected')}</Button>
+                    : <span className="text-xs text-stone-500">{t('needSession')}</span>}
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
       </Card>
     </>
   );

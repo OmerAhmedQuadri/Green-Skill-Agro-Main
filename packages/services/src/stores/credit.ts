@@ -14,7 +14,10 @@ import { getDb } from '../runtime';
 import { readSettings } from '../system';
 import { loadStore, openDebits, readingAsManager } from './access';
 
-const { stores, storeLedgerEntries, storeCorrections, paymentAllocations, payments, creditOverrides, storeAssignments, users } = schema;
+const {
+  stores, storeLedgerEntries, storeCorrections, paymentAllocations, payments, creditOverrides, storeAssignments, users, importBatches, importedPayments,
+  importedSales,
+} = schema;
 
 const lockLedger = (tx: Executor, storeId: string) => tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`store-ledger:${storeId}`}, 0))`);
 
@@ -42,9 +45,11 @@ export async function postStoreDebit(
 ): Promise<{ entryId: string; dueOn: string }> {
   await lockLedger(tx, input.storeId);
   const occurredAt = input.occurredAt ?? ctx.now;
-  const [store] = await tx.select({ mode: stores.creditMode, days: stores.creditCycleDays }).from(stores).where(eq(stores.id, input.storeId));
+  const [store] = await tx.select({ mode: stores.creditMode, days: stores.creditCycleDays, status: stores.status }).from(stores).where(eq(stores.id, input.storeId));
   if (!store) throw new DomainError('NOT_FOUND', { entity: 'store', id: input.storeId });
-  const dueOn = input.dueOn ?? dueDateFor(store.mode, store.days, businessDate(occurredAt), (await readSettings(tx))['credit.week_closes_on']);
+  // IMP-008: a store awaiting re-verification has no terms to be due by yet.
+  if (!input.dueOn && !store.mode) throw new DomainError('STORE_NOT_ACTIVE', { status: store.status });
+  const dueOn = input.dueOn ?? dueDateFor(store.mode ?? 'BILL_TO_BILL', store.days, businessDate(occurredAt), (await readSettings(tx))['credit.week_closes_on']);
   const [row] = await tx.insert(storeLedgerEntries).values({
     storeId: input.storeId, occurredAt, entryType: input.entryType, amount: input.amount, dueOn,
     referenceType: input.referenceType, referenceId: input.referenceId, note: input.note ?? null, ...originOf(input), branchId: ctx.branchId, createdBy: ctx.user.id,
@@ -129,6 +134,28 @@ export type PaymentInput = {
 };
 
 /**
+ * ADR-0047, ADR-0059: a voucher number is used once in the whole business — Green Agro's books included. The unique
+ * index guards the payments that stand; this guards the books' vouchers not yet in an account, compared as kept.
+ */
+export async function assertVoucherNotInBooks(tx: Executor, number: string): Promise<void> {
+  // As `voucherNumber` keeps it: no spaces, capitals, and an all-digit number without its leading zeros.
+  const kept = sql`upper(regexp_replace(${importedPayments.voucherNumber}, ${SPACES}, '', 'g'))`;
+  const [inBooks] = await tx.select({ id: importedPayments.id }).from(importedPayments)
+    .innerJoin(importBatches, eq(importBatches.id, importedPayments.batchId))
+    .where(and(
+      eq(importBatches.status, 'LOADED'),
+      sql`(case when ${kept} ~ ${ALL_DIGITS} then regexp_replace(${kept}, ${LEADING_ZEROS}, '') else ${kept} end) = ${number}`,
+      sql`not exists (select 1 from ${payments} where ${payments.importedPaymentId} = ${importedPayments.id})`,
+    ))
+    .limit(1);
+  if (inBooks) throw new DomainError('DUPLICATE_VOUCHER', { number, inBooks: true });
+}
+
+const SPACES = String.raw`\s+`;
+const ALL_DIGITS = '^[0-9]+$';
+const LEADING_ZEROS = '^0+(?=[0-9])';
+
+/**
  * A payment taken from a store, in the caller's transaction: the ledger
  * credit settling the oldest debts (CRD-003), the payment record with its
  * voucher (ADR-0047) and — for cash — the collector's cash in hand (CSH-001,
@@ -145,6 +172,7 @@ export async function takePayment(
   if (input.method === 'BANK_TRANSFER' && !reference) throw new DomainError('REASON_REQUIRED', { field: 'reference' });
   const voucher = { number: voucherNumber(input.voucher.number), photoId: input.voucher.photoId };
   await assertOwnEvidence(tx, ctx, voucher.photoId, 'PAYMENT_VOUCHER');
+  await assertVoucherNotInBooks(tx, voucher.number);
   const id = newId();
   const entryId = input.storeId
     ? (await postStoreCredit(tx, ctx, { storeId: input.storeId, entryType: 'PAYMENT', amount: input.amount, referenceType: 'PAYMENT', referenceId: id })).entryId
@@ -264,6 +292,13 @@ export type LedgerEntry = {
   readonly reference: { readonly type: string; readonly id: string };
   /** IMP-003: from the app, or from Green Agro's books (ADR-0059). */
   readonly origin: 'APP' | 'IMPORT';
+  /**
+   * IMP-003: where an imported entry was written — its batch, and for an imported sale or payment, the book, the row
+   * and the serial or voucher number. An entry a correction posted for one keeps its batch.
+   */
+  readonly imported: {
+    readonly batch: number; readonly book: string | null; readonly row: number | null; readonly serial: number | null; readonly voucherNumber: string | null;
+  } | null;
   /** A payment's method, for what correcting it can move (COR-005). */
   readonly paymentMethod: PaymentMethod | null;
   /** COR-005: what a Super Admin may correct this entry as, in a session — or null. */
@@ -290,6 +325,7 @@ export async function listStoreLedger(ctx: Ctx, storeId: string): Promise<Ledger
   const rows = await db.select({
     e: storeLedgerEntries, byName: by.name, paymentNumber: sql<string | null>`coalesce(${payments.number}, ${reinstated.number})`,
     voucherNumber: payments.voucherNumber, voucherPhotoId: payments.voucherPhotoId, method: payments.method, paymentCorrectionId: payments.correctionId,
+    importedPaymentId: payments.importedPaymentId,
     settled: sql<string>`coalesce((select sum(${paymentAllocations.amount}) from ${paymentAllocations} where ${paymentAllocations.debitEntryId} = ${storeLedgerEntries.id}), 0)`,
   }).from(storeLedgerEntries)
     .innerJoin(by, eq(by.id, storeLedgerEntries.createdBy))
@@ -297,6 +333,7 @@ export async function listStoreLedger(ctx: Ctx, storeId: string): Promise<Ledger
     .leftJoin(reinstated, and(eq(storeLedgerEntries.referenceType, 'TRANSFER_NOT_RECEIVED'), eq(reinstated.id, storeLedgerEntries.referenceId)))
     .where(eq(storeLedgerEntries.storeId, storeId))
     .orderBy(asc(storeLedgerEntries.occurredAt), asc(storeLedgerEntries.id));
+  const sources = await importedSources(db, rows.map((r) => ({ entry: r.e, importedPaymentId: r.importedPaymentId })));
   const corrections = await correctionsAround(db, rows.map((r) => r.e.id), rows.flatMap((r) => [
     ...(r.e.referenceType === 'CORRECTION' || r.e.referenceType === 'CORRECTION_REVERSAL' ? [r.e.referenceId] : []),
     ...(r.paymentCorrectionId ? [r.paymentCorrectionId] : []),
@@ -314,7 +351,7 @@ export async function listStoreLedger(ctx: Ctx, storeId: string): Promise<Ledger
       paymentNumber: r.paymentNumber, by: r.byName,
       voucher: r.voucherNumber && r.voucherPhotoId ? { number: r.voucherNumber, photoId: r.voucherPhotoId } : null,
       reference: { type: r.e.referenceType, id: r.e.referenceId },
-      origin: r.e.origin, paymentMethod: r.method,
+      origin: r.e.origin, paymentMethod: r.method, imported: r.e.origin === 'IMPORT' ? (sources.get(r.e.id) ?? null) : null,
       correctable: replaced || reversal ? null : correctableAs(r.e),
       replacedBy: replaced ? {
         number: replaced.number, reason: replaced.reason, removed: replaced.after === null,
@@ -332,6 +369,36 @@ export async function listStoreLedger(ctx: Ctx, storeId: string): Promise<Ledger
       } : null,
     };
   });
+}
+
+/** IMP-003: each imported entry's batch, and the book, row and serial or voucher it was written under. */
+async function importedSources(
+  db: Executor, rows: readonly { entry: typeof storeLedgerEntries.$inferSelect; importedPaymentId: string | null }[],
+): Promise<Map<string, NonNullable<LedgerEntry['imported']>>> {
+  const imported = rows.filter((r) => r.entry.origin === 'IMPORT');
+  if (imported.length === 0) return new Map();
+  const saleIds = imported.flatMap((r) => (r.entry.referenceType === 'IMPORTED_SALE' ? [r.entry.referenceId] : []));
+  const paymentIds = imported.flatMap((r) => (r.importedPaymentId ? [r.importedPaymentId] : []));
+  const batchIds = [...new Set(imported.flatMap((r) => (r.entry.importBatchId ? [r.entry.importBatchId] : [])))];
+  const [sales, paid, batches] = [
+    saleIds.length ? await db.select({ id: importedSales.id, book: importedSales.book, row: importedSales.bookRow, serial: importedSales.serial })
+      .from(importedSales).where(inArray(importedSales.id, saleIds)) : [],
+    paymentIds.length ? await db.select({ id: importedPayments.id, book: importedPayments.book, row: importedPayments.bookRow, voucher: importedPayments.voucherNumber })
+      .from(importedPayments).where(inArray(importedPayments.id, paymentIds)) : [],
+    batchIds.length ? await db.select({ id: importBatches.id, number: importBatches.number }).from(importBatches).where(inArray(importBatches.id, batchIds)) : [],
+  ];
+  const saleById = new Map(sales.map((x) => [x.id, x]));
+  const paidById = new Map(paid.map((x) => [x.id, x]));
+  const batchNumber = new Map(batches.map((b) => [b.id, b.number]));
+  return new Map(imported.map((r) => {
+    const sale = saleById.get(r.entry.referenceId);
+    const payment = r.importedPaymentId ? paidById.get(r.importedPaymentId) : undefined;
+    return [r.entry.id, {
+      batch: batchNumber.get(r.entry.importBatchId ?? '') ?? 0,
+      book: sale?.book ?? payment?.book ?? null, row: sale?.row ?? payment?.row ?? null,
+      serial: sale?.serial ?? null, voucherNumber: payment?.voucher ?? null,
+    }];
+  }));
 }
 
 /** COR-005: what an entry may be corrected as, or null where it is not corrected from the account. */
