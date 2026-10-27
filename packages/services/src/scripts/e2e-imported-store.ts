@@ -7,8 +7,8 @@ import { openImportBatch, recordImportedPayment, recordImportedSale, recordImpor
 import { inTx } from '../platform';
 import { closeDb, getDb } from '../runtime';
 
-// For the end-to-end tests (M13, IMP-008): a store imported from synthetic books — two invoices and a payment — for
-// a seller to re-verify, as the history import (step h) will make them. Development and CI only (ADR-0058).
+// For the end-to-end tests (M13, IMP-008, IMP-009): a store imported from synthetic books — two invoices, a payment and
+// a warning — for a seller to re-verify, as the history import (step h) will make them. Development and CI only (ADR-0058).
 // Usage: pnpm --filter @gsa/services run --silent e2e-imported-store <seller email> <store name>
 if (process.env.NODE_ENV === 'production' || process.env.APP_INSTANCE === 'production') throw new Error('Refusing to fake imported books on a production database');
 
@@ -40,6 +40,11 @@ const store = await inTx(ctx, async (tx) => {
     lines: [{ item: 'Okra', packs: '4', unitPrice: '50.00', amount: '200.00' }] });
   await recordImportedPayment(tx, ctx, batch.id, { ...written, book: 'E2E Vouchers.xlsx', bookRow: 2, paidOn: '2026-09-20', amount: '300.00',
     kind: 'VOUCHER', method: 'CASH', voucherNumber: `E2E-${stamp}` });
+  // IMP-009: one thing the import could not settle, for the Super Admin.
+  await tx.insert(schema.importWarnings).values({
+    batchId: batch.id, kind: 'RETURN_NOT_IMPORTED', storeId: imported.id, params: { amount: '120.00', date: '2026-09-15' },
+    branchId: ctx.branchId, createdBy: ctx.user.id,
+  });
   return imported;
 });
 console.log(JSON.stringify({ storeId: store.id, code: store.code, balance: '400.00' }));

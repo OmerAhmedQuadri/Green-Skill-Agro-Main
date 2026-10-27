@@ -128,7 +128,8 @@
         "WRITE_OFFS": "Write-offs",
         "PURCHASE_ORDERS": "Purchase orders to approve",
         "CLOSING_VARIANCES": "Closing-stock differences to review",
-        "OPEN_SALES": "Open sales waiting for approval"
+        "OPEN_SALES": "Open sales waiting for approval",
+        "IMPORT_WARNINGS": "Import warnings to settle"
       }
     },
     "sales": {
@@ -2817,6 +2818,38 @@
       "attached": "Attached.",
       "needSession": "Open a correction session to attach them.",
       "bookRow": "{book}, row {row}"
+    },
+    "importWarnings": {
+      "title": "Import warnings",
+      "hint": "What the import from the books could not settle. Keep each as it is, with a note — or correct it in a correction session, then mark it corrected and say how.",
+      "kinds": {
+        "VOUCHER_MISSING": "No voucher number.",
+        "VOUCHER_NOT_IN_BOOKS": "Paid at the sale by voucher {voucher}, which is in neither voucher book.",
+        "NAME_JOINED_BY_GUESS": "\"{written}\" was joined to this store on spelling alone.",
+        "PAYMENT_NO_STORE": "Written to \"{written}\", which matches no store.",
+        "PAYMENT_HELD_BACK": "Held back: it would leave {store} in credit. Attach it to its store, or keep it aside.",
+        "NAMES_MAY_BE_ONE_STORE": "May be the same store as {other}.",
+        "LINE_DOES_NOT_ADD_UP": "Line {line}: packs × price come to {computed}, not the amount written. Imported as written.",
+        "LINE_NOT_IN_CATALOGUE": "Line {line}, \"{item}\", names no catalogue product.",
+        "LINE_READ_AS_OTHER_PACK": "Line {line}, \"{item}\", was read as open pollinated but is priced like the F1.",
+        "DATE_DIFFERS_FROM_STATEMENT": "The September statement dates it {statement}.",
+        "RETURN_NOT_IMPORTED": "A return of {amount} on {date} on the September statement — not imported. Record it as a correction.",
+        "BALANCE_DIFFERS_FROM_STATEMENT": "The books come to {books}; the September statement says {statement}."
+      },
+      "sale": "{store}: invoice {serial} of {date}, {total} — {book}, row {row}",
+      "payment": "\"{written}\": {amount} on {date}, voucher {voucher} — {book}, row {row}",
+      "paymentNoVoucher": "\"{written}\": {amount} on {date}, no voucher — {book}, row {row}",
+      "keep": "Keep as it is",
+      "corrected": "Mark corrected",
+      "note": "Note",
+      "save": "Save",
+      "cancel": "Cancel",
+      "needSession": "Marking a warning corrected needs a correction session.",
+      "empty": "No open warnings.",
+      "showResolved": "Show resolved",
+      "showOpen": "Show open",
+      "KEPT": "Kept by {name}, {date}: {note}",
+      "CORRECTED": "Corrected by {name}, {date}: {note}"
     }
   }
 }

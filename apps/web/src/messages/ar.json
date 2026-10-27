@@ -128,7 +128,8 @@
         "WRITE_OFFS": "طلبات الشطب",
         "PURCHASE_ORDERS": "أوامر شراء بانتظار الاعتماد",
         "CLOSING_VARIANCES": "فروقات مخزون نهاية اليوم بانتظار المراجعة",
-        "OPEN_SALES": "عمليات بيع مفتوح بانتظار الموافقة"
+        "OPEN_SALES": "عمليات بيع مفتوح بانتظار الموافقة",
+        "IMPORT_WARNINGS": "تنبيهات النقل للمراجعة"
       }
     },
     "sales": {
@@ -2817,6 +2818,38 @@
       "attached": "تم الربط.",
       "needSession": "افتح جلسة تصحيح لربطها.",
       "bookRow": "{book}، الصف {row}"
+    },
+    "importWarnings": {
+      "title": "تنبيهات النقل من الدفاتر",
+      "hint": "ما لم يستطع النقل من الدفاتر حسمه. أبقِ كلًّا منها كما هو مع ملاحظة — أو صحّحه في جلسة تصحيح، ثم علّمه مصحَّحًا واذكر كيف.",
+      "kinds": {
+        "VOUCHER_MISSING": "بلا رقم سند.",
+        "VOUCHER_NOT_IN_BOOKS": "دُفعت عند البيع بالسند {voucher}، وهو غير موجود في أي من دفتري السندات.",
+        "NAME_JOINED_BY_GUESS": "رُبط \"{written}\" بهذا المتجر بالتهجئة وحدها.",
+        "PAYMENT_NO_STORE": "مكتوبة باسم \"{written}\"، ولا يطابق أي متجر.",
+        "PAYMENT_HELD_BACK": "محجوزة: كانت ستجعل {store} دائنًا. اربطها بمتجرها، أو أبقها جانبًا.",
+        "NAMES_MAY_BE_ONE_STORE": "قد يكون المتجر نفسه {other}.",
+        "LINE_DOES_NOT_ADD_UP": "السطر {line}: العدد × السعر = {computed}، لا المبلغ المكتوب. نُقل كما هو مكتوب.",
+        "LINE_NOT_IN_CATALOGUE": "السطر {line}، \"{item}\"، لا يطابق أي منتج في الكتالوج.",
+        "LINE_READ_AS_OTHER_PACK": "السطر {line}، \"{item}\"، قُرئ كغير هجين لكن سعره كسعر الهجين F1.",
+        "DATE_DIFFERS_FROM_STATEMENT": "يؤرخه كشف سبتمبر بـ {statement}.",
+        "RETURN_NOT_IMPORTED": "مرتجع بقيمة {amount} في {date} في كشف سبتمبر — لم يُنقل. سجّله كتصحيح.",
+        "BALANCE_DIFFERS_FROM_STATEMENT": "الرصيد حسب الدفاتر {books}؛ ويقول كشف سبتمبر {statement}."
+      },
+      "sale": "{store}: الفاتورة {serial} بتاريخ {date}، {total} — {book}، الصف {row}",
+      "payment": "\"{written}\": {amount} في {date}، السند {voucher} — {book}، الصف {row}",
+      "paymentNoVoucher": "\"{written}\": {amount} في {date}، بلا سند — {book}، الصف {row}",
+      "keep": "إبقاء كما هو",
+      "corrected": "تعليم كمصحَّح",
+      "note": "ملاحظة",
+      "save": "حفظ",
+      "cancel": "إلغاء",
+      "needSession": "تعليم التنبيه كمصحَّح يحتاج إلى جلسة تصحيح.",
+      "empty": "لا توجد تنبيهات مفتوحة.",
+      "showResolved": "عرض المحسومة",
+      "showOpen": "عرض المفتوحة",
+      "KEPT": "أبقاه {name}، {date}: {note}",
+      "CORRECTED": "صحّحه {name}، {date}: {note}"
     }
   }
 }

@@ -47,6 +47,7 @@ export const keys = {
   storeLedger: (id: string) => ['store-ledger', id] as const,
   storeImported: (id: string) => ['store-imported', id] as const,
   unassignedPayments: ['unassigned-payments'] as const,
+  importWarnings: (resolved: boolean) => ['import-warnings', resolved] as const,
   storeOptions: ['store-options'] as const,
   sales: (filter?: object) => (filter ? ['sales', filter] as const : ['sales'] as const),
   salesAnalytics: (filter: object) => ['sales-analytics', filter] as const,

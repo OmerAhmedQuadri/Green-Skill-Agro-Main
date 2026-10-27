@@ -38,6 +38,7 @@ export function CorrectionsPage() {
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <PageHeader title={t('title')} subtitle={t('subtitle')} />
+      <ImportWarnings />
       <Unassigned />
       <Changes />
       <h2 className="text-base font-semibold text-stone-900">{t('changes.sessions')}</h2>
@@ -218,6 +219,91 @@ function Unassigned() {
             ))}
           </Table>
         ) : null}
+      </Card>
+    </>
+  );
+}
+
+type Warning = {
+  id: string; kind: string; batch: number; params: Record<string, string | number>;
+  store: { id: string; name: string } | null;
+  sale: { book: string; bookRow: number; serial: number; soldOn: string; total: string; store: { name: string } } | null;
+  payment: { book: string; bookRow: number; voucherNumber: string | null; paidOn: string; amount: string; storeNameWritten: string } | null;
+  resolution: { as: 'KEPT' | 'CORRECTED'; note: string; by: string; at: string; session: number | null } | null;
+};
+
+const MONEY_PARAMS = new Set(['amount', 'computed', 'books', 'statement']);
+
+/** IMP-009: what the import could not settle — each kept with a note, or marked corrected in a correction session. */
+function ImportWarnings() {
+  const t = useTranslations('corrections.importWarnings');
+  const format = useFormat();
+  const errorText = useErrorText();
+  const queryClient = useQueryClient();
+  const status = useCorrectionStatus();
+  const sessionOpen = status.data?.mine?.state === 'OPEN';
+  const [resolved, setResolved] = useState(false);
+  const list = useQuery({ queryKey: keys.importWarnings(resolved), queryFn: () => api<Warning[]>(`/corrections/import-warnings?resolved=${String(resolved)}`) });
+  const [acting, setActing] = useState<{ id: string; as: 'KEPT' | 'CORRECTED' } | null>(null);
+  const [note, setNote] = useState('');
+  const resolve = useCommand((body: { id: string; resolution: 'KEPT' | 'CORRECTED'; note: string }, key) =>
+    api(`/corrections/import-warnings/${body.id}/resolve`, { method: 'POST', body: { resolution: body.resolution, note: body.note }, idempotencyKey: key }), {
+    onSuccess: () => {
+      for (const r of [true, false]) void queryClient.invalidateQueries({ queryKey: keys.importWarnings(r) });
+      setActing(null); setNote('');
+    },
+  });
+  // Figures and dates in a warning read as the rest of the app shows them.
+  const shown = (params: Record<string, string | number>) => Object.fromEntries(Object.entries(params).map(([k, v]) => [k,
+    MONEY_PARAMS.has(k) && /^-?\d+(\.\d+)?$/.test(String(v)) ? format.money(String(v))
+      : k === 'date' && /^\d{4}-\d{2}-\d{2}$/.test(String(v)) ? format.date(String(v)) : v]));
+  const rows = list.data ?? [];
+
+  return (
+    <>
+      <div className="flex flex-wrap items-center justify-between gap-2" id="import-warnings">
+        <h2 className="text-base font-semibold text-stone-900">{t('title')}</h2>
+        <Button size="sm" variant="ghost" onClick={() => setResolved(!resolved)}>{resolved ? t('showOpen') : t('showResolved')}</Button>
+      </div>
+      <Card data-testid="import-warnings">
+        <p className="border-b border-stone-200 px-5 py-3 text-sm text-stone-600">{t('hint')}</p>
+        {list.error ? <div className="p-4"><Alert>{errorText(list.error)}</Alert></div> : null}
+        {list.data && rows.length === 0 ? <p className="p-5 text-sm text-stone-500">{t('empty')}</p> : null}
+        <ul className="divide-y divide-stone-100">
+          {rows.map((w) => (
+            <li key={w.id} className="space-y-2 px-5 py-3 text-sm" data-testid={`import-warning-${w.kind}`}>
+              <p className="font-medium text-stone-900">{t(`kinds.${w.kind}` as 'kinds.VOUCHER_MISSING', shown(w.params))}</p>
+              <p className="text-xs text-stone-500">
+                {w.sale ? t('sale', { store: w.sale.store.name, serial: w.sale.serial, date: format.date(w.sale.soldOn), total: format.money(w.sale.total), book: w.sale.book, row: w.sale.bookRow })
+                  : w.payment ? (w.payment.voucherNumber
+                    ? t('payment', { written: w.payment.storeNameWritten, amount: format.money(w.payment.amount), date: format.date(w.payment.paidOn), voucher: w.payment.voucherNumber, book: w.payment.book, row: w.payment.bookRow })
+                    : t('paymentNoVoucher', { written: w.payment.storeNameWritten, amount: format.money(w.payment.amount), date: format.date(w.payment.paidOn), book: w.payment.book, row: w.payment.bookRow }))
+                  : w.store?.name}
+              </p>
+              {w.resolution ? (
+                <p className="text-xs text-stone-700">{t(w.resolution.as, { name: w.resolution.by, date: format.dateTime(w.resolution.at), note: w.resolution.note })}</p>
+              ) : acting?.id === w.id ? (
+                <div className="max-w-xl space-y-2">
+                  {resolve.error ? <Alert>{errorText(resolve.error)}</Alert> : null}
+                  <Field id={`warning-${w.id}-note`} label={t('note')}>
+                    <Textarea id={`warning-${w.id}-note`} value={note} maxLength={1000} onChange={(e) => setNote(e.target.value)} />
+                  </Field>
+                  <div className="flex gap-2">
+                    <Button size="sm" disabled={resolve.isPending} onClick={() => resolve.run({ id: w.id, resolution: acting.as, note })}>{t('save')}</Button>
+                    <Button size="sm" variant="ghost" onClick={() => setActing(null)}>{t('cancel')}</Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button size="sm" variant="secondary" onClick={() => { setNote(''); setActing({ id: w.id, as: 'KEPT' }); }}>{t('keep')}</Button>
+                  {sessionOpen
+                    ? <Button size="sm" variant="secondary" onClick={() => { setNote(''); setActing({ id: w.id, as: 'CORRECTED' }); }}>{t('corrected')}</Button>
+                    : <span className="text-xs text-stone-500">{t('needSession')}</span>}
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
       </Card>
     </>
   );

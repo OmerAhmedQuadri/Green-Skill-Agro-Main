@@ -16,10 +16,10 @@ function anImportedStore(sellerEmail: string, name: string): { storeId: string; 
 /**
  * IMP-005, IMP-008, IMP-003, in English and Arabic: a store imported from the books awaits re-verification. Its seller
  * opens it, fills in what the books lack, shows the owner what the books say and records that the store disputes it;
- * the imported bills and payment go into its account, labelled, and the Super Admin sees the dispute.
+ * the imported bills and payment go into its account, labelled. The Super Admin keeps an import warning with a note.
  */
 for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
-  test(`Store re-verification (${locale}) — IMP-005, IMP-008, IMP-003: an imported store re-verified on the phone, disputed`, async ({ browser, baseURL }) => {
+  test(`Store re-verification (${locale}) — IMP-005, IMP-008, IMP-003, IMP-009: an imported store re-verified on the phone, disputed; a warning kept`, async ({ browser, baseURL }) => {
     test.setTimeout(240_000);
     const origin = baseURL ?? '';
     const stamp = String(Date.now()).slice(-6);
@@ -62,5 +62,20 @@ for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
     await admin.goto(`/console/stores/${storeId}`);
     await expect(admin.getByTestId('reverification')).toContainText(`e2e ${locale}: the owner says one more payment`);
     await expect(admin.getByTestId('ledger-imported')).toHaveCount(3);
+
+    // IMP-009: what the import could not settle waits on the Super Admin's dashboard, and is kept with a note.
+    const owner = await sessionPage(browser, 'superadmin@dev.local', locale, origin);
+    await owner.goto('/console/dashboard');
+    await owner.getByRole('link', { name: new RegExp(m.dashboard.waiting.queues.IMPORT_WARNINGS) }).click();
+    await owner.waitForURL('**/console/corrections**');
+    const warning = owner.getByTestId('import-warning-RETURN_NOT_IMPORTED').filter({ hasText: name });
+    await expect(warning).toContainText('120.00');
+    await warning.getByRole('button', { name: m.corrections.importWarnings.keep, exact: true }).click();
+    await warning.getByLabel(m.corrections.importWarnings.note).fill(`e2e ${locale}: Green Agro records the return as a correction`);
+    await warning.getByRole('button', { name: m.corrections.importWarnings.save, exact: true }).click();
+    await expect(owner.getByTestId('import-warning-RETURN_NOT_IMPORTED').filter({ hasText: name })).toHaveCount(0);
+    await owner.getByRole('button', { name: m.corrections.importWarnings.showResolved, exact: true }).click();
+    await expect(owner.getByTestId('import-warning-RETURN_NOT_IMPORTED').filter({ hasText: name })).toContainText(`e2e ${locale}: Green Agro records the return`);
+    await owner.screenshot({ path: shot(`import-warnings-${locale}`), fullPage: true });
   });
 }

@@ -6,7 +6,7 @@ import { getDb } from '../runtime';
 
 const {
   stores, sales, discountApprovalRequests, writeOffs, purchaseOrders, cashSettlements, payments, transferDecisions,
-  lostOrderClaims, dispatchOrders, attendanceSessions, closingStockDeclarations,
+  lostOrderClaims, dispatchOrders, attendanceSessions, closingStockDeclarations, importWarnings, importBatches,
 } = schema;
 
 export type WaitingQueue = { readonly queue: DecisionQueue; readonly count: number };
@@ -51,6 +51,9 @@ export async function waitingForDecision(ctx: Ctx): Promise<WaitingQueue[]> {
     WRITE_OFFS: () => count(db.select({ n }).from(writeOffs).where(and(eq(writeOffs.status, 'SUBMITTED'), notMine(writeOffs.submittedBy)))),
     PURCHASE_ORDERS: () => count(db.select({ n }).from(purchaseOrders).where(eq(purchaseOrders.status, 'PENDING_APPROVAL'))),
     CLOSING_VARIANCES: () => count(db.select({ n }).from(closingStockDeclarations).where(eq(closingStockDeclarations.status, 'VARIANCE_FLAGGED'))),
+    // IMP-009: what the history import could not settle, until each is kept or corrected.
+    IMPORT_WARNINGS: () => count(db.select({ n }).from(importWarnings).innerJoin(importBatches, eq(importBatches.id, importWarnings.batchId))
+      .where(and(isNull(importWarnings.resolution), eq(importBatches.status, 'LOADED')))),
   };
   const queues = decisionQueuesFor(ctx.permissions);
   const counts = await Promise.all(queues.map((q) => counters[q]()));

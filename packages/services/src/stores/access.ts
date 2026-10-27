@@ -3,12 +3,12 @@ import {
   type StoreStatus,
 } from '@gsa/core';
 import { schema } from '@gsa/db';
-import { aliasedTable, and, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
+import { aliasedTable, and, eq, gt, inArray, isNull, or, sql, type SQL } from 'drizzle-orm';
 import type { Ctx } from '../context';
 import type { Executor } from '../platform';
 import { readSettings } from '../system';
 
-const { stores, storeAssignments, storeLedgerEntries, storeReverifications, paymentAllocations, creditOverrides, priceLists, sales, users } = schema;
+const { stores, storeAssignments, storeLedgerEntries, storeReverifications, paymentAllocations, creditOverrides, priceLists, sales, users, importBatches } = schema;
 
 /** A seller sees the stores they manage; `stores.view_all` sees every store. */
 export const seesAllStores = (ctx: Ctx) => ctx.permissions.has('stores.view_all');
@@ -101,6 +101,13 @@ const onboarder = aliasedTable(users, 'onboarder');
 const decider = aliasedTable(users, 'decider');
 const seller = aliasedTable(users, 'seller');
 
+/**
+ * IMP-004: a store imported in a batch since undone is withdrawn with it — it does not exist for lists or lookups.
+ * Its records stay, out of use.
+ */
+export const notWithdrawn = (): SQL => or(isNull(stores.importBatchId), sql`not exists (
+  select 1 from ${importBatches} where ${importBatches.id} = ${stores.importBatchId} and ${importBatches.status} = 'UNDONE')`) as SQL;
+
 /** One store, if the caller may see it — otherwise it does not exist for them (SECURITY §3). */
 export async function loadStore(db: Executor, ctx: Ctx, id: string): Promise<Store> {
   const [row] = await db.select({
@@ -109,7 +116,7 @@ export async function loadStore(db: Executor, ctx: Ctx, id: string): Promise<Sto
     .innerJoin(priceLists, eq(priceLists.id, stores.priceListId))
     .leftJoin(onboarder, eq(onboarder.id, stores.createdBy))
     .leftJoin(decider, eq(decider.id, stores.decidedBy))
-    .where(eq(stores.id, id));
+    .where(and(eq(stores.id, id), notWithdrawn()));
   if (!row) throw new DomainError('NOT_FOUND', { entity: 'store', id });
   const history = await db.select({ a: storeAssignments, name: seller.name }).from(storeAssignments)
     .innerJoin(seller, eq(seller.id, storeAssignments.sellerId))

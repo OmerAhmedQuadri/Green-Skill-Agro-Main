@@ -78,6 +78,8 @@ export const DECISION_QUEUES = {
   WRITE_OFFS: 'inventory.approve_write_off',
   PURCHASE_ORDERS: 'procurement.approve_po',
   CLOSING_VARIANCES: 'inventory.audit_vehicle',
+  // IMP-009: what the history import could not settle, for the Super Admin.
+  IMPORT_WARNINGS: 'system.correct_history',
 } as const satisfies Record<string, PermissionCode>;
 export type DecisionQueue = keyof typeof DECISION_QUEUES;
 

@@ -11,3 +11,6 @@ export {
   openImportBatch, recordImportedStore, recordImportedSale, recordImportedPayment,
   type ImportFile, type ImportedSaleInput, type ImportedPaymentInput,
 } from './history';
+export {
+  planHistoryImport, loadHistoryImport, undoImportBatch, type HistoryFile, type HistoryPlan,
+} from './history-import';
