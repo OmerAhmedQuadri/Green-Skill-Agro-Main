@@ -75,7 +75,10 @@ export function CorrectEntryPanel({ entry, storeId, onDone, onCancel }: {
   const id = (name: string) => `correct-${entry.id}-${name}`;
   return (
     <div className="space-y-4 border-b border-stone-200 bg-amber-50/40 p-5" data-testid="correct-entry">
-      <h3 className="text-sm font-semibold text-stone-900">{t('title', { kind })}</h3>
+      <div>
+        <h3 className="text-sm font-semibold text-stone-900">{t('title', { kind })}</h3>
+        <p className="mt-0.5 text-xs text-stone-500">{t('hint')}</p>
+      </div>
       <div className="grid gap-4 sm:grid-cols-2">
         <Field id={id('amount')} label={t('amount')}>
           <Input id={id('amount')} inputMode="decimal" dir="ltr" value={amount} disabled={remove} onChange={(e) => edit(setAmount)(e.target.value)} />

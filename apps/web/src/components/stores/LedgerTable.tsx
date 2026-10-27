@@ -81,7 +81,7 @@ export function LedgerTable({ entries, compact = false, area = 'console', onCorr
             {compact ? null : <Cell>{e.by}</Cell>}
             {onCorrect ? (
               <Cell>
-                {e.correctable ? <Button size="sm" variant="secondary" onClick={() => onCorrect(e)}>{tc('entry.correct')}</Button> : null}
+                {e.correctable ? <Button size="sm" variant="secondary" title={tc('entry.hint')} onClick={() => onCorrect(e)}>{tc('entry.correct')}</Button> : null}
               </Cell>
             ) : null}
           </tr>
