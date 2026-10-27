@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
-import { check, date, index, integer, numeric, pgEnum, pgTable, primaryKey, text, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { check, date, index, integer, numeric, pgEnum, pgTable, primaryKey, text, uniqueIndex, uuid, type AnyPgColumn } from 'drizzle-orm/pg-core';
 import { createdAt, id, timestamptz } from './columns';
+import { storeCorrections } from './corrections';
 import { users } from './identity';
 import { importBatches } from './imports';
 import { mediaAssets } from './media';
@@ -110,8 +111,8 @@ export const storeLedgerEntries = pgTable(
     index('store_ledger_entries_store_idx').on(t.storeId, t.occurredAt),
     index('store_ledger_entries_reference_idx').on(t.referenceType, t.referenceId),
     index('store_ledger_entries_import_batch_id_idx').on(t.importBatchId),
-    // IMP-005: an imported record goes into the account once.
-    uniqueIndex('store_ledger_entries_imported_once').on(t.referenceType, t.referenceId).where(sql`${t.origin} = 'IMPORT'`),
+    // IMP-005: an imported sale goes into the account once. Corrections of it reference the correction instead.
+    uniqueIndex('store_ledger_entries_imported_once').on(t.referenceType, t.referenceId).where(sql`${t.origin} = 'IMPORT' and ${t.referenceType} = 'IMPORTED_SALE'`),
     check('store_ledger_import_batch', sql`(${t.origin} = 'IMPORT') = (${t.importBatchId} is not null)`),
     check('store_ledger_amount_nonzero', sql`${t.amount} <> 0`),
     check('store_ledger_sign', sql`(${t.entryType} = 'SALE' and ${t.amount} > 0) or (${t.entryType} in ('PAYMENT', 'CREDIT_NOTE') and ${t.amount} < 0) or ${t.entryType} = 'ADJUSTMENT'`),
@@ -147,18 +148,27 @@ export const payments = pgTable(
     origin: entryOrigin('origin').notNull().default('APP'),
     importBatchId: uuid('import_batch_id').references(() => importBatches.id),
     importedPaymentId: uuid('imported_payment_id').references(() => importedPayments.id),
+    /** COR-005 (ADR-0059): the correction that recorded this payment, correcting another. */
+    correctionId: uuid('correction_id').references((): AnyPgColumn => storeCorrections.id),
+    /**
+     * COR-005: the correction that replaced or removed this payment. Set once, and the only change the app may make
+     * to a payment (migration 0032); from then on it no longer stands, and its corrected payment does.
+     */
+    supersededBy: uuid('superseded_by').references((): AnyPgColumn => storeCorrections.id),
     branchId: uuid('branch_id').notNull().references(() => branches.id),
     createdAt: createdAt(),
   },
   (t) => [
     index('payments_store_id_idx').on(t.storeId),
     index('payments_import_batch_id_idx').on(t.importBatchId),
-    // IMP-005: an imported payment is posted once.
-    uniqueIndex('payments_imported_payment_unique').on(t.importedPaymentId).where(sql`${t.importedPaymentId} is not null`),
+    index('payments_correction_id_idx').on(t.correctionId),
+    index('payments_superseded_by_idx').on(t.supersededBy),
+    // IMP-005: an imported payment is posted once — its corrections replace it.
+    uniqueIndex('payments_imported_payment_unique').on(t.importedPaymentId).where(sql`${t.importedPaymentId} is not null and ${t.supersededBy} is null`),
     check('payments_import_source', sql`(${t.origin} = 'IMPORT') = (${t.importBatchId} is not null)
       and (${t.origin} = 'IMPORT') = (${t.importedPaymentId} is not null)`),
-    // A voucher number is used once in the whole business (ADR-0047).
-    uniqueIndex('payments_voucher_number_unique').on(t.voucherNumber).where(sql`${t.voucherNumber} is not null`),
+    // A voucher number is used once in the whole business (ADR-0047), among the payments that stand (COR-005).
+    uniqueIndex('payments_voucher_number_unique').on(t.voucherNumber).where(sql`${t.voucherNumber} is not null and ${t.supersededBy} is null`),
     index('payments_voucher_photo_id_idx').on(t.voucherPhotoId),
     index('payments_received_by_idx').on(t.receivedBy, t.receivedAt),
     index('payments_ledger_entry_id_idx').on(t.ledgerEntryId),

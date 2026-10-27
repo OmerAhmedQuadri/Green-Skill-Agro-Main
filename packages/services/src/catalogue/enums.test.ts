@@ -5,7 +5,8 @@ import {
   SALE_STATUSES, SALE_CANCEL_REASONS, DISCOUNT_REQUEST_STATUSES, DELIVERY_DOCUMENT_STATUSES, DOCUMENT_SEND_CHANNELS, CASH_LEDGER_ENTRY_TYPES,
   SALE_CHANNELS, DISPATCH_STATUSES, DISPATCH_CLOSE_REASONS, CONFIRMATION_MODES, SHORTFALL_RESOLUTIONS, LOST_CLAIM_STATUSES, DISPATCH_EVENT_TYPES,
   RETURN_KINDS, RETURN_CONDITIONS, RETURN_OUTCOMES, SETTLEMENT_ROUTES, SETTLEMENT_STATUSES, CEILING_KINDS,
-  AUDIT_STATUSES, AUDIT_OUTCOMES, SURPLUS_STATUSES, REQUEST_OUTCOMES,
+  AUDIT_STATUSES, AUDIT_OUTCOMES, SURPLUS_STATUSES, REQUEST_OUTCOMES, CORRECTION_CLOSINGS, STORE_CORRECTION_KINDS,
+  ENTRY_ORIGINS, IMPORT_BATCH_STATUSES, IMPORTED_PAYMENT_KINDS,
 } from '@gsa/core';
 import { schema } from '@gsa/db';
 import { describe, expect, it } from 'vitest';
@@ -88,5 +89,13 @@ describe('database enums mirror core', () => {
 
   it('SYS-014: how a request ended', () => {
     expect(schema.requestOutcome.enumValues).toEqual([...REQUEST_OUTCOMES]);
+  });
+
+  it('IMP-003, IMP-004, COR-003, COR-005: imported history and corrections', () => {
+    expect(schema.entryOrigin.enumValues).toEqual([...ENTRY_ORIGINS]);
+    expect(schema.importBatchStatus.enumValues).toEqual([...IMPORT_BATCH_STATUSES]);
+    expect(schema.importedPaymentKind.enumValues).toEqual([...IMPORTED_PAYMENT_KINDS]);
+    expect(schema.correctionClosing.enumValues).toEqual([...CORRECTION_CLOSINGS]);
+    expect(schema.storeCorrectionKind.enumValues).toEqual([...STORE_CORRECTION_KINDS]);
   });
 });

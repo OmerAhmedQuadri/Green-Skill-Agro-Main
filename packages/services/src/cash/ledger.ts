@@ -45,6 +45,25 @@ export async function postCashRefund(
   return row.id;
 }
 
+/**
+ * COR-005 (ADR-0059): a cash payment corrected, and the Super Admin chose to correct its collector's cash in hand
+ * too — by the difference, on the day of the correction. It never takes them below nothing.
+ */
+export async function postCashCorrection(
+  tx: Tx, ctx: Ctx, input: { sellerId: string; amount: Money; referenceType: 'STORE_CORRECTION'; referenceId: string },
+): Promise<void> {
+  await lockCash(tx, input.sellerId);
+  const held = await cashInHand(tx, input.sellerId);
+  if (dec(held).plus(dec(input.amount)).isNegative()) {
+    throw new DomainError('CORRECTION_EXCEEDS_CASH_IN_HAND', { amount: toMoney(dec(input.amount).negated()), cashInHand: held });
+  }
+  await tx.insert(cashLedgerEntries).values({
+    sellerId: input.sellerId, occurredAt: ctx.now, entryType: 'CORRECTION', amount: input.amount,
+    referenceType: input.referenceType, referenceId: input.referenceId, branchId: ctx.branchId, createdBy: ctx.user.id,
+  });
+  await syncFlagsFor(tx, ctx, input.sellerId);
+}
+
 /** Cash in hand: the sum of the seller's cash ledger. */
 export async function cashInHand(db: Executor, sellerId: string): Promise<Money> {
   return (await cashInHandFor(db, [sellerId])).get(sellerId) ?? ('0.00' as Money);

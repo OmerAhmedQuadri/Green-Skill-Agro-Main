@@ -2,7 +2,7 @@ import {
   businessMonth, businessMonthRange, dec, DomainError, isBusinessMonth, toMoney, type Money,
 } from '@gsa/core';
 import { schema } from '@gsa/db';
-import { and, eq, gte, inArray, lt, sql } from 'drizzle-orm';
+import { and, eq, gte, inArray, isNull, lt, sql } from 'drizzle-orm';
 import { cashInHand } from '../cash';
 import { authorize, type Ctx } from '../context';
 import type { Executor } from '../platform';
@@ -32,7 +32,7 @@ export async function collectedBySeller(db: Executor, sellerIds: readonly string
     sellerId: payments.receivedBy, method: payments.method,
     amount: sql<string>`coalesce(sum(${payments.amount}), 0)::numeric(14,2)`, count: sql<number>`count(*)::int`,
   }).from(payments)
-    .where(and(inArray(payments.receivedBy, [...sellerIds]), gte(payments.receivedAt, from), lt(payments.receivedAt, to)))
+    .where(and(inArray(payments.receivedBy, [...sellerIds]), gte(payments.receivedAt, from), lt(payments.receivedAt, to), isNull(payments.supersededBy)))
     .groupBy(payments.receivedBy, payments.method);
   for (const row of rows) {
     const current = out.get(row.sellerId);

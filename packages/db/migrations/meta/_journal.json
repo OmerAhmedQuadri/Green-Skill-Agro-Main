@@ -225,6 +225,13 @@
       "when": 1793055367628,
       "tag": "0031_correction_sessions",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1793064411964,
+      "tag": "0032_store_corrections",
+      "breakpoints": true
     }
   ]
 }

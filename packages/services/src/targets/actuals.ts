@@ -3,7 +3,7 @@ import {
   type CashFlow, type ConfirmedTransfer, type Money, type SettlementApproval, type TargetActuals,
 } from '@gsa/core';
 import { schema } from '@gsa/db';
-import { and, asc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import type { Executor } from '../platform';
 import { readSettings } from '../system';
 
@@ -126,7 +126,7 @@ export async function confirmedTransfersFor(
     sellerId: payments.receivedBy, receivedAt: payments.receivedAt, amount: payments.amount, confirmedAt: transferDecisions.decidedAt,
   }).from(payments)
     .innerJoin(transferDecisions, eq(transferDecisions.paymentId, payments.id))
-    .where(and(inArray(payments.receivedBy, [...sellerIds]), eq(transferDecisions.outcome, 'CONFIRMED')));
+    .where(and(inArray(payments.receivedBy, [...sellerIds]), eq(transferDecisions.outcome, 'CONFIRMED'), isNull(payments.supersededBy)));
   const perSeller = new Map<string, ConfirmedTransfer[]>(sellerIds.map((id) => [id, []]));
   for (const row of rows) {
     perSeller.get(row.sellerId)?.push({ period: businessMonth(row.receivedAt), confirmedAt: row.confirmedAt, amount: row.amount as Money });

@@ -3,11 +3,11 @@ import { newId, schema } from '@gsa/db';
 import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { authorize, type Ctx } from '../context';
 import { endRequest, notify } from '../notifications';
-import { audit, inTx, type Executor, type Tx } from '../platform';
+import { audit, inTx, type Executor } from '../platform';
 import { getDb } from '../runtime';
-import { postStoreDebit } from './credit';
+import { reinstateSettled } from './credit';
 
-const { payments, paymentAllocations, sales, storeLedgerEntries, stores, transferDecisions, users } = schema;
+const { payments, sales, stores, transferDecisions, users } = schema;
 
 export type AwaitingTransfer = {
   readonly id: string; readonly number: string; readonly amount: Money; readonly reference: string; readonly receivedAt: Date;
@@ -19,7 +19,8 @@ export type AwaitingTransfer = {
 };
 
 /** A store's bank transfer nobody has decided on yet. */
-const awaiting = and(eq(payments.method, 'BANK_TRANSFER'), isNull(transferDecisions.id));
+// COR-005: a payment a correction replaced no longer stands; its corrected payment does.
+const awaiting = and(eq(payments.method, 'BANK_TRANSFER'), isNull(transferDecisions.id), isNull(payments.supersededBy));
 
 /**
  * ADR-0046: the bank transfers nobody has checked yet, oldest first — the list
@@ -76,26 +77,6 @@ export type TransferDecision = {
 };
 
 /**
- * ADR-0046: a transfer that never arrived puts back what it had settled — one
- * debit for each due date it cleared, so the store owes what it did before, by
- * the same dates, and its credit rules apply again at once (CRD-005).
- */
-async function reinstateDebts(tx: Tx, ctx: Ctx, payment: { id: string; storeId: string; ledgerEntryId: string }, reason: string): Promise<void> {
-  const cleared = await tx.select({ dueOn: storeLedgerEntries.dueOn, amount: sql<string>`sum(${paymentAllocations.amount})::numeric(14,2)` })
-    .from(paymentAllocations)
-    .innerJoin(storeLedgerEntries, eq(storeLedgerEntries.id, paymentAllocations.debitEntryId))
-    .where(eq(paymentAllocations.creditEntryId, payment.ledgerEntryId))
-    .groupBy(storeLedgerEntries.dueOn)
-    .orderBy(asc(storeLedgerEntries.dueOn));
-  for (const debt of cleared) {
-    await postStoreDebit(tx, ctx, {
-      storeId: payment.storeId, entryType: 'ADJUSTMENT', amount: debt.amount as Money,
-      referenceType: 'TRANSFER_NOT_RECEIVED', referenceId: payment.id, note: reason, dueOn: debt.dueOn,
-    });
-  }
-}
-
-/**
  * ADR-0046: an approver checks a store's bank transfer against the account.
  * Confirmed, it counts towards the seller's collections and commission, in the
  * month it was received. Not received, the store owes the money again and the
@@ -125,7 +106,9 @@ export async function decideTransfer(
       const area = recorder?.role === 'SELLER' ? 'field' : 'console';
       let link: string;
       if (payment.storeId && payment.ledgerEntryId) {
-        await reinstateDebts(tx, ctx, { id: payment.id, storeId: payment.storeId, ledgerEntryId: payment.ledgerEntryId }, reason ?? '');
+        await reinstateSettled(tx, ctx, {
+          storeId: payment.storeId, creditEntryId: payment.ledgerEntryId, referenceType: 'TRANSFER_NOT_RECEIVED', referenceId: payment.id, note: reason ?? '',
+        });
         link = `/${area}/stores/${payment.storeId}`;
       } else {
         // ADR-0052: an open sale's transfer — no store to owe it; the sale shows it unpaid, and the seller is told.

@@ -473,7 +473,7 @@
       "view_audit_log": "View the audit log",
       "manage_storage": "How long files are kept, and storage use",
       "keep_files": "Keep a single file forever",
-      "correct_history": "Correct history, inside a correction session"
+      "correct_history": "Correct entries recorded wrongly, inside a correction session"
     },
     "catalogue": {
       "view": "View the catalogue",
@@ -519,7 +519,7 @@
       "edit_terms": "Change credit limit and price list",
       "reassign": "Reassign stores between sellers",
       "override_credit_block": "Override a credit block",
-      "adjust_balance": "Correct a store's balance, with a reason"
+      "adjust_balance": "Adjust a store's balance (opening balances, agreed changes), with a reason"
     },
     "sales": {
       "record": "Record sales",
@@ -706,7 +706,14 @@
     "OPEN_SALE_NEEDS_APPROVAL": "This open sale needs approval. Give a reason to ask for it.",
     "WRONG_PASSWORD": "That password isn't right.",
     "CORRECTION_SESSION_OPEN": "You already have a correction session. Close it first.",
-    "NO_CORRECTION_SESSION": "Open a correction session first. History can be corrected only inside one."
+    "NO_CORRECTION_SESSION": "Open a correction session first. History can be corrected only inside one.",
+    "CORRECT_THROUGH_SALE": "This bill is from a sale made in the app. Correct it through the sale.",
+    "NOT_CORRECTABLE": "This entry can't be corrected here.",
+    "NOTHING_TO_CORRECT": "Nothing has changed. Change a value, or remove the entry.",
+    "ALREADY_CORRECTED": "This entry has been corrected already. Correct the corrected entry instead.",
+    "CORRECTION_LEAVES_CREDIT": "The store has paid towards this and owes nothing else to put that money towards. Correct the payment first.",
+    "CORRECTION_EXCEEDS_CASH_IN_HAND": "The collector doesn't hold that much cash. Correct the store's account only, and settle the cash separately.",
+    "TRANSFER_NOT_DECIDED": "Check this bank transfer first (confirmed or not received), then correct it."
   },
   "format": {
     "grams": "{value} g",
@@ -1700,10 +1707,10 @@
   "stores": {
     "accountManager": "Account manager",
     "address": "Address",
-    "adjust": "Correct the balance",
+    "adjust": "Adjust the balance",
     "adjustAmount": "Amount (e.g. 250.00 or -50.00)",
     "adjustDueOn": "Due date",
-    "adjustHint": "A reason is required. A negative amount lowers what is owed. Opening balances go in here, with their due date.",
+    "adjustHint": "Adds a new entry that raises or lowers what the store owes: an opening balance, or a change agreed with the store. It doesn't change entries already on the account; a wrong entry is corrected by a Super Admin in a correction session. A negative amount lowers what is owed; a reason is required.",
     "adjustReason": "Reason",
     "amount": "Amount",
     "approval": "Approval",
@@ -1786,7 +1793,7 @@
     "owes": "Owes {amount}",
     "ownerName": "Owner's name",
     "pastDue": "Past due",
-    "postAdjustment": "Post correction",
+    "postAdjustment": "Post adjustment",
     "priceList": "Price list",
     "reasons": {
       "NOT_APPROVED": "Not approved yet",
@@ -2646,10 +2653,10 @@
   },
   "corrections": {
     "title": "Corrections",
-    "subtitle": "Every correction session: who opened it, when, and why.",
+    "subtitle": "Every correction session and every change made in it: who, when, and why.",
     "settings": {
       "title": "Correct history",
-      "hint": "Off unless you open a correction session. Inside it, you alone can correct history, for one hour. Every change is logged against the reason you give.",
+      "hint": "Fixes entries recorded wrongly — a bill's or payment's amount, date, store or voucher number — by reversing them and posting the corrected ones; the originals stay, struck through. It's off until you open a session: then only you can correct, for one hour, and every change is logged with your reason.",
       "off": "Off. Nobody can correct history now.",
       "open": "Open a correction session",
       "password": "Your password",
@@ -2700,6 +2707,65 @@
       },
       "added": "Added when closed:",
       "edited": "Edited when closed:"
+    },
+    "entry": {
+      "title": "Correct this {kind, select, BILL {bill} other {payment}}",
+      "amount": "Amount (SAR)",
+      "date": "Date",
+      "store": "Store",
+      "voucher": "Voucher number",
+      "remove": "Remove this entry",
+      "removeHint": "It stays on the account, struck through, with your reason.",
+      "cashInHand": "Also correct the collector's cash in hand",
+      "cashInHandHint": "Only if the cash they hold was recorded wrongly too.",
+      "reason": "Reason for this correction",
+      "reasonHint": "Say what was wrong and how you know. An unclear reason can cause problems later.",
+      "preview": "Show the effect",
+      "confirm": "Confirm the correction",
+      "cancel": "Cancel",
+      "effect": "What this changes",
+      "cash": "{name}'s cash in hand",
+      "done": "Corrected (correction {number}).",
+      "openSession": "To correct an entry, open a correction session in Settings.",
+      "correct": "Correct",
+      "owedNow": "Owed now",
+      "owedAfter": "Owed after",
+      "pastDueNow": "Past due now",
+      "pastDueAfter": "Past due after",
+      "hint": "Reverses this entry and posts the corrected one. The original stays on the account, struck through, with your reason."
+    },
+    "ledger": {
+      "replaced": "Replaced by correction {number}",
+      "removed": "Removed by correction {number}",
+      "moved": "Moved to {store} by correction {number}",
+      "reversal": "Reversal, correction {number}",
+      "corrected": "Correction {number}",
+      "movedFrom": "Moved from {store}",
+      "was": "Was"
+    },
+    "changes": {
+      "title": "Changes",
+      "sessions": "Sessions",
+      "number": "No.",
+      "session": "Session",
+      "store": "Store",
+      "what": "What",
+      "change": "Change",
+      "reason": "Reason",
+      "by": "By",
+      "when": "When",
+      "kinds": {
+        "BILL": "Bill",
+        "PAYMENT": "Payment"
+      },
+      "removed": "Removed",
+      "moved": "Moved to {store}",
+      "amount": "Amount",
+      "date": "Date",
+      "voucher": "Voucher",
+      "cashInHand": "Cash in hand corrected too",
+      "empty": "No corrections yet.",
+      "more": "Show more"
     }
   }
 }

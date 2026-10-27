@@ -43,7 +43,7 @@ export async function waitingForDecision(ctx: Ctx): Promise<WaitingQueue[]> {
       or(sql`${cashSettlements.route} <> 'MANAGER_HANDOVER'`, eq(cashSettlements.receivedBy, ctx.user.id)),
     ))),
     TRANSFERS: () => count(db.select({ n }).from(payments).leftJoin(transferDecisions, eq(transferDecisions.paymentId, payments.id)).where(and(
-      eq(payments.method, 'BANK_TRANSFER'), isNull(transferDecisions.id), notMine(payments.receivedBy),
+      eq(payments.method, 'BANK_TRANSFER'), isNull(transferDecisions.id), isNull(payments.supersededBy), notMine(payments.receivedBy),
     ))),
     LOST_CLAIMS: () => count(db.select({ n }).from(lostOrderClaims).innerJoin(dispatchOrders, eq(dispatchOrders.id, lostOrderClaims.orderId)).where(and(
       eq(lostOrderClaims.status, 'PENDING'), notMine(lostOrderClaims.raisedBy), notMine(dispatchOrders.sellerId),

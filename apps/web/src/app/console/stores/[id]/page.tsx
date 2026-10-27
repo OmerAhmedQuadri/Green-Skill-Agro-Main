@@ -12,6 +12,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
     <StoreDetail id={id} can={{
       approve: p.has('stores.approve'), editTerms: p.has('stores.edit_terms'), reassign: p.has('stores.reassign'),
       override: p.has('stores.override_credit_block'), adjust: p.has('stores.adjust_balance'),
+      correct: p.has('system.correct_history'),
     }} />
   );
 }

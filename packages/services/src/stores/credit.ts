@@ -1,8 +1,9 @@
 import {
-  allocateCredit, businessDate, dec, DomainError, dueDateFor, isoDate, money, toMoney, voucherNumber, type CreditStatus, type Money,
+  allocateCredit, businessDate, dec, DomainError, dueDateFor, isoDate, money, storeEntryKind, toMoney, voucherNumber,
+  type CreditStatus, type Money, type StoreCorrectionKind, type StoreEntryValues,
 } from '@gsa/core';
 import { newId, schema } from '@gsa/db';
-import { aliasedTable, and, asc, eq, isNull, sql } from 'drizzle-orm';
+import { aliasedTable, and, asc, eq, inArray, isNull, or, sql } from 'drizzle-orm';
 import { assertSellerWorking } from '../attendance';
 import { postCashCollection } from '../cash';
 import { authorize, authorizeAny, type Ctx } from '../context';
@@ -13,9 +14,21 @@ import { getDb } from '../runtime';
 import { readSettings } from '../system';
 import { loadStore, openDebits, readingAsManager } from './access';
 
-const { stores, storeLedgerEntries, paymentAllocations, payments, creditOverrides, storeAssignments, users } = schema;
+const { stores, storeLedgerEntries, storeCorrections, paymentAllocations, payments, creditOverrides, storeAssignments, users } = schema;
 
 const lockLedger = (tx: Executor, storeId: string) => tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`store-ledger:${storeId}`}, 0))`);
+
+/** Several stores' ledgers, always taken in the same order, so two corrections between the same stores cannot deadlock. */
+export async function lockStoreLedgers(tx: Executor, storeIds: readonly string[]): Promise<void> {
+  for (const id of [...new Set(storeIds)].sort()) await lockLedger(tx, id);
+}
+
+/**
+ * When an entry happened, if not now, and where it came from (IMP-003): the app, or an imported batch. Corrections
+ * post on an entry's own date and keep its origin (COR-005).
+ */
+type Posted = { occurredAt?: Date | undefined; origin?: { origin: 'APP' | 'IMPORT'; importBatchId: string | null } | undefined };
+const originOf = (input: Posted) => (input.origin ? { origin: input.origin.origin, importBatchId: input.origin.importBatchId } : {});
 
 /**
  * A debit on the store ledger: + what the store owes, due by its cycle when
@@ -23,15 +36,18 @@ const lockLedger = (tx: Executor, storeId: string) => tx.execute(sql`select pg_a
  */
 export async function postStoreDebit(
   tx: Tx, ctx: Ctx,
-  input: { storeId: string; entryType: 'SALE' | 'ADJUSTMENT'; amount: Money; referenceType: string; referenceId: string; note?: string | null; dueOn?: string | null },
+  input: {
+    storeId: string; entryType: 'SALE' | 'ADJUSTMENT'; amount: Money; referenceType: string; referenceId: string; note?: string | null; dueOn?: string | null;
+  } & Posted,
 ): Promise<{ entryId: string; dueOn: string }> {
   await lockLedger(tx, input.storeId);
+  const occurredAt = input.occurredAt ?? ctx.now;
   const [store] = await tx.select({ mode: stores.creditMode, days: stores.creditCycleDays }).from(stores).where(eq(stores.id, input.storeId));
   if (!store) throw new DomainError('NOT_FOUND', { entity: 'store', id: input.storeId });
-  const dueOn = input.dueOn ?? dueDateFor(store.mode, store.days, businessDate(ctx.now), (await readSettings(tx))['credit.week_closes_on']);
+  const dueOn = input.dueOn ?? dueDateFor(store.mode, store.days, businessDate(occurredAt), (await readSettings(tx))['credit.week_closes_on']);
   const [row] = await tx.insert(storeLedgerEntries).values({
-    storeId: input.storeId, occurredAt: ctx.now, entryType: input.entryType, amount: input.amount, dueOn,
-    referenceType: input.referenceType, referenceId: input.referenceId, note: input.note ?? null, branchId: ctx.branchId, createdBy: ctx.user.id,
+    storeId: input.storeId, occurredAt, entryType: input.entryType, amount: input.amount, dueOn,
+    referenceType: input.referenceType, referenceId: input.referenceId, note: input.note ?? null, ...originOf(input), branchId: ctx.branchId, createdBy: ctx.user.id,
   }).returning({ id: storeLedgerEntries.id });
   if (!row) throw new Error('ledger insert returned nothing');
   return { entryId: row.id, dueOn };
@@ -47,17 +63,40 @@ export async function postStoreCredit(
   input: {
     storeId: string; entryType: 'PAYMENT' | 'CREDIT_NOTE' | 'ADJUSTMENT'; amount: Money; referenceType: string; referenceId: string; note?: string | null;
     /** ADR-0039: a credit note settles its own sale first. */ firstDebitId?: string | null;
-  },
+  } & Posted,
 ): Promise<{ entryId: string; allocations: { debitId: string; amount: Money }[] }> {
   await lockLedger(tx, input.storeId);
   const allocations = allocateCredit(input.amount, await openDebits(tx, [input.storeId]), input.firstDebitId ?? undefined);
   const [row] = await tx.insert(storeLedgerEntries).values({
-    storeId: input.storeId, occurredAt: ctx.now, entryType: input.entryType, amount: toMoney(dec(input.amount).negated()),
-    referenceType: input.referenceType, referenceId: input.referenceId, note: input.note ?? null, branchId: ctx.branchId, createdBy: ctx.user.id,
+    storeId: input.storeId, occurredAt: input.occurredAt ?? ctx.now, entryType: input.entryType, amount: toMoney(dec(input.amount).negated()),
+    referenceType: input.referenceType, referenceId: input.referenceId, note: input.note ?? null, ...originOf(input), branchId: ctx.branchId, createdBy: ctx.user.id,
   }).returning({ id: storeLedgerEntries.id });
   if (!row) throw new Error('ledger insert returned nothing');
   await tx.insert(paymentAllocations).values(allocations.map((a) => ({ creditEntryId: row.id, debitEntryId: a.debitId, amount: a.amount })));
   return { entryId: row.id, allocations };
+}
+
+/**
+ * ADR-0046, COR-005: what a credit settled, put back — one debit for each due date it cleared, so the store owes
+ * what it did before, by the same dates, and its credit rules apply again at once (CRD-005). A transfer that never
+ * arrived comes back this way, and so does a payment a correction replaces or removes.
+ */
+export async function reinstateSettled(
+  tx: Tx, ctx: Ctx,
+  input: { storeId: string; creditEntryId: string; referenceType: string; referenceId: string; note: string | null } & Posted,
+): Promise<void> {
+  const cleared = await tx.select({ dueOn: storeLedgerEntries.dueOn, amount: sql<string>`sum(${paymentAllocations.amount})::numeric(14,2)` })
+    .from(paymentAllocations)
+    .innerJoin(storeLedgerEntries, eq(storeLedgerEntries.id, paymentAllocations.debitEntryId))
+    .where(eq(paymentAllocations.creditEntryId, input.creditEntryId))
+    .groupBy(storeLedgerEntries.dueOn)
+    .orderBy(asc(storeLedgerEntries.dueOn));
+  for (const debt of cleared) {
+    await postStoreDebit(tx, ctx, {
+      storeId: input.storeId, entryType: 'ADJUSTMENT', amount: debt.amount as Money,
+      referenceType: input.referenceType, referenceId: input.referenceId, note: input.note, dueOn: debt.dueOn, origin: input.origin,
+    });
+  }
 }
 
 /**
@@ -223,6 +262,21 @@ export type LedgerEntry = {
    * returns were invisible on a store's page.
    */
   readonly reference: { readonly type: string; readonly id: string };
+  /** IMP-003: from the app, or from Green Agro's books (ADR-0059). */
+  readonly origin: 'APP' | 'IMPORT';
+  /** A payment's method, for what correcting it can move (COR-005). */
+  readonly paymentMethod: PaymentMethod | null;
+  /** COR-005: what a Super Admin may correct this entry as, in a session — or null. */
+  readonly correctable: StoreCorrectionKind | null;
+  /** COR-002: a correction replaced, removed or moved this entry. It stays, struck through. */
+  readonly replacedBy: { readonly number: number; readonly reason: string; readonly removed: boolean; readonly movedTo: string | null } | null;
+  /** COR-002: posted by a correction to reverse the entry it corrected. */
+  readonly reversalOf: { readonly number: number } | null;
+  /** COR-002: the corrected entry — with what was there before, shown struck through beside it. */
+  readonly correctionOf: {
+    readonly number: number; readonly reason: string; readonly movedFrom: string | null;
+    readonly was: { readonly amount: Money | null; readonly date: string | null; readonly voucherNumber: string | null };
+  } | null;
 };
 
 /** RPT-008, CRD-003: the store's ledger, oldest first, with the running balance and what each debt still owes. */
@@ -235,7 +289,7 @@ export async function listStoreLedger(ctx: Ctx, storeId: string): Promise<Ledger
   const reinstated = aliasedTable(payments, 'reinstated');
   const rows = await db.select({
     e: storeLedgerEntries, byName: by.name, paymentNumber: sql<string | null>`coalesce(${payments.number}, ${reinstated.number})`,
-    voucherNumber: payments.voucherNumber, voucherPhotoId: payments.voucherPhotoId,
+    voucherNumber: payments.voucherNumber, voucherPhotoId: payments.voucherPhotoId, method: payments.method, paymentCorrectionId: payments.correctionId,
     settled: sql<string>`coalesce((select sum(${paymentAllocations.amount}) from ${paymentAllocations} where ${paymentAllocations.debitEntryId} = ${storeLedgerEntries.id}), 0)`,
   }).from(storeLedgerEntries)
     .innerJoin(by, eq(by.id, storeLedgerEntries.createdBy))
@@ -243,16 +297,70 @@ export async function listStoreLedger(ctx: Ctx, storeId: string): Promise<Ledger
     .leftJoin(reinstated, and(eq(storeLedgerEntries.referenceType, 'TRANSFER_NOT_RECEIVED'), eq(reinstated.id, storeLedgerEntries.referenceId)))
     .where(eq(storeLedgerEntries.storeId, storeId))
     .orderBy(asc(storeLedgerEntries.occurredAt), asc(storeLedgerEntries.id));
+  const corrections = await correctionsAround(db, rows.map((r) => r.e.id), rows.flatMap((r) => [
+    ...(r.e.referenceType === 'CORRECTION' || r.e.referenceType === 'CORRECTION_REVERSAL' ? [r.e.referenceId] : []),
+    ...(r.paymentCorrectionId ? [r.paymentCorrectionId] : []),
+  ]));
   let running = dec('0');
   return rows.map((r) => {
     running = running.plus(dec(r.e.amount));
     const debit = dec(r.e.amount).gt(0);
+    const replaced = corrections.byOriginal.get(r.e.id);
+    const reversal = r.e.referenceType === 'CORRECTION_REVERSAL' ? corrections.byId.get(r.e.referenceId) : undefined;
+    const correction = corrections.byId.get(r.e.referenceType === 'CORRECTION' ? r.e.referenceId : (r.paymentCorrectionId ?? ''));
     return {
       id: r.e.id, occurredAt: r.e.occurredAt, entryType: r.e.entryType, amount: r.e.amount as Money, balance: toMoney(running),
       dueOn: r.e.dueOn, open: debit ? toMoney(dec(r.e.amount).minus(dec(r.settled))) : null, note: r.e.note,
       paymentNumber: r.paymentNumber, by: r.byName,
       voucher: r.voucherNumber && r.voucherPhotoId ? { number: r.voucherNumber, photoId: r.voucherPhotoId } : null,
       reference: { type: r.e.referenceType, id: r.e.referenceId },
+      origin: r.e.origin, paymentMethod: r.method,
+      correctable: replaced || reversal ? null : correctableAs(r.e),
+      replacedBy: replaced ? {
+        number: replaced.number, reason: replaced.reason, removed: replaced.after === null,
+        movedTo: replaced.toStoreId ? (corrections.storeNames.get(replaced.toStoreId) ?? null) : null,
+      } : null,
+      reversalOf: reversal ? { number: reversal.number } : null,
+      correctionOf: correction && !reversal ? {
+        number: correction.number, reason: correction.reason,
+        movedFrom: correction.toStoreId ? (corrections.storeNames.get(correction.storeId) ?? null) : null,
+        was: {
+          amount: correction.after && !dec(correction.after.amount).eq(dec(correction.before.amount)) ? correction.before.amount : null,
+          date: correction.after && correction.after.date !== correction.before.date ? correction.before.date : null,
+          voucherNumber: correction.after && correction.after.voucherNumber !== correction.before.voucherNumber ? correction.before.voucherNumber : null,
+        },
+      } : null,
     };
   });
+}
+
+/** COR-005: what an entry may be corrected as, or null where it is not corrected from the account. */
+function correctableAs(entry: { entryType: string; amount: string; referenceType: string }): StoreCorrectionKind | null {
+  try {
+    return storeEntryKind(entry);
+  } catch {
+    return null;
+  }
+}
+
+type CorrectionRow = {
+  readonly id: string; readonly number: number; readonly reason: string; readonly storeId: string; readonly toStoreId: string | null;
+  readonly before: StoreEntryValues; readonly after: StoreEntryValues | null;
+};
+
+/** The corrections a store's entries were made by or replaced by, and the names of the stores they moved between. */
+async function correctionsAround(db: Executor, entryIds: readonly string[], correctionIds: readonly string[]) {
+  const rows = entryIds.length === 0 ? [] : await db.select({
+    id: storeCorrections.id, number: storeCorrections.number, reason: storeCorrections.reason, storeId: storeCorrections.storeId,
+    toStoreId: storeCorrections.toStoreId, originalEntryId: storeCorrections.originalEntryId, before: storeCorrections.before, after: storeCorrections.after,
+  }).from(storeCorrections)
+    .where(or(inArray(storeCorrections.originalEntryId, [...entryIds]), correctionIds.length ? inArray(storeCorrections.id, [...correctionIds]) : undefined));
+  const all = rows.map((r) => ({ ...r, before: r.before as StoreEntryValues, after: r.after as StoreEntryValues | null }));
+  const storeIds = [...new Set(all.flatMap((c) => (c.toStoreId ? [c.storeId, c.toStoreId] : [])))];
+  const names = storeIds.length === 0 ? [] : await db.select({ id: stores.id, name: stores.name }).from(stores).where(inArray(stores.id, storeIds));
+  return {
+    byOriginal: new Map<string, CorrectionRow>(all.map((c) => [c.originalEntryId, c])),
+    byId: new Map<string, CorrectionRow>(all.map((c) => [c.id, c])),
+    storeNames: new Map(names.map((n) => [n.id, n.name])),
+  };
 }
