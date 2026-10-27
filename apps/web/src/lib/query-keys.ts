@@ -60,6 +60,7 @@ export const keys = {
   cashInHand: ['cash-in-hand'] as const,
   correctionStatus: ['correction-status'] as const,
   correctionSessions: ['correction-sessions'] as const,
+  storeCorrections: ['store-corrections'] as const,
   auditLog: (filter?: object) => (filter ? ['audit-log', filter] as const : ['audit-log'] as const),
   dispatchOrders: (filter?: object) => (filter ? ['dispatch-orders', filter] as const : ['dispatch-orders'] as const),
   dispatchOrder: (id: string) => ['dispatch-order', id] as const,

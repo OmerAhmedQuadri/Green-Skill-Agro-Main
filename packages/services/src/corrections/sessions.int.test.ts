@@ -40,6 +40,18 @@ describe('correction sessions: history is corrected only inside one (ADR-0059)',
     expect(await codeOf(openCorrectionSession(admin, { password: PASSWORD, reason: REASON }))).toBe('FORBIDDEN');
   });
 
+  it('COR-001: five wrong passwords in a minute stop even the right one; opening sessions does not count', async () => {
+    const owner = await ctxFor(await anAccount('SUPER_ADMIN'));
+    for (let i = 0; i < 3; i += 1) {
+      const s = await openCorrectionSession(owner, { password: PASSWORD, reason: REASON });
+      await closeCorrectionSession(owner, s.id, { version: s.version, closing: 'KEPT' });
+    }
+    for (let i = 0; i < 4; i += 1) expect(await codeOf(openCorrectionSession(owner, { password: 'wrong', reason: REASON }))).toBe('WRONG_PASSWORD');
+    expect(await codeOf(openCorrectionSession(owner, { password: 'wrong', reason: REASON }))).toBe('WRONG_PASSWORD');
+    expect(await codeOf(openCorrectionSession(owner, { password: PASSWORD, reason: REASON }))).toBe('RATE_LIMITED');
+    expect(await codeOf(openCorrectionSession(at(owner, 61_000), { password: PASSWORD, reason: REASON }))).toBe('NO_ERROR');
+  });
+
   it('COR-001: with no session open nothing can be corrected — before, after the hour, after closing, or in another\'s', async () => {
     const owner = await ctxFor(await anAccount('SUPER_ADMIN'));
     const other = await ctxFor(await anAccount('SUPER_ADMIN'));

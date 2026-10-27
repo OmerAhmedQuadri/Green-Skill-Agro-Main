@@ -7,6 +7,8 @@ import { useState, type FormEvent } from 'react';
 import { Alert, Badge, Button, Field, Input, Select } from '@gsa/ui';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Facts, Section } from '@/components/common/Section';
+import { CorrectEntryPanel } from '@/components/corrections/CorrectEntryPanel';
+import { useCorrectionStatus } from '@/components/corrections/status';
 import { Cell, Table } from '@/components/common/Table';
 import type { Seller } from '@/components/vehicles/types';
 import { api } from '@/lib/api';
@@ -19,7 +21,7 @@ import { LedgerSummary } from './LedgerSummary';
 import { LedgerTable } from './LedgerTable';
 import { STATUS_TONE, type LedgerEntry, type Store, type StoreOptions } from './types';
 
-type Can = { approve: boolean; editTerms: boolean; reassign: boolean; override: boolean; adjust: boolean };
+type Can = { approve: boolean; editTerms: boolean; reassign: boolean; override: boolean; adjust: boolean; /** ADR-0059 */ correct: boolean };
 
 /**
  * One store for managers (STO-005..009, CRD-004..007): approve or reject it,
@@ -29,6 +31,7 @@ type Can = { approve: boolean; editTerms: boolean; reassign: boolean; override: 
 export function StoreDetail({ id, can }: { id: string; can: Can }) {
   const t = useTranslations('stores');
   const tc = useTranslations('common');
+  const tco = useTranslations('corrections');
   const format = useFormat();
   const errorText = useErrorText();
   const queryClient = useQueryClient();
@@ -40,6 +43,11 @@ export function StoreDetail({ id, can }: { id: string; can: Can }) {
   const act = useCommand(({ path, method, body }: { path: string; method: 'POST' | 'PATCH'; body: object }, key) =>
     api(`/stores/${id}${path}`, { method, body, idempotencyKey: key }), { onSuccess: refresh });
   const [rejecting, setRejecting] = useState(false);
+  // COR-005: a Super Admin corrects entries of the account while their correction session is open.
+  const correction = useCorrectionStatus();
+  const [correcting, setCorrecting] = useState<LedgerEntry | null>(null);
+  const [corrected, setCorrected] = useState<number | null>(null);
+  const sessionOpen = can.correct && correction.data?.mine?.state === 'OPEN';
 
   if (store.isPending) return <p className="text-sm text-stone-500">{tc('loading')}</p>;
   if (store.error) return <Alert>{errorText(store.error)}</Alert>;
@@ -176,7 +184,13 @@ export function StoreDetail({ id, can }: { id: string; can: Can }) {
 
       <Section title={t('ledger')}>
         {ledger.data && ledger.data.length > 0 ? <LedgerSummary entries={ledger.data} credit={s.credit} /> : null}
-        <LedgerTable entries={ledger.data ?? []} />
+        {can.correct && !sessionOpen ? <p className="border-b border-stone-200 px-5 py-3 text-xs text-stone-500">{tco('entry.openSession')}</p> : null}
+        {corrected !== null ? <div className="p-4"><Alert tone="success">{tco('entry.done', { number: corrected })}</Alert></div> : null}
+        {sessionOpen && correcting ? (
+          <CorrectEntryPanel key={correcting.id} entry={correcting} storeId={id} onCancel={() => setCorrecting(null)}
+            onDone={(number) => { setCorrecting(null); setCorrected(number); refresh(); }} />
+        ) : null}
+        <LedgerTable entries={ledger.data ?? []} onCorrect={sessionOpen ? (e) => { setCorrected(null); setCorrecting(e); } : undefined} />
       </Section>
     </div>
   );

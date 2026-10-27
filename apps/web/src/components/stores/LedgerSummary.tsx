@@ -24,8 +24,10 @@ export function LedgerSummary({ entries, credit }: { entries: LedgerEntry[]; cre
 
   // Debits are positive on the ledger and credits negative, so a credit's size
   // is its absolute value (ADR-0001).
+  // COR-002: an entry a correction replaced, and the entries that reversed it, no longer stand.
+  const standing = entries.filter((e) => !e.replacedBy && !e.reversalOf);
   const totalOf = (keep: (e: LedgerEntry) => boolean): Money =>
-    toMoney(dec(sumMoney(entries.filter(keep).map((e) => e.amount))).abs());
+    toMoney(dec(sumMoney(standing.filter(keep).map((e) => e.amount))).abs());
 
   const invoiced = totalOf((e) => e.entryType === 'SALE' || (e.entryType === 'ADJUSTMENT' && dec(e.amount).gt(0)));
   const paid = totalOf((e) => e.entryType === 'PAYMENT');

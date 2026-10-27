@@ -1,4 +1,7 @@
 import { DomainError } from '../errors';
+import { isoDate } from '../inventory';
+import { dec, money, toMoney, type Money } from '../numeric';
+import { voucherNumber } from '../stores';
 
 /**
  * Correcting history (M13, ADR-0059): only a Super Admin, only inside a personal correction session opened with
@@ -51,4 +54,67 @@ export function settleCorrectionReason(
   const words = correctionReason(text, 'closingText');
   if (closing === 'EDITED' && words === reason) return { closing: 'KEPT', text: null };
   return { closing, text: words };
+}
+
+/** COR-005: what a store-account correction corrects — a bill the store owes, or a payment it made. */
+export const STORE_CORRECTION_KINDS = ['BILL', 'PAYMENT'] as const;
+export type StoreCorrectionKind = (typeof STORE_CORRECTION_KINDS)[number];
+
+/**
+ * COR-005 (ADR-0059, amended): which entries of a store's account a correction may touch.
+ *   - a payment;
+ *   - a bill that is a manual balance adjustment, an imported sale, or itself a corrected bill.
+ * A bill from a sale made in the app is corrected through the sale (step e), so the account and the delivery
+ * document cannot come to disagree by accident. Credit notes, the entries a correction posts to reverse another,
+ * and debt put back for a transfer that never arrived are not corrected here.
+ */
+export function storeEntryKind(entry: { entryType: string; amount: Money | string; referenceType: string }): StoreCorrectionKind {
+  if (entry.referenceType === 'CORRECTION_REVERSAL') throw new DomainError('NOT_CORRECTABLE', { reason: 'REVERSAL' });
+  if (entry.entryType === 'PAYMENT') return 'PAYMENT';
+  if (dec(entry.amount).gt(0)) {
+    if (entry.referenceType === 'SALE') throw new DomainError('CORRECT_THROUGH_SALE');
+    if (['ADJUSTMENT', 'IMPORTED_SALE', 'CORRECTION'].includes(entry.referenceType)) return 'BILL';
+  }
+  throw new DomainError('NOT_CORRECTABLE', { reason: entry.referenceType });
+}
+
+/** An entry's values as a correction sees them: its amount, its Riyadh date, its store, and a payment's voucher. */
+export type StoreEntryValues = {
+  readonly amount: Money; readonly date: string; readonly storeId: string; readonly voucherNumber: string | null;
+};
+
+export type StoreEntryChange = {
+  readonly amount?: string | null | undefined; readonly date?: string | null | undefined; readonly storeId?: string | null | undefined;
+  readonly voucherNumber?: string | null | undefined; readonly remove?: boolean | undefined;
+};
+
+/**
+ * COR-005: the values a correction leaves, or null when it removes the entry. What is not given stays as it was; a
+ * bill has no voucher; a date is not after today; and something must change.
+ */
+export function correctedStoreEntry(
+  kind: StoreCorrectionKind, original: StoreEntryValues, change: StoreEntryChange, today: string,
+): StoreEntryValues | null {
+  if (change.remove) return null;
+  const amount = toMoney(dec(change.amount?.trim() ? money(change.amount) : original.amount));
+  if (!dec(amount).gt(0)) throw new DomainError('INVALID_MONEY', { field: 'amount', value: amount });
+  const date = change.date?.trim() ? isoDate(change.date.trim(), 'date') : original.date;
+  if (date > today) throw new DomainError('INVALID_DATE', { field: 'date', value: date });
+  const storeId = change.storeId?.trim() || original.storeId;
+  let voucher = original.voucherNumber;
+  if (change.voucherNumber?.trim()) {
+    if (kind === 'BILL') throw new DomainError('NOT_CORRECTABLE', { field: 'voucherNumber' });
+    voucher = voucherNumber(change.voucherNumber);
+  }
+  const after = { amount, date, storeId, voucherNumber: voucher };
+  if (dec(amount).eq(dec(original.amount)) && date === original.date && storeId === original.storeId && voucher === original.voucherNumber) {
+    throw new DomainError('NOTHING_TO_CORRECT');
+  }
+  return after;
+}
+
+/** The same moment of the day, on another Riyadh date — where a corrected entry sits when its date changes. */
+export function onDate(instant: Date, fromDate: string, toDate: string): Date {
+  const days = (Date.parse(`${toDate}T00:00:00Z`) - Date.parse(`${fromDate}T00:00:00Z`)) / 86_400_000;
+  return new Date(instant.getTime() + days * 86_400_000);
 }

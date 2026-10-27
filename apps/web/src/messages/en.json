@@ -706,7 +706,14 @@
     "OPEN_SALE_NEEDS_APPROVAL": "This open sale needs approval. Give a reason to ask for it.",
     "WRONG_PASSWORD": "That password isn't right.",
     "CORRECTION_SESSION_OPEN": "You already have a correction session. Close it first.",
-    "NO_CORRECTION_SESSION": "Open a correction session first. History can be corrected only inside one."
+    "NO_CORRECTION_SESSION": "Open a correction session first. History can be corrected only inside one.",
+    "CORRECT_THROUGH_SALE": "This bill is from a sale made in the app. Correct it through the sale.",
+    "NOT_CORRECTABLE": "This entry can't be corrected here.",
+    "NOTHING_TO_CORRECT": "Nothing has changed. Change a value, or remove the entry.",
+    "ALREADY_CORRECTED": "This entry has been corrected already. Correct the corrected entry instead.",
+    "CORRECTION_LEAVES_CREDIT": "The store has paid towards this and owes nothing else to put that money towards. Correct the payment first.",
+    "CORRECTION_EXCEEDS_CASH_IN_HAND": "The collector doesn't hold that much cash. Correct the store's account only, and settle the cash separately.",
+    "TRANSFER_NOT_DECIDED": "Check this bank transfer first (confirmed or not received), then correct it."
   },
   "format": {
     "grams": "{value} g",
@@ -2700,6 +2707,64 @@
       },
       "added": "Added when closed:",
       "edited": "Edited when closed:"
+    },
+    "entry": {
+      "title": "Correct this {kind, select, BILL {bill} other {payment}}",
+      "amount": "Amount (SAR)",
+      "date": "Date",
+      "store": "Store",
+      "voucher": "Voucher number",
+      "remove": "Remove this entry",
+      "removeHint": "It stays on the account, struck through, with your reason.",
+      "cashInHand": "Also correct the collector's cash in hand",
+      "cashInHandHint": "Only if the cash they hold was recorded wrongly too.",
+      "reason": "Reason for this correction",
+      "reasonHint": "Say what was wrong and how you know. An unclear reason can cause problems later.",
+      "preview": "Show the effect",
+      "confirm": "Confirm the correction",
+      "cancel": "Cancel",
+      "effect": "What this changes",
+      "cash": "{name}'s cash in hand",
+      "done": "Corrected (correction {number}).",
+      "openSession": "To correct an entry, open a correction session in Settings.",
+      "correct": "Correct",
+      "owedNow": "Owed now",
+      "owedAfter": "Owed after",
+      "pastDueNow": "Past due now",
+      "pastDueAfter": "Past due after"
+    },
+    "ledger": {
+      "replaced": "Replaced by correction {number}",
+      "removed": "Removed by correction {number}",
+      "moved": "Moved to {store} by correction {number}",
+      "reversal": "Reversal, correction {number}",
+      "corrected": "Correction {number}",
+      "movedFrom": "Moved from {store}",
+      "was": "Was"
+    },
+    "changes": {
+      "title": "Changes",
+      "sessions": "Sessions",
+      "number": "No.",
+      "session": "Session",
+      "store": "Store",
+      "what": "What",
+      "change": "Change",
+      "reason": "Reason",
+      "by": "By",
+      "when": "When",
+      "kinds": {
+        "BILL": "Bill",
+        "PAYMENT": "Payment"
+      },
+      "removed": "Removed",
+      "moved": "Moved to {store}",
+      "amount": "Amount",
+      "date": "Date",
+      "voucher": "Voucher",
+      "cashInHand": "Cash in hand corrected too",
+      "empty": "No corrections yet.",
+      "more": "Show more"
     }
   }
 }

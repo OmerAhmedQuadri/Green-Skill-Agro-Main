@@ -1,4 +1,4 @@
-export { postCashCollection, postCashRefund, cashInHand, lockCash, getMyCashInHand } from './ledger';
+export { postCashCollection, postCashRefund, postCashCorrection, cashInHand, lockCash, getMyCashInHand } from './ledger';
 export {
   submitSettlement, decideSettlement, handoverManagers, listSettlements, getSettlement, loadSettlement,
   type Settlement, type SettlementFilter, type SubmitSettlementInput, type DecideSettlementInput,

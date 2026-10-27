@@ -148,6 +148,13 @@ const STATUS: Record<ErrorCode, number> = {
   WRONG_PASSWORD: 403,
   CORRECTION_SESSION_OPEN: 409,
   NO_CORRECTION_SESSION: 409,
+  CORRECT_THROUGH_SALE: 409,
+  NOT_CORRECTABLE: 409,
+  NOTHING_TO_CORRECT: 422,
+  ALREADY_CORRECTED: 409,
+  CORRECTION_LEAVES_CREDIT: 409,
+  CORRECTION_EXCEEDS_CASH_IN_HAND: 409,
+  TRANSFER_NOT_DECIDED: 409,
 };
 
 export function problem(status: number, code: string, requestId: string, details?: Record<string, unknown>, headers?: HeadersInit): Response {
