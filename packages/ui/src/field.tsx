@@ -8,6 +8,11 @@ export function Input({ className, ...props }: ComponentProps<'input'>) {
   return <input className={cn(control, 'h-11', className)} {...props} />;
 }
 
+/** Several lines of text — a reason, a note — drawn like the inputs. */
+export function Textarea({ className, ...props }: ComponentProps<'textarea'>) {
+  return <textarea className={cn(control, 'min-h-24 py-2', className)} {...props} />;
+}
+
 /**
  * A native select drawn like the inputs, with the site's chevron; the open
  * list is styled where the browser allows it (`.ui-select`, apps/web

@@ -145,6 +145,9 @@ const STATUS: Record<ErrorCode, number> = {
   TARGET_EMPTY: 400,
   TARGET_NOT_POSITIVE: 400,
   PERIOD_CLOSED: 409,
+  WRONG_PASSWORD: 403,
+  CORRECTION_SESSION_OPEN: 409,
+  NO_CORRECTION_SESSION: 409,
 };
 
 export function problem(status: number, code: string, requestId: string, details?: Record<string, unknown>, headers?: HeadersInit): Response {

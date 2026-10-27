@@ -1,6 +1,6 @@
 'use client';
 
-import { OPEN_SALES_KEY } from '@gsa/core';
+import { IMPORTED_UNMATCHED_KEY, OPEN_SALES_KEY } from '@gsa/core';
 import { ArrowDownRight, ArrowUpRight } from 'lucide-react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
@@ -9,6 +9,7 @@ import { Section } from '@/components/common/Section';
 import { Cell, Table } from '@/components/common/Table';
 import { Tile } from '@/components/common/Tile';
 import { BarList, ColumnChart } from '@/components/reports/charts';
+import { ImportedNote } from '@/components/reports/imported';
 import { partyName } from '@/components/sales/party';
 import { useFormat } from '@/lib/format';
 import { useErrorText } from '@/lib/hooks';
@@ -60,6 +61,7 @@ export function SalesTab({ filter, set }: { filter: DashboardFilter; set: SetFil
         <Tile label={ta('tiles.channels')} value={format.money(d.channels.VEHICLE)} testId="sales-vehicle"
           hint={ta('tiles.fromWarehouse', { amount: format.money(d.channels.DISPATCH) })} />
       </div>
+      <ImportedNote amount={d.channels.IMPORTED} channel={filter.channel} onHide={() => set({ channel: 'APP' })} testId="sales-imported" />
 
       {d.series.length > 1 ? (
         <Section title={ta(daily ? 'overTimeByDay' : 'overTimeByMonth')} description={ta('netHint')}>
@@ -88,8 +90,9 @@ export function SalesTab({ filter, set }: { filter: DashboardFilter; set: SetFil
           { key: 'sellers', title: ta('bySeller'), rows: bars(d.bySeller, (r) => r.label.nameEn), pick: (id: string) => set({ sellerId: id }) },
           // SAL-019: open sales are one line of their own — not a store to narrow to.
           { key: 'stores', title: ta('byStore'), rows: bars(d.byStore, (r) => (r.id === OPEN_SALES_KEY ? ta('openSales') : r.label.nameEn)), pick: (id: string) => { if (id !== OPEN_SALES_KEY) set({ storeId: id }); } },
-          { key: 'products', title: ta('byProduct'), rows: bars(d.byProduct, (r) => format.name(r.label)), pick: (id: string) => set({ productId: id }) },
-          { key: 'categories', title: ta('byCategory'), rows: bars(d.byCategory, (r) => format.name(r.label)), pick: (id: string) => set({ categoryId: id }) },
+          // IMP-007: imported lines naming no catalogue product are one row of their own — not a product to narrow to.
+          { key: 'products', title: ta('byProduct'), rows: bars(d.byProduct, (r) => (r.id === IMPORTED_UNMATCHED_KEY ? ta('imported.notInCatalogue') : format.name(r.label))), pick: (id: string) => { if (id !== IMPORTED_UNMATCHED_KEY) set({ productId: id }); } },
+          { key: 'categories', title: ta('byCategory'), rows: bars(d.byCategory, (r) => (r.id === IMPORTED_UNMATCHED_KEY ? ta('imported.notInCatalogue') : format.name(r.label))), pick: (id: string) => { if (id !== IMPORTED_UNMATCHED_KEY) set({ categoryId: id }); } },
         ].map((b) => (
           <Section key={b.key} title={b.title}>
             <div className="p-5">

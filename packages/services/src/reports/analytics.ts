@@ -1,19 +1,26 @@
-import { analyticsRange, Dec, dec, OPEN_SALES_KEY, rangePeriods, toMoney, type AnalyticsRange, type Money } from '@gsa/core';
+import {
+  analyticsRange, Dec, dec, IMPORTED_UNMATCHED_KEY, OPEN_SALES_KEY, rangePeriods, toMoney, type AnalyticsRange, type Money,
+} from '@gsa/core';
 import { schema } from '@gsa/db';
-import { and, asc, eq, gte, inArray, lt, ne, sql, type SQL } from 'drizzle-orm';
+import { and, asc, eq, gte, inArray, lt, lte, ne, sql, type SQL } from 'drizzle-orm';
 import { authorize, type Ctx } from '../context';
 import type { Executor } from '../platform';
 import { getDb } from '../runtime';
 
-const { sales, saleLines, returns, returnLines, skus, products, categories, stores, users, vehicles } = schema;
+const { sales, saleLines, returns, returnLines, skus, products, categories, stores, users, vehicles, importedSales, importedSaleLines } = schema;
 
-/** ADR-0048: what a view of sales is cut by. Every field but the range is optional. */
+/**
+ * ADR-0048: what a view of sales is cut by. Every field but the range is optional. The channel is where a sale came
+ * from: a vehicle, the warehouse, either of the two (APP), or the sellers' books before the app (IMPORTED,
+ * IMP-007) — with none chosen, all of them.
+ */
 export type AnalyticsFilter = {
   readonly from: string; readonly to: string;
   readonly sellerId?: string | undefined; readonly storeId?: string | undefined; readonly vehicleId?: string | undefined;
   readonly productId?: string | undefined; readonly categoryId?: string | undefined;
-  readonly channel?: 'VEHICLE' | 'DISPATCH' | undefined;
+  readonly channel?: AnalyticsChannel | undefined;
 };
+export type AnalyticsChannel = 'VEHICLE' | 'DISPATCH' | 'APP' | 'IMPORTED';
 
 type Named = { readonly nameEn: string; readonly nameAr: string };
 
@@ -24,7 +31,8 @@ export type BreakdownRow = Figures & { readonly id: string; readonly label: Name
 export type SalesAnalytics = {
   readonly range: Pick<AnalyticsRange, 'from' | 'to' | 'days' | 'bucket'>;
   readonly totals: Figures & { /** Sold per sale, before returns; null with no sales. */ readonly average: Money | null };
-  readonly channels: { readonly VEHICLE: Money; readonly DISPATCH: Money };
+  /** IMP-007: the imported part is shown apart, so imported sales are always labelled as such. */
+  readonly channels: { readonly VEHICLE: Money; readonly DISPATCH: Money; readonly IMPORTED: Money };
   /** Every day or month of the range, at nothing where nothing sold. */
   readonly series: readonly (Figures & { readonly period: string })[];
   readonly bySeller: readonly BreakdownRow[]; readonly byStore: readonly BreakdownRow[];
@@ -34,12 +42,30 @@ export type SalesAnalytics = {
 const ZERO = toMoney(new Dec(0));
 const riyadh = (column: unknown) => sql`(${column} at time zone 'Asia/Riyadh')`;
 
+/** The app's own channel, if one is chosen: none for APP (both), and IMPORTED leaves no app sale. */
+const appChannel = (f: AnalyticsFilter): SQL | undefined =>
+  f.channel === 'IMPORTED' ? sql`false` : f.channel === 'VEHICLE' || f.channel === 'DISPATCH' ? eq(sales.channel, f.channel) : undefined;
+
 /** Completed sales in the range, cut by the filters — line by line, so product and category cut too. */
 function soldWhere(range: AnalyticsRange, f: AnalyticsFilter): SQL | undefined {
   return and(
     eq(sales.status, 'COMPLETED'), gte(sales.completedAt, range.start), lt(sales.completedAt, range.end),
     f.sellerId ? eq(sales.sellerId, f.sellerId) : undefined, f.storeId ? eq(sales.storeId, f.storeId) : undefined,
-    f.vehicleId ? eq(sales.vehicleId, f.vehicleId) : undefined, f.channel ? eq(sales.channel, f.channel) : undefined,
+    f.vehicleId ? eq(sales.vehicleId, f.vehicleId) : undefined, appChannel(f),
+    f.productId ? eq(skus.productId, f.productId) : undefined, f.categoryId ? eq(products.categoryId, f.categoryId) : undefined,
+  );
+}
+
+/**
+ * IMP-007: imported sales in the range, cut by the same filters. They were sold before the app, from no vehicle,
+ * so a vehicle or an app channel leaves none; a line naming no catalogue product falls out of a product or
+ * category cut.
+ */
+function importedWhere(range: AnalyticsRange, f: AnalyticsFilter): SQL | undefined {
+  if (f.vehicleId || (f.channel && f.channel !== 'IMPORTED')) return sql`false`;
+  return and(
+    gte(importedSales.soldOn, range.from), lte(importedSales.soldOn, range.to),
+    f.sellerId ? eq(importedSales.sellerId, f.sellerId) : undefined, f.storeId ? eq(importedSales.storeId, f.storeId) : undefined,
     f.productId ? eq(skus.productId, f.productId) : undefined, f.categoryId ? eq(products.categoryId, f.categoryId) : undefined,
   );
 }
@@ -53,28 +79,39 @@ function returnedWhere(range: AnalyticsRange, f: AnalyticsFilter): SQL | undefin
   return and(
     eq(returns.kind, 'CREDIT_NOTE'), gte(returns.occurredAt, range.start), lt(returns.occurredAt, range.end),
     f.sellerId ? eq(returns.sellerId, f.sellerId) : undefined, f.storeId ? eq(returns.storeId, f.storeId) : undefined,
-    f.vehicleId ? eq(sales.vehicleId, f.vehicleId) : undefined, f.channel ? eq(sales.channel, f.channel) : undefined,
+    f.vehicleId ? eq(sales.vehicleId, f.vehicleId) : undefined, appChannel(f),
     f.productId ? eq(skus.productId, f.productId) : undefined, f.categoryId ? eq(products.categoryId, f.categoryId) : undefined,
   );
 }
 
-/** A way to cut the figures: the column on each side — what was sold, and what came back. */
-type Cut = { readonly sold: SQL; readonly returned: SQL };
+/** A way to cut the figures: the column on each side — what was sold, what came back, and what was imported. */
+type Cut = { readonly sold: SQL; readonly returned: SQL; readonly imported: SQL };
+
+// Literals, not parameters: selected and grouped by, an expression must be the same text twice over.
+const UNMATCHED = sql.raw(`'${IMPORTED_UNMATCHED_KEY}'`);
 
 const CUTS = {
-  seller: { sold: sql`${sales.sellerId}`, returned: sql`${returns.sellerId}` },
+  seller: { sold: sql`${sales.sellerId}`, returned: sql`${returns.sellerId}`, imported: sql`${importedSales.sellerId}` },
   // SAL-019 (ADR-0052): open sales have no store, and one line of their own. They are never returned.
-  // A literal, not a parameter: selected and grouped by, it must be the same expression twice over.
-  store: { sold: sql`coalesce(${sales.storeId}::text, ${sql.raw(`'${OPEN_SALES_KEY}'`)})`, returned: sql`${returns.storeId}` },
-  product: { sold: sql`${skus.productId}`, returned: sql`${skus.productId}` },
-  category: { sold: sql`${products.categoryId}`, returned: sql`${products.categoryId}` },
-  channel: { sold: sql`${sales.channel}`, returned: sql`${sales.channel}` },
+  store: {
+    sold: sql`coalesce(${sales.storeId}::text, ${sql.raw(`'${OPEN_SALES_KEY}'`)})`, returned: sql`${returns.storeId}`,
+    imported: sql`${importedSales.storeId}`,
+  },
+  // IMP-001: an imported line names a catalogue product only where one matched; the rest are one row of their own.
+  product: { sold: sql`${skus.productId}`, returned: sql`${skus.productId}`, imported: sql`coalesce(${skus.productId}::text, ${UNMATCHED})` },
+  category: {
+    sold: sql`${products.categoryId}`, returned: sql`${products.categoryId}`, imported: sql`coalesce(${products.categoryId}::text, ${UNMATCHED})`,
+  },
+  // Postgres groups by no bare constant, so the imported key is an expression that is always the same.
+  channel: { sold: sql`${sales.channel}`, returned: sql`${sales.channel}`, imported: sql`(case when ${importedSales.id} is not null then 'IMPORTED' end)` },
 } satisfies Record<string, Cut>;
 
 function periodCut(bucket: AnalyticsRange['bucket']): Cut {
-  // A literal, not a parameter: Postgres matches the grouped expression to the selected one by its text.
   const format = sql.raw(bucket === 'DAY' ? `'YYYY-MM-DD'` : `'YYYY-MM'`);
-  return { sold: sql`to_char(${riyadh(sales.completedAt)}, ${format})`, returned: sql`to_char(${riyadh(returns.occurredAt)}, ${format})` };
+  return {
+    sold: sql`to_char(${riyadh(sales.completedAt)}, ${format})`, returned: sql`to_char(${riyadh(returns.occurredAt)}, ${format})`,
+    imported: sql`to_char(${importedSales.soldOn}, ${format})`,
+  };
 }
 
 /** The figures by one cut: two grouped queries, sold and returned, merged by key. */
@@ -102,10 +139,22 @@ async function figuresBy(db: Executor, range: AnalyticsRange, f: AnalyticsFilter
     .innerJoin(products, eq(products.id, skus.productId))
     .where(returnedWhere(range, f))
     .groupBy(cut.returned);
+  // IMP-007: each line's share of its invoice's discount comes off it, so every cut adds up to what was charged.
+  const imported = await db.select({
+    key: sql<string>`${cut.imported}::text`,
+    amount: sql<string>`coalesce(sum(${importedSaleLines.amount} * ${importedSales.total} / ${importedSales.subtotal}), 0)::numeric(14,2)::text`,
+    packs: sql<number>`coalesce(sum(${importedSaleLines.packs}), 0)::int`,
+    sales: sql<number>`count(distinct ${importedSales.id})::int`,
+  }).from(importedSaleLines)
+    .innerJoin(importedSales, eq(importedSales.id, importedSaleLines.importedSaleId))
+    .leftJoin(skus, eq(skus.id, importedSaleLines.skuId))
+    .leftJoin(products, eq(products.id, skus.productId))
+    .where(importedWhere(range, f))
+    .groupBy(cut.imported);
 
   const out = new Map<string, { sold: Dec; returned: Dec; sales: number; packs: number }>();
   const entry = (key: string) => out.get(key) ?? { sold: new Dec(0), returned: new Dec(0), sales: 0, packs: 0 };
-  for (const r of sold) {
+  for (const r of [...sold, ...imported]) {
     const e = entry(r.key);
     out.set(r.key, { ...e, sold: e.sold.plus(dec(r.amount)), sales: e.sales + Number(r.sales), packs: e.packs + Number(r.packs) });
   }
@@ -150,10 +199,13 @@ export async function salesAnalytics(ctx: Ctx, filter: AnalyticsFilter): Promise
   const sellerNames = bySeller.size ? await db.select({ id: users.id, name: users.name }).from(users).where(inArray(users.id, ids(bySeller))) : [];
   const storeIds = ids(byStore).filter((id) => id !== OPEN_SALES_KEY);
   const storeNames = storeIds.length ? await db.select({ id: stores.id, name: stores.name }).from(stores).where(inArray(stores.id, storeIds)) : [];
-  const productNames = byProduct.size
-    ? await db.select({ id: products.id, nameEn: products.nameEn, nameAr: products.nameAr }).from(products).where(inArray(products.id, ids(byProduct))) : [];
-  const categoryNames = byCategory.size
-    ? await db.select({ id: categories.id, nameEn: categories.nameEn, nameAr: categories.nameAr }).from(categories).where(inArray(categories.id, ids(byCategory))) : [];
+  // IMP-007: the row of imported lines naming no catalogue product has no name to look up.
+  const productIds = ids(byProduct).filter((id) => id !== IMPORTED_UNMATCHED_KEY);
+  const productNames = productIds.length
+    ? await db.select({ id: products.id, nameEn: products.nameEn, nameAr: products.nameAr }).from(products).where(inArray(products.id, productIds)) : [];
+  const categoryIds = ids(byCategory).filter((id) => id !== IMPORTED_UNMATCHED_KEY);
+  const categoryNames = categoryIds.length
+    ? await db.select({ id: categories.id, nameEn: categories.nameEn, nameAr: categories.nameAr }).from(categories).where(inArray(categories.id, categoryIds)) : [];
 
   const series = rangePeriods(range).map((period) => ({ period, ...(byPeriod.get(period) ?? NOTHING) }));
   const sum = (pick: (f: Figures) => string) => toMoney(series.reduce((t, p) => t.plus(dec(pick(p))), new Dec(0)));
@@ -164,7 +216,10 @@ export async function salesAnalytics(ctx: Ctx, filter: AnalyticsFilter): Promise
   return {
     range: { from: range.from, to: range.to, days: range.days, bucket: range.bucket },
     totals: { ...totals, average: totals.sales > 0 ? toMoney(dec(totals.sold).div(totals.sales)) : null },
-    channels: { VEHICLE: byChannel.get('VEHICLE')?.net ?? ZERO, DISPATCH: byChannel.get('DISPATCH')?.net ?? ZERO },
+    channels: {
+      VEHICLE: byChannel.get('VEHICLE')?.net ?? ZERO, DISPATCH: byChannel.get('DISPATCH')?.net ?? ZERO,
+      IMPORTED: byChannel.get('IMPORTED')?.net ?? ZERO,
+    },
     series,
     bySeller: rows(bySeller, oneForm(sellerNames)),
     byStore: rows(byStore, oneForm(storeNames)),
@@ -190,9 +245,12 @@ export async function salesTotals(ctx: Ctx, filter: AnalyticsFilter): Promise<Fi
   return totalOf(await figuresBy(ctx.tx ?? getDb(), range, filter, CUTS.seller));
 }
 
-/** RPT-010: each seller's figures for a range, net of returns — what the seller performance table reads. */
+/**
+ * RPT-010: each seller's figures for a range, net of returns — what the seller performance table reads. The app's
+ * sales only: imported sales never count towards a seller's performance (IMP-006).
+ */
 export async function salesBySeller(db: Executor, range: AnalyticsRange, sellerId?: string): Promise<Map<string, Figures>> {
-  return figuresBy(db, range, { from: range.from, to: range.to, sellerId }, CUTS.seller);
+  return figuresBy(db, range, { from: range.from, to: range.to, sellerId, channel: 'APP' }, CUTS.seller);
 }
 
 export type AnalyticsOptions = {
