@@ -12,7 +12,7 @@ import { unitsOf } from '../vehicles';
 
 const {
   sales, saleLines, saleLineAllocations, discountApprovalRequests, deliveryDocuments, deliveryDocumentSends, stores, users, vehicles,
-  skus, products, varieties, productTypes, batches, payments, creditOverrides, dispatchOrders,
+  skus, products, varieties, productTypes, batches, payments, creditOverrides, dispatchOrders, saleCorrections, storeCorrections,
 } = schema;
 
 type Named = { readonly nameEn: string; readonly nameAr: string };
@@ -37,6 +37,7 @@ export type DiscountRequest = {
 
 export type DeliveryDocumentInfo = {
   readonly id: string; readonly number: string; readonly status: DeliveryDocumentStatus; readonly renderedAt: Date | null;
+  /** COR-006: 1, or the corrected copy's version. */ readonly version: number;
   /** ADR-0049: the PDF deleted under the storage policy, and whether it is kept forever instead. */
   readonly purgedAt: Date | null; readonly kept: boolean;
   readonly sends: readonly { readonly channel: DocumentSendChannel; readonly toAddress: string | null; readonly sentAt: Date; readonly by: string }[];
@@ -62,11 +63,27 @@ export type Sale = {
   readonly payment: {
     readonly id: string; readonly number: string; readonly method: 'CASH' | 'BANK_TRANSFER'; readonly amount: Money; readonly reference: string | null;
     readonly voucher: { readonly number: string; readonly photoId: string } | null;
+    /** COR-005: a correction replaced it — with what, or nothing when it was removed. The sale shows it as taken. */
+    readonly correction: { readonly number: number; readonly amount: Money | null } | null;
   } | null;
   /** SAL-009, CRD-007 */ readonly creditOverride: { readonly reason: string; readonly grantedBy: string } | null;
   readonly document: DeliveryDocumentInfo | null;
+  /** COR-006: its corrections, oldest first — what each changed, and what followed it. */
+  readonly corrections: readonly SaleCorrectionNote[];
   readonly createdAt: Date; readonly completedAt: Date | null; readonly cancelledAt: Date | null; readonly cancelReason: SaleCancelReason | null;
   readonly version: number;
+};
+
+/** COR-006: one correction of the sale, as its page shows it — the values before and after (null when removed). */
+export type SaleCorrectionNote = {
+  readonly number: number; readonly reason: string; readonly by: string; readonly at: Date;
+  readonly before: SaleCorrectionValues; readonly after: SaleCorrectionValues | null;
+  /** What the Super Admin chose to follow it. */
+  readonly applied: { readonly stock: boolean; readonly document: boolean; readonly account: boolean; readonly cashInHand: boolean };
+};
+export type SaleCorrectionValues = {
+  readonly store: { readonly id: string; readonly name: string } | null; readonly total: Money;
+  readonly lines: readonly { readonly lineId: string; readonly packs: number; readonly unitPrice: Money; readonly total: Money }[];
 };
 
 /** SAL-012: an open sale's buyer, as given, and where it was made. */
@@ -142,8 +159,13 @@ export async function loadSale(db: Executor, ctx: Ctx, id: string): Promise<Sale
       ? db.select({ reason: creditOverrides.reason, grantedBy: granter.name }).from(creditOverrides).innerJoin(granter, eq(granter.id, creditOverrides.grantedBy))
         .where(eq(creditOverrides.id, s.creditOverrideId))
       : Promise.resolve([]),
-    db.select().from(deliveryDocuments).where(eq(deliveryDocuments.saleId, id)),
+    db.select().from(deliveryDocuments).where(eq(deliveryDocuments.saleId, id)).orderBy(desc(deliveryDocuments.version)).limit(1),
   ]);
+  const corrections = await correctionsOf(db, id);
+  const [replacedBy] = payment?.supersededBy
+    ? await db.select({ number: storeCorrections.number, amount: payments.amount }).from(storeCorrections)
+      .leftJoin(payments, eq(payments.correctionId, storeCorrections.id)).where(eq(storeCorrections.id, payment.supersededBy))
+    : [];
   const sends = document
     ? await db.select({ channel: deliveryDocumentSends.channel, toAddress: deliveryDocumentSends.toAddress, sentAt: deliveryDocumentSends.sentAt, by: sender.name })
       .from(deliveryDocumentSends).innerJoin(sender, eq(sender.id, deliveryDocumentSends.sentBy))
@@ -183,14 +205,39 @@ export async function loadSale(db: Executor, ctx: Ctx, id: string): Promise<Sale
     payment: payment ? {
       id: payment.id, number: payment.number, method: payment.method, amount: payment.amount as Money, reference: payment.reference,
       voucher: payment.voucherNumber && payment.voucherPhotoId ? { number: payment.voucherNumber, photoId: payment.voucherPhotoId } : null,
+      correction: replacedBy ? { number: replacedBy.number, amount: (replacedBy.amount as Money | null) ?? null } : null,
     } : null,
     creditOverride: override ?? null,
     document: document ? {
-      id: document.id, number: document.number, status: document.status, renderedAt: document.renderedAt,
+      id: document.id, number: document.number, status: document.status, renderedAt: document.renderedAt, version: document.version,
       purgedAt: document.purgedAt, kept: document.keptAt !== null, sends,
     } : null,
+    corrections,
     createdAt: s.createdAt, completedAt: s.completedAt, cancelledAt: s.cancelledAt, cancelReason: s.cancelReason, version: s.version,
   };
+}
+
+const corrector = aliasedTable(users, 'corrector');
+
+/** COR-006: a sale's corrections, oldest first, with the stores they name. */
+async function correctionsOf(db: Executor, saleId: string): Promise<SaleCorrectionNote[]> {
+  const rows = await db.select({ c: saleCorrections, by: corrector.name }).from(saleCorrections)
+    .innerJoin(corrector, eq(corrector.id, saleCorrections.createdBy))
+    .where(eq(saleCorrections.saleId, saleId)).orderBy(asc(saleCorrections.number));
+  if (rows.length === 0) return [];
+  type Stored = { storeId: string | null; total: Money; lines: { lineId: string; packs: number; unitPrice: Money; total: Money }[] };
+  const values = rows.flatMap((r) => [r.c.before as Stored, ...(r.c.after ? [r.c.after as Stored] : [])]);
+  const storeIds = [...new Set(values.flatMap((v) => (v.storeId ? [v.storeId] : [])))];
+  const names = new Map(storeIds.length === 0 ? [] : (await db.select({ id: stores.id, name: stores.name }).from(stores).where(inArray(stores.id, storeIds))).map((s) => [s.id, s.name]));
+  const view = (v: Stored): SaleCorrectionValues => ({
+    store: v.storeId ? { id: v.storeId, name: names.get(v.storeId) ?? '' } : null, total: v.total,
+    lines: v.lines.map((l) => ({ lineId: l.lineId, packs: l.packs, unitPrice: l.unitPrice, total: l.total })),
+  });
+  return rows.map((r) => ({
+    number: r.c.number, reason: r.c.reason, by: r.by, at: r.c.createdAt,
+    before: view(r.c.before as Stored), after: r.c.after ? view(r.c.after as Stored) : null,
+    applied: { stock: r.c.stock, document: r.c.document, account: r.c.account, cashInHand: r.c.cashInHand },
+  }));
 }
 
 export type SaleFilter = {
@@ -234,7 +281,7 @@ export async function querySales(db: Executor, ctx: Ctx, filter: SaleFilter): Pr
     registration: vehicles.registration,
   }).from(sales)
     .leftJoin(stores, eq(stores.id, sales.storeId)).innerJoin(seller, eq(seller.id, sales.sellerId))
-    .leftJoin(deliveryDocuments, eq(deliveryDocuments.saleId, sales.id)).leftJoin(discountApprovalRequests, eq(discountApprovalRequests.saleId, sales.id))
+    .leftJoin(deliveryDocuments, and(eq(deliveryDocuments.saleId, sales.id), eq(deliveryDocuments.version, 1))).leftJoin(discountApprovalRequests, eq(discountApprovalRequests.saleId, sales.id))
     .leftJoin(dispatchOrders, eq(dispatchOrders.saleId, sales.id)).leftJoin(vehicles, eq(vehicles.id, sales.vehicleId))
     .where(and(...where)).orderBy(desc(sales.createdAt), desc(sales.id)).limit(limit + 1);
   const page = rows.slice(0, limit);

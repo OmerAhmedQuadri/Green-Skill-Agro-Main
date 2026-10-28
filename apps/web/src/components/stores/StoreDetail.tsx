@@ -18,6 +18,7 @@ import { useCommand, useErrorText } from '@/lib/hooks';
 import { keys } from '@/lib/query-keys';
 import { CreditPanel } from './CreditPanel';
 import { LedgerSummary } from './LedgerSummary';
+import { ImportedInvoices } from '@/components/corrections/ImportedInvoices';
 import { LedgerTable } from './LedgerTable';
 import { StatementsPanel } from './StatementsPanel';
 import { STATUS_TONE, type ImportedHistory, type LedgerEntry, type Store, type StoreOptions } from './types';
@@ -204,6 +205,8 @@ export function StoreDetail({ id, can }: { id: string; can: Can }) {
         ) : null}
       </div>
 
+      {/* COR-006: the invoices from the books, correctable by a Super Admin in a session. */}
+      {s.imported && can.correct ? <Section title={tco('imported.title')}><ImportedInvoices storeId={id} sessionOpen={sessionOpen} /></Section> : null}
       <Section title={t('ledger')}>
         {ledger.data && ledger.data.length > 0 ? <LedgerSummary entries={ledger.data} credit={s.credit} /> : null}
         {can.correct && !sessionOpen ? <p className="border-b border-stone-200 px-5 py-3 text-xs text-stone-500">{tco('entry.openSession')}</p> : null}

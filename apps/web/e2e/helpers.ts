@@ -1,3 +1,5 @@
+import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { expect, type Browser, type BrowserContextOptions, type Page } from '@playwright/test';
 import type en from '../src/messages/en.json';
 
@@ -213,5 +215,13 @@ export async function aStoreByApi(
     name, ownerName: 'Owner', contactNumber: '0501234567', location: { lat: 18 + Math.random() * 10, lng: 40 + Math.random() * 10 },
     ...terms, priceListId: base?.id, storefrontPhotoId: photo, acknowledgeDuplicates: true, ...(sellerId ? { sellerId } : {}),
   });
+}
+
+const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
+
+/** A store imported from synthetic books for this seller (IMP-008): two invoices (501, 502) and a payment, 400.00 owing. */
+export function anImportedStore(sellerEmail: string, name: string): { storeId: string; balance: string } {
+  const out = execFileSync('pnpm', ['--filter', '@gsa/services', 'run', '--silent', 'e2e-imported-store', sellerEmail, name], { cwd: ROOT, encoding: 'utf8' });
+  return JSON.parse(out.trim().split('\n').at(-1) ?? '{}') as { storeId: string; balance: string };
 }
 

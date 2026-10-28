@@ -12,7 +12,7 @@ export {
 export { listSales, decideDiscountRequest, type DecideDiscountInput } from './approvals';
 export { expireSellerSales, expireDiscountRequests } from './expiry';
 export {
-  createDeliveryDocument, renderPendingDocuments, deliveryDocumentPdf, recordDocumentShared, emailDeliveryDocument, keepDeliveryDocument,
+  createDeliveryDocument, reissueDeliveryDocument, latestDocument, renderPendingDocuments, deliveryDocumentPdf, recordDocumentShared, emailDeliveryDocument, keepDeliveryDocument,
   type PdfRenderer,
 } from './documents';
 export { deliveryDocumentHtml, type DocumentData } from './document-html';

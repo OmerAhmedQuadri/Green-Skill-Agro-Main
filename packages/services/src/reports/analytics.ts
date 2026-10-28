@@ -2,7 +2,7 @@ import {
   analyticsRange, Dec, dec, IMPORTED_UNMATCHED_KEY, OPEN_SALES_KEY, rangePeriods, toMoney, type AnalyticsRange, type Money,
 } from '@gsa/core';
 import { schema } from '@gsa/db';
-import { and, asc, eq, gte, inArray, lt, lte, ne, sql, type SQL } from 'drizzle-orm';
+import { and, asc, eq, gte, inArray, isNull, lt, lte, ne, sql, type SQL } from 'drizzle-orm';
 import { authorize, type Ctx } from '../context';
 import type { Executor } from '../platform';
 import { getDb } from '../runtime';
@@ -64,7 +64,7 @@ function soldWhere(range: AnalyticsRange, f: AnalyticsFilter): SQL | undefined {
 function importedWhere(range: AnalyticsRange, f: AnalyticsFilter): SQL | undefined {
   if (f.vehicleId || (f.channel && f.channel !== 'IMPORTED')) return sql`false`;
   return and(
-    gte(importedSales.soldOn, range.from), lte(importedSales.soldOn, range.to),
+    gte(importedSales.soldOn, range.from), lte(importedSales.soldOn, range.to), isNull(importedSales.replacedBy),
     f.sellerId ? eq(importedSales.sellerId, f.sellerId) : undefined, f.storeId ? eq(importedSales.storeId, f.storeId) : undefined,
     f.productId ? eq(skus.productId, f.productId) : undefined, f.categoryId ? eq(products.categoryId, f.categoryId) : undefined,
   );

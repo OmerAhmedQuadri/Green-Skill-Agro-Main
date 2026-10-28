@@ -29,6 +29,7 @@ import { SALE_TONE, type Sale } from './types';
 export function FieldSaleScreen({ id, canReturn = false }: { id: string; canReturn?: boolean }) {
   const t = useTranslations('sales');
   const ts = useTranslations('stores');
+  const tc = useTranslations('corrections.sale');
   const format = useFormat();
   const errorText = useErrorText();
   const queryClient = useQueryClient();
@@ -103,6 +104,14 @@ export function FieldSaleScreen({ id, canReturn = false }: { id: string; canRetu
               {s.store ? t('freshSale') : t('open.new')}
             </Link>
           ) : null}
+        </Alert>
+      ) : null}
+
+      {/* COR-006: the office corrected it — the figures below are the corrected ones. */}
+      {s.corrections.length > 0 ? (
+        <Alert tone="info" data-testid="sale-corrected">
+          {tc('fieldNote', { date: format.dateTime(s.corrections.at(-1)?.at ?? s.createdAt) })}
+          {s.status === 'REMOVED' ? <div>{tc('removed')}</div> : null}
         </Alert>
       ) : null}
 

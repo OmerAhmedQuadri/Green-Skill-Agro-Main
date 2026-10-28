@@ -3,7 +3,7 @@ import {
   normaliseEmail, percent, toMoney, type Money,
 } from '@gsa/core';
 import { schema } from '@gsa/db';
-import { and, asc, eq, lte, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, lte, sql } from 'drizzle-orm';
 import QRCode from 'qrcode';
 import { sizeOf } from '../catalogue';
 import { authorize, type Ctx } from '../context';
@@ -43,12 +43,36 @@ export async function createDeliveryDocument(tx: Tx, ctx: Ctx, saleId: string, o
 }
 
 /**
+ * COR-006 (ADR-0059, amended 28 October): a corrected sale's document again, under its number as the next version —
+ * printed from the sale as corrected, at the VAT rate its first copy was issued at. The earlier copies are kept.
+ */
+export async function reissueDeliveryDocument(tx: Tx, ctx: Ctx, saleId: string): Promise<{ id: string; number: string; version: number }> {
+  const latest = await latestDocument(tx, saleId);
+  if (!latest) throw new DomainError('NOT_FOUND', { entity: 'delivery_document', saleId });
+  const [first] = await tx.select({ vatRate: deliveryDocuments.vatRate }).from(deliveryDocuments)
+    .where(and(eq(deliveryDocuments.saleId, saleId), eq(deliveryDocuments.version, 1)));
+  const version = latest.version + 1;
+  const [row] = await tx.insert(deliveryDocuments).values({
+    saleId, number: latest.number, version, vatRate: first?.vatRate ?? latest.vatRate, branchId: ctx.branchId, createdAt: ctx.now, nextAttemptAt: ctx.now,
+  }).returning({ id: deliveryDocuments.id });
+  if (!row) throw new Error('delivery document insert returned nothing');
+  return { id: row.id, number: latest.number, version };
+}
+
+/** A sale's document: its latest version (COR-006). */
+export async function latestDocument(db: Executor, saleId: string, opts: { readonly lock?: boolean } = {}) {
+  const query = db.select().from(deliveryDocuments).where(eq(deliveryDocuments.saleId, saleId)).orderBy(desc(deliveryDocuments.version)).limit(1);
+  const [doc] = opts.lock ? await query.for('update') : await query;
+  return doc ?? null;
+}
+
+/**
  * DOC-001, DOC-007..010 (ADR-0053): everything the document shows, read from
  * the committed sale — the company and the buyer, each line with the VAT its
  * price included, the totals and what was paid towards them, the terms, the
  * total in words, and the QR code.
  */
-async function documentData(db: Executor, doc: { saleId: string; number: string; vatRate: string | null; createdAt: Date }): Promise<DocumentData> {
+async function documentData(db: Executor, doc: { saleId: string; number: string; version: number; vatRate: string | null; createdAt: Date }): Promise<DocumentData> {
   const [row] = await db.select({ s: sales, store: stores, salesperson: users.name, vehicle: vehicles.registration })
     .from(sales).leftJoin(stores, eq(stores.id, sales.storeId)).innerJoin(users, eq(users.id, sales.sellerId)).leftJoin(vehicles, eq(vehicles.id, sales.vehicleId))
     .where(eq(sales.id, doc.saleId));
@@ -59,7 +83,8 @@ async function documentData(db: Executor, doc: { saleId: string; number: string;
     db.select({ l: saleLines, sku: skus, productEn: products.nameEn, productAr: products.nameAr, varietyEn: varieties.nameEn, varietyAr: varieties.nameAr, countUnit: productTypes.countUnit })
       .from(saleLines).innerJoin(skus, eq(skus.id, saleLines.skuId)).innerJoin(products, eq(products.id, skus.productId))
       .innerJoin(productTypes, eq(productTypes.id, products.productTypeId)).leftJoin(varieties, eq(varieties.id, skus.varietyId))
-      .where(eq(saleLines.saleId, doc.saleId)).orderBy(asc(skus.code)),
+      // COR-006: a line a correction set to nothing is not on the paper.
+      .where(and(eq(saleLines.saleId, doc.saleId), sql`${saleLines.packs} > 0`)).orderBy(asc(skus.code)),
     row.s.paymentId ? db.select().from(payments).where(eq(payments.id, row.s.paymentId)) : Promise.resolve([]),
     row.s.ledgerEntryId ? db.select({ dueOn: storeLedgerEntries.dueOn }).from(storeLedgerEntries).where(eq(storeLedgerEntries.id, row.s.ledgerEntryId)) : Promise.resolve([]),
     // What was paid towards this sale when it was issued — oldest bills are settled first (CRD-003) —
@@ -86,8 +111,13 @@ async function documentData(db: Executor, doc: { saleId: string; number: string;
     seller: seller.nameAr, vatNumber: seller.vatNumber, issuedAt: `${riyadhDay.format(issuedAt)}T${riyadhTime.format(issuedAt)}`,
     total, vat: figures.totals.vat,
   });
+  const [replaced] = doc.version > 1
+    ? await db.select({ createdAt: deliveryDocuments.createdAt }).from(deliveryDocuments)
+      .where(and(eq(deliveryDocuments.saleId, doc.saleId), eq(deliveryDocuments.version, doc.version - 1)))
+    : [];
   return {
     open, number: doc.number, issuedAt, suppliedAt: issuedAt, seller,
+    corrected: replaced ? { version: doc.version, replaces: replaced.createdAt } : null,
     buyer: row.store
       ? {
         code: row.store.code, name: row.store.name, contact: row.store.ownerName, phone: row.store.contactNumber,
@@ -112,6 +142,9 @@ async function documentData(db: Executor, doc: { saleId: string; number: string;
   };
 }
 
+/** A document's file name: its number, and its version once corrected (COR-006). */
+export const fileNameOf = (doc: { number: string; version: number }) => (doc.version > 1 ? `${doc.number}-v${doc.version}` : doc.number);
+
 // The QR's date and time, Riyadh's, to the second (ADR-0026: Latin digits, the Gregorian calendar).
 const riyadhDay = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Riyadh', year: 'numeric', month: '2-digit', day: '2-digit' });
 const riyadhTime = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Riyadh', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' });
@@ -134,7 +167,7 @@ export async function renderPendingDocuments(renderer: PdfRenderer, now: Date, b
       try {
         const html = deliveryDocumentHtml(await documentData(tx, doc), { fontCss: renderer.fontCss, logo: renderer.logo });
         const pdf = new Uint8Array(await renderer.render(html));
-        const key = `delivery-documents/${doc.number.slice(3, 7)}/${doc.number}.pdf`;
+        const key = `delivery-documents/${doc.number.slice(3, 7)}/${fileNameOf(doc)}.pdf`;
         await getBlobStore().put(key, pdf, 'application/pdf');
         await tx.update(deliveryDocuments).set({ status: 'READY', storageKey: key, byteSize: pdf.byteLength, attempts: attempt, renderedAt: now, lastError: null })
           .where(eq(deliveryDocuments.id, doc.id));
@@ -157,13 +190,13 @@ export async function deliveryDocumentPdf(ctx: Ctx, saleId: string): Promise<{ n
   authorize(ctx, 'sales.record');
   const db = getDb();
   const sale = await loadSale(db, ctx, saleId);
-  const [doc] = await db.select().from(deliveryDocuments).where(eq(deliveryDocuments.saleId, sale.id));
+  const doc = await latestDocument(db, sale.id);
   if (!doc) throw new DomainError('NOT_FOUND', { entity: 'delivery_document', saleId });
   if (doc.status !== 'READY' || !doc.storageKey) throw new DomainError('DOCUMENT_NOT_READY', { status: doc.status });
   if (doc.purgedAt) throw new DomainError('FILE_DELETED', { deletedOn: businessDate(doc.purgedAt) });
   const pdf = await getBlobStore().get(doc.storageKey);
   if (!pdf) throw new DomainError('DOCUMENT_NOT_READY', { status: 'MISSING' });
-  return { number: doc.number, pdf };
+  return { number: fileNameOf(doc), pdf };
 }
 
 /** DOC-003, DOC-004: only the seller of record sends, only a ready document, and not when sending is off. */
@@ -171,11 +204,11 @@ async function sendable(tx: Tx, ctx: Ctx, saleId: string): Promise<{ sale: Sale;
   const sale = await loadSale(tx, ctx, saleId);
   if (sale.seller.id !== ctx.user.id) throw new DomainError('NOT_FOUND', { entity: 'sale', id: saleId });
   if ((await saleLimits(tx)).sendingMode === 'DISABLED') throw new DomainError('DOCUMENT_SENDING_DISABLED');
-  const [doc] = await tx.select().from(deliveryDocuments).where(eq(deliveryDocuments.saleId, saleId));
+  const doc = await latestDocument(tx, saleId);
   if (!doc) throw new DomainError('NOT_FOUND', { entity: 'delivery_document', saleId });
   if (doc.status !== 'READY' || !doc.storageKey) throw new DomainError('DOCUMENT_NOT_READY', { status: doc.status });
   if (doc.purgedAt) throw new DomainError('FILE_DELETED', { deletedOn: businessDate(doc.purgedAt) });
-  return { sale, documentId: doc.id, number: doc.number, storageKey: doc.storageKey };
+  return { sale, documentId: doc.id, number: fileNameOf(doc), storageKey: doc.storageKey };
 }
 
 /**
@@ -219,7 +252,7 @@ export async function keepDeliveryDocument(ctx: Ctx, saleId: string, keep: boole
   authorize(ctx, 'system.keep_files');
   await inTx(ctx, async (tx) => {
     const sale = await loadSale(tx, ctx, saleId);
-    const [doc] = await tx.select().from(deliveryDocuments).where(eq(deliveryDocuments.saleId, sale.id)).for('update');
+    const doc = await latestDocument(tx, sale.id, { lock: true });
     if (!doc) throw new DomainError('NOT_FOUND', { entity: 'delivery_document', saleId });
     if (doc.status !== 'READY') throw new DomainError('DOCUMENT_NOT_READY', { status: doc.status });
     if (doc.purgedAt) throw new DomainError('FILE_DELETED', { deletedOn: businessDate(doc.purgedAt) });
