@@ -10,7 +10,7 @@ import { creditOverrides, payments, storeLedgerEntries, stores } from './stores'
 import { vehicles } from './vehicles';
 
 // Mirror packages/core/src/sales and packages/core/src/cash.
-export const saleStatus = pgEnum('sale_status', ['PENDING_DISCOUNT_APPROVAL', 'DISCOUNT_APPROVED', 'PENDING_DELIVERY', 'COMPLETED', 'CANCELLED']);
+export const saleStatus = pgEnum('sale_status', ['PENDING_DISCOUNT_APPROVAL', 'DISCOUNT_APPROVED', 'PENDING_DELIVERY', 'COMPLETED', 'CANCELLED', 'REMOVED']);
 export const saleCancelReason = pgEnum('sale_cancel_reason', ['REJECTED', 'EXPIRED', 'WITHDRAWN', 'REQUEST_CANCELLED', 'LOST']);
 export const saleChannel = pgEnum('sale_channel', ['VEHICLE', 'DISPATCH']);
 export const discountRequestStatus = pgEnum('discount_request_status', ['PENDING', 'APPROVED', 'REDUCED', 'REJECTED', 'EXPIRED', 'WITHDRAWN']);
@@ -74,7 +74,10 @@ export const sales = pgTable(
     index('sales_payment_id_idx').on(t.paymentId),
     index('sales_credit_override_id_idx').on(t.creditOverrideId),
     // A store's sale completes onto its ledger; an open sale, paid in full instead (ADR-0052).
-    check('sales_completed', sql`(${t.status} = 'COMPLETED') = (${t.completedAt} is not null and (${t.ledgerEntryId} is not null or (${t.storeId} is null and ${t.paymentId} is not null)))`),
+    // A sale a correction removed (REMOVED) was completed and keeps all of it. Written without naming REMOVED, which
+    // its migration adds: completed or removed is every status but the four before completion and cancelled.
+    check('sales_completed', sql`(${t.status} not in ('PENDING_DISCOUNT_APPROVAL', 'DISCOUNT_APPROVED', 'PENDING_DELIVERY', 'CANCELLED'))
+      = (${t.completedAt} is not null and (${t.ledgerEntryId} is not null or (${t.storeId} is null and ${t.paymentId} is not null)))`),
     check('sales_cancelled', sql`(${t.status} = 'CANCELLED') = (${t.cancelledAt} is not null and ${t.cancelReason} is not null)`),
     check('sales_total', sql`${t.total} = ${t.gross} - ${t.discount} and ${t.total} > 0`),
     check('sales_channel_vehicle', sql`(${t.channel} = 'VEHICLE') = (${t.vehicleId} is not null)`),
@@ -167,13 +170,18 @@ export const discountApprovalRequests = pgTable(
 /**
  * DOC-001..006, ADR-0019, ADR-0037: the delivery document. Numbered in the
  * sale's transaction, gapless; the PENDING row is the worker's render job.
+ *
+ * COR-006 (ADR-0059, amended 28 October): a correction reissues it as a new
+ * version under the same number — "Corrected — replaces the copy of <date>";
+ * the earlier versions are kept. The sale's document is its latest version.
  */
 export const deliveryDocuments = pgTable(
   'delivery_documents',
   {
     id: id(),
-    saleId: uuid('sale_id').notNull().unique().references(() => sales.id),
-    number: text('number').notNull().unique(),
+    saleId: uuid('sale_id').notNull().references(() => sales.id),
+    number: text('number').notNull(),
+    version: integer('version').notNull().default(1),
     status: deliveryDocumentStatus('status').notNull().default('PENDING'),
     storageKey: text('storage_key'),
     byteSize: integer('byte_size'),
@@ -191,10 +199,13 @@ export const deliveryDocuments = pgTable(
     createdAt: createdAt(),
   },
   (t) => [
+    uniqueIndex('delivery_documents_sale_version_unique').on(t.saleId, t.version),
+    uniqueIndex('delivery_documents_number_version_unique').on(t.number, t.version),
     index('delivery_documents_due_idx').on(t.nextAttemptAt).where(sql`${t.status} = 'PENDING'`),
     check('delivery_documents_ready', sql`(${t.status} = 'READY') = (${t.storageKey} is not null and ${t.renderedAt} is not null)`),
     check('delivery_documents_purged', sql`${t.purgedAt} is null or ${t.status} = 'READY'`),
     check('delivery_documents_kept', sql`(${t.keptAt} is null) = (${t.keptBy} is null)`),
+    check('delivery_documents_version', sql`${t.version} >= 1`),
   ],
 );
 

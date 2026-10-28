@@ -1,17 +1,7 @@
-import { execFileSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
 import { expect, test } from '@playwright/test';
 import ar from '../src/messages/ar.json' with { type: 'json' };
 import en from '../src/messages/en.json' with { type: 'json' };
-import { freshSeller, sessionPage, shot, takePhoto } from './helpers';
-
-const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
-
-/** A store imported from synthetic books for this seller (IMP-008): two invoices and a payment, 400.00 owing. */
-function anImportedStore(sellerEmail: string, name: string): { storeId: string; balance: string } {
-  const out = execFileSync('pnpm', ['--filter', '@gsa/services', 'run', '--silent', 'e2e-imported-store', sellerEmail, name], { cwd: ROOT, encoding: 'utf8' });
-  return JSON.parse(out.trim().split('\n').at(-1) ?? '{}') as { storeId: string; balance: string };
-}
+import { anImportedStore, freshSeller, sessionPage, shot, takePhoto } from './helpers';
 
 /**
  * IMP-005, IMP-008, IMP-003, IMP-010, in English and Arabic: a store imported from the books awaits re-verification.

@@ -2,7 +2,7 @@ import { sql } from 'drizzle-orm';
 import { check, date, index, integer, jsonb, numeric, pgEnum, pgTable, text, uniqueIndex, uuid, type AnyPgColumn } from 'drizzle-orm/pg-core';
 import { skus } from './catalogue';
 import { createdAt, id, timestamptz } from './columns';
-import { correctionSessions } from './corrections';
+import { correctionSessions, saleCorrections } from './corrections';
 import { users } from './identity';
 import { mutable } from './mutable';
 import { branches } from './organisation';
@@ -49,6 +49,10 @@ export const importBatches = pgTable(
 /**
  * IMP-001: one invoice of a seller's book, as written — recorded, never posted at import. Its debit goes into the
  * store's account when the seller re-verifies the store (IMP-005), referencing it as IMPORTED_SALE. Append-only.
+ *
+ * COR-006 (ADR-0059): a correction of its lines writes the corrected invoice as a new row (`correction_id`) and marks
+ * this one replaced (`replaced_by`, the one column the app may set, once — migration 0037). The invoice that stands
+ * is the one not replaced.
  */
 export const importedSales = pgTable(
   'imported_sales',
@@ -66,12 +70,17 @@ export const importedSales = pgTable(
     subtotal: money('subtotal').notNull(),
     discount: money('discount').notNull().default('0'),
     total: money('total').notNull(),
+    /** The correction that wrote this corrected invoice, and the one that replaced it. */
+    correctionId: uuid('correction_id').references((): AnyPgColumn => saleCorrections.id),
+    replacedBy: uuid('replaced_by').references((): AnyPgColumn => saleCorrections.id),
     branchId: uuid('branch_id').notNull().references(() => branches.id),
     createdAt: createdAt(),
     createdBy: uuid('created_by').notNull().references(() => users.id),
   },
   (t) => [
-    uniqueIndex('imported_sales_serial_unique').on(t.batchId, t.sellerId, t.serial),
+    uniqueIndex('imported_sales_serial_unique').on(t.batchId, t.sellerId, t.serial).where(sql`${t.replacedBy} is null`),
+    index('imported_sales_correction_id_idx').on(t.correctionId),
+    index('imported_sales_replaced_by_idx').on(t.replacedBy),
     index('imported_sales_store_id_idx').on(t.storeId),
     index('imported_sales_seller_id_idx').on(t.sellerId),
     check('imported_sales_discount', sql`${t.discount} >= 0`),

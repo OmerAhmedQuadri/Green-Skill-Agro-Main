@@ -8,5 +8,5 @@ export type SaleItem = sales.SaleItem;
 export type Page<T> = { items: T[]; nextCursor: string | null };
 
 export const SALE_TONE = {
-  PENDING_DISCOUNT_APPROVAL: 'warning', DISCOUNT_APPROVED: 'warning', PENDING_DELIVERY: 'warning', COMPLETED: 'success', CANCELLED: 'neutral',
+  PENDING_DISCOUNT_APPROVAL: 'warning', DISCOUNT_APPROVED: 'warning', PENDING_DELIVERY: 'warning', COMPLETED: 'success', CANCELLED: 'neutral', REMOVED: 'neutral',
 } as const;

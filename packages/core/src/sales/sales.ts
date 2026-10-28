@@ -6,7 +6,8 @@ import type { BlockReason, CreditMode, CreditStatus } from '../stores';
 import { packCount, type PackCount } from '../units';
 
 /** STATE-MACHINES §2. PENDING_DELIVERY arrives with warehouse dispatch (M7). */
-export const SALE_STATUSES = ['PENDING_DISCOUNT_APPROVAL', 'DISCOUNT_APPROVED', 'PENDING_DELIVERY', 'COMPLETED', 'CANCELLED'] as const;
+// REMOVED: a completed sale a correction took away whole (COR-006, ADR-0059) — it stays, out of every total.
+export const SALE_STATUSES = ['PENDING_DISCOUNT_APPROVAL', 'DISCOUNT_APPROVED', 'PENDING_DELIVERY', 'COMPLETED', 'CANCELLED', 'REMOVED'] as const;
 export type SaleStatus = (typeof SALE_STATUSES)[number];
 
 /** DATA-MODEL §5.4a: a sale in these states holds its batches on the vehicle (PRC-011). */
@@ -55,15 +56,17 @@ export type SaleCancelReason = (typeof SALE_CANCEL_REASONS)[number];
 export const DISCOUNT_REQUEST_STATUSES = ['PENDING', 'APPROVED', 'REDUCED', 'REJECTED', 'EXPIRED', 'WITHDRAWN'] as const;
 export type DiscountRequestStatus = (typeof DISCOUNT_REQUEST_STATUSES)[number];
 
-export type SaleAction = 'approve' | 'reject' | 'expire' | 'withdraw' | 'complete' | 'dispatch' | 'deliver' | 'cancel' | 'lose';
+export type SaleAction = 'approve' | 'reject' | 'expire' | 'withdraw' | 'complete' | 'dispatch' | 'deliver' | 'cancel' | 'lose' | 'remove';
 
 const SALE_TRANSITIONS: Record<SaleStatus, Partial<Record<SaleAction, SaleStatus>>> = {
   PENDING_DISCOUNT_APPROVAL: { approve: 'DISCOUNT_APPROVED', reject: 'CANCELLED', expire: 'CANCELLED', withdraw: 'CANCELLED' },
   // A vehicle sale completes; a dispatch sale goes to the warehouse (ADR-0038).
   DISCOUNT_APPROVED: { complete: 'COMPLETED', dispatch: 'PENDING_DELIVERY', expire: 'CANCELLED', withdraw: 'CANCELLED' },
   PENDING_DELIVERY: { deliver: 'COMPLETED', cancel: 'CANCELLED', lose: 'CANCELLED' },
-  COMPLETED: {},
+  // COR-006: only a Super Admin's correction, in a session, removes a completed sale.
+  COMPLETED: { remove: 'REMOVED' },
   CANCELLED: {},
+  REMOVED: {},
 };
 
 /**

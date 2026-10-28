@@ -13,7 +13,7 @@ export const isInternal = (kind: StockAccountKind): boolean => INTERNAL_ACCOUNTS
 /** What caused a movement. The ledger is the audit trail for stock (DATA-MODEL §1.1). */
 export const STOCK_REFERENCE_TYPES = [
   'GOODS_RECEIPT', 'SKU_CONVERSION', 'WRITE_OFF', 'VEHICLE_LOADOUT', 'VEHICLE_RETURN', 'SALE', 'DISPATCH_ORDER',
-  'LOST_ORDER_CLAIM', 'RETURN', 'DEFECTIVE_REPLACEMENT', 'VEHICLE_AUDIT', 'OPENING_BALANCE',
+  'LOST_ORDER_CLAIM', 'RETURN', 'DEFECTIVE_REPLACEMENT', 'VEHICLE_AUDIT', 'OPENING_BALANCE', 'SALE_CORRECTION',
 ] as const;
 export type StockReferenceType = (typeof STOCK_REFERENCE_TYPES)[number];
 

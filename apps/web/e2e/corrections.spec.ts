@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import ar from '../src/messages/ar.json' with { type: 'json' };
 import en from '../src/messages/en.json' with { type: 'json' };
-import { aStoreByApi, PASSWORD, post, sessionPage, shot } from './helpers';
+import { anImportedStore, aStoreByApi, aVehicle, batchOf, checkIn, freshSeller, PASSWORD, post, receiveStock, sessionPage, shot } from './helpers';
 
 /** The text of a message before its first placeholder. */
 const opening = (message: string) => message.slice(0, message.indexOf('{')).trim();
@@ -148,3 +148,102 @@ for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
     await post(owner, origin, `/corrections/sessions/${session.id}/close`, { version: session.version, closing: 'KEPT' });
   });
 }
+
+const headers = (origin: string) => ({ origin, 'idempotency-key': crypto.randomUUID() });
+
+/**
+ * COR-006, COR-002, in English and Arabic: in an open session the Super Admin corrects a sale made in the app on its
+ * page — fewer packs, the stock back on the vehicle, the bill and delivery document following — after seeing the
+ * effect; the sale shows its correction. Then an imported invoice's lines, on its store's page, before the store is
+ * re-verified. The Corrections page lists both.
+ */
+for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
+  test(`Sale corrections (${locale}) — COR-006, COR-002: an app sale and an imported invoice corrected`, async ({ browser, baseURL }) => {
+    test.setTimeout(360_000);
+    const origin = baseURL ?? '';
+    const stamp = String(Date.now()).slice(-6);
+    const lot = `COR-${locale}-${stamp}`;
+    const owner = await sessionPage(browser, 'superadmin@dev.local', locale, origin);
+    const before = (await (await owner.request.get('/api/v1/corrections/status')).json()) as { mine: { id: string; version: number } | null };
+    if (before.mine) await post(owner, origin, `/corrections/sessions/${before.mine.id}/close`, { version: before.mine.version, closing: 'KEPT' });
+
+    // A seller at work with six bags on the vehicle sells three to a store, at 90.00.
+    const admin = await sessionPage(browser, 'admin@dev.local', locale, origin);
+    await admin.request.patch('/api/v1/feature-toggles', { headers: headers(origin), data: { changes: [{ key: 'stores.approval_required', enabled: false }, { key: 'attendance.restricted_check_in', enabled: false }] } });
+    const { skuId } = await receiveStock(admin, origin, { code: 'OKRA-PK-5KG', packs: 10, lot });
+    const seller = await freshSeller(browser, admin, origin, locale, `COR Sale Seller ${locale} ${stamp}`);
+    const phone = seller.page;
+    const vehicle = await aVehicle(admin, origin, 10_000);
+    await post(admin, origin, `/vehicles/${vehicle.id}/assign`, { sellerId: seller.id });
+    await checkIn(phone, m, { odometer: '10002' });
+    const batchId = await batchOf(admin, skuId, lot);
+    const load = await post(admin, origin, '/vehicle-loads', { vehicleId: vehicle.id, lines: [{ batchId, packs: 6 }], acknowledgeCeiling: true });
+    await post(phone, origin, `/vehicle-loads/${load.id}/confirm`, { version: load.version });
+    const store = await aStoreByApi(phone, origin, `COR Sale Store ${locale} ${stamp}`, { creditMode: 'WEEKLY', creditLimit: '5000.00' });
+    const sale = await post(phone, origin, '/sales', { storeId: store.id, lines: [{ skuId, packs: 3 }] });
+
+    // Outside a session the sale says how to start one.
+    await owner.goto(`/console/sales/${sale.id}`);
+    await expect(owner.getByText(m.corrections.sale.openSession)).toBeVisible();
+    const opened = await owner.request.post('/api/v1/corrections/sessions', {
+      headers: { origin }, data: { password: PASSWORD, reason: `e2e ${locale}: October's sales that were written wrong` },
+    });
+    expect(opened.ok()).toBe(true);
+    const session = (await opened.json()) as { id: string; version: number };
+    // The delivery document is printed before its corrected copy can be issued.
+    await expect(async () => {
+      const doc = (await (await owner.request.get(`/api/v1/sales/${sale.id}`)).json()) as { document: { status: string } | null };
+      expect(doc.document?.status).toBe('READY');
+    }).toPass({ timeout: 60_000 });
+
+    await owner.reload();
+    await owner.getByRole('button', { name: m.corrections.sale.correct, exact: true }).click();
+    const panel = owner.getByTestId('correct-sale');
+    await panel.getByTestId('correct-packs-OKRA-PK-5KG').fill('2');
+    await panel.getByTestId('follows-stock').check();
+    await panel.getByLabel(m.corrections.sale.reason, { exact: true }).fill(`e2e ${locale}: the store took two bags, not three`);
+    // COR-002: the effect first — the total, a bag back on the vehicle, the next copy of the document, the store's debt.
+    await panel.getByRole('button', { name: m.corrections.sale.preview, exact: true }).click();
+    await expect(panel.getByTestId('correct-sale-total')).toContainText('270.00');
+    await expect(panel.getByTestId('correct-sale-total')).toContainText('180.00');
+    await expect(panel.getByTestId('correct-sale-stock')).toContainText(vehicle.registration);
+    await expect(panel.getByTestId(`correct-sale-store-${store.id}`)).toContainText('180.00');
+    await owner.screenshot({ path: shot(`sale-correction-effect-${locale}`), fullPage: true });
+    await panel.getByRole('button', { name: m.corrections.sale.confirm, exact: true }).click();
+    await expect(owner.getByTestId('correct-sale')).toHaveCount(0);
+    await expect(owner.getByText(opening(m.corrections.sale.done))).toBeVisible();
+    const history = owner.getByTestId('sale-corrections');
+    await expect(history).toContainText(`e2e ${locale}: the store took two bags, not three`);
+    await expect(history).toContainText(m.corrections.sale.applied.stock);
+    await expect(owner.getByTestId('document-version')).toContainText('2');
+    await owner.screenshot({ path: shot(`sale-corrected-${locale}`), fullPage: true });
+
+    // The seller sees the sale as corrected, and that the office corrected it.
+    await phone.goto(`/field/sales/${sale.id}`);
+    await expect(phone.getByTestId('sale-corrected')).toBeVisible();
+
+    // An imported invoice, before its store is re-verified: its lines corrected on the store's page.
+    const { storeId } = anImportedStore(seller.email, `COR Imported ${locale} ${stamp}`);
+    await owner.goto(`/console/stores/${storeId}`);
+    const invoice = owner.getByTestId('imported-invoice-501');
+    await expect(invoice.getByTestId('imported-invoice-total')).toContainText('500.00');
+    await invoice.getByRole('button', { name: m.corrections.imported.correct, exact: true }).click();
+    const form = invoice.getByTestId('correct-invoice');
+    await form.getByTestId('invoice-packs-0').fill('8');
+    await form.getByLabel(m.corrections.imported.reason, { exact: true }).fill(`e2e ${locale}: eight bags, per the store's copy`);
+    await form.getByRole('button', { name: m.corrections.imported.preview, exact: true }).click();
+    await expect(form.getByTestId('correct-invoice-effect')).toContainText(m.corrections.imported.notPostedEffect);
+    await form.getByRole('button', { name: m.corrections.imported.confirm, exact: true }).click();
+    await expect(owner.getByTestId('imported-invoice-501').getByTestId('imported-invoice-total')).toContainText('400.00');
+    await owner.screenshot({ path: shot(`imported-invoice-corrected-${locale}`), fullPage: true });
+
+    // The Corrections page lists both.
+    await owner.goto('/console/corrections');
+    const changes = owner.locator('[data-testid^="sale-correction-"]');
+    await expect(changes.first()).toContainText(`e2e ${locale}: eight bags`);
+    await expect(changes.nth(1)).toContainText(`e2e ${locale}: the store took two bags`);
+
+    await post(owner, origin, `/corrections/sessions/${session.id}/close`, { version: session.version, closing: 'KEPT' });
+  });
+}
+

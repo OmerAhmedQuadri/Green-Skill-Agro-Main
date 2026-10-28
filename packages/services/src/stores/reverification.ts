@@ -14,7 +14,7 @@ import { postStoreCredit, postStoreDebit } from './credit';
 import { checkedStoreDetails, duplicatesOf, type StoreDetailsInput } from './onboarding';
 
 const {
-  importBatches, importedPaymentAssignments, importedPayments, importedSales, payments, storeLedgerEntries, storeReverifications, stores, users,
+  importBatches, importedPaymentAssignments, importedPayments, importedSales, payments, saleCorrections, storeLedgerEntries, storeReverifications, stores, users,
 } = schema;
 
 /**
@@ -168,8 +168,17 @@ async function unposted(db: Executor, storeId: string): Promise<ImportedHistory 
     .innerJoin(importBatches, eq(importBatches.id, importedSales.batchId))
     .innerJoin(users, eq(users.id, importedSales.sellerId))
     .where(and(
-      eq(importedSales.storeId, storeId), eq(importBatches.status, 'LOADED'),
-      sql`not exists (select 1 from ${storeLedgerEntries} where ${storeLedgerEntries.referenceType} = 'IMPORTED_SALE' and ${storeLedgerEntries.referenceId} = ${importedSales.id})`,
+      eq(importedSales.storeId, storeId), eq(importBatches.status, 'LOADED'), isNull(importedSales.replacedBy),
+      // COR-006: an invoice corrected after its bill went into the account is in it already, under an earlier version.
+      sql`not exists (
+        with recursive versions(id, correction_id) as (
+          select ${importedSales.id}, ${importedSales.correctionId}
+          union all
+          select p.id, p.correction_id from versions v
+            join ${saleCorrections} c on c.id = v.correction_id join ${importedSales} p on p.id = c.imported_sale_id
+        )
+        select 1 from ${storeLedgerEntries} where ${storeLedgerEntries.referenceType} = 'IMPORTED_SALE'
+          and ${storeLedgerEntries.referenceId} in (select id from versions))`,
     ))
     .orderBy(asc(importedSales.soldOn), asc(importedSales.serial));
   // A payment the books placed nowhere goes to the store a Super Admin attached it to (COR-005).

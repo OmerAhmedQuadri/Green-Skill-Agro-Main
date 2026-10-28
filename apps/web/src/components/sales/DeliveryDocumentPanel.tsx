@@ -63,6 +63,8 @@ export function DeliveryDocumentPanel({ sale, canSend, canKeep = false, onChange
         <span className="font-semibold">{sale.open ? t('open.documentTitle') : t('documentTitle')}</span>
         <bdi dir="ltr" className="text-sm" data-testid="document-number">{doc.number}</bdi>
         <Badge tone="danger">{t('notTaxInvoice')}</Badge>
+        {/* COR-006: a corrected copy under the same number. */}
+        {doc.version > 1 ? <Badge tone="warning" data-testid="document-version">{t('documentVersion', { version: doc.version })}</Badge> : null}
       </div>
       {doc.status === 'PENDING' ? <p className="text-sm text-stone-600" data-testid="document-preparing">{t('documentPreparing')}</p> : null}
       {doc.status === 'FAILED' ? <Alert>{t('documentFailed')}</Alert> : null}

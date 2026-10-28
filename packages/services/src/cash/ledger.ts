@@ -50,7 +50,7 @@ export async function postCashRefund(
  * too — by the difference, on the day of the correction. It never takes them below nothing.
  */
 export async function postCashCorrection(
-  tx: Tx, ctx: Ctx, input: { sellerId: string; amount: Money; referenceType: 'STORE_CORRECTION'; referenceId: string },
+  tx: Tx, ctx: Ctx, input: { sellerId: string; amount: Money; referenceType: 'STORE_CORRECTION' | 'SALE_CORRECTION'; referenceId: string },
 ): Promise<void> {
   await lockCash(tx, input.sellerId);
   const held = await cashInHand(tx, input.sellerId);

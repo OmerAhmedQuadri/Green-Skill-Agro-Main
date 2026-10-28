@@ -1,6 +1,7 @@
 'use client';
 
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
+import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { useState } from 'react';
 import { Alert, Badge, Button, Card, Field, Select, Textarea } from '@gsa/ui';
@@ -17,6 +18,13 @@ type StoreCorrection = {
   id: string; number: number; session: { id: string; number: number }; kind: 'BILL' | 'PAYMENT';
   store: { id: string; name: string }; toStore: { id: string; name: string } | null;
   before: Values; after: Values | null; reason: string; cashInHand: boolean; by: string; at: string;
+};
+
+type SaleCorrection = {
+  id: string; number: number; session: { id: string; number: number };
+  sale: { id: string; documentNumber: string | null } | null; imported: { id: string; serial: number; book: string; row: number } | null;
+  store: { id: string; name: string } | null; total: { before: string; after: string | null };
+  applied: { stock: boolean; document: boolean; account: boolean; cashInHand: boolean }; reason: string; by: string; at: string;
 };
 
 type Page = { items: CorrectionSession[]; nextCursor: string | null };
@@ -41,6 +49,7 @@ export function CorrectionsPage() {
       <ImportWarnings />
       <Unassigned />
       <Changes />
+      <SaleChanges />
       <h2 className="text-base font-semibold text-stone-900">{t('changes.sessions')}</h2>
       <Card>
         {list.error ? <div className="p-4"><Alert>{errorText(list.error)}</Alert></div> : null}
@@ -126,6 +135,64 @@ function Changes() {
                   {c.after && c.after.date !== c.before.date ? <div>{t('date')} <del>{format.date(c.before.date)}</del> {format.date(c.after.date)}</div> : null}
                   {c.after && c.after.voucherNumber !== c.before.voucherNumber ? <div>{t('voucher')} <del>{c.before.voucherNumber}</del> {c.after.voucherNumber}</div> : null}
                   {c.cashInHand ? <div className="text-stone-500">{t('cashInHand')}</div> : null}
+                </Cell>
+                <Cell className="min-w-56 whitespace-pre-wrap">{c.reason}</Cell>
+                <Cell>{c.by}</Cell>
+                <Cell className="whitespace-nowrap">{format.dateTime(c.at)}</Cell>
+              </tr>
+            ))}
+          </Table>
+        ) : null}
+        {list.hasNextPage ? (
+          <div className="border-t border-stone-200 p-4">
+            <Button variant="secondary" onClick={() => void list.fetchNextPage()} disabled={list.isFetchingNextPage}>{t('more')}</Button>
+          </div>
+        ) : null}
+      </Card>
+    </>
+  );
+}
+
+/** COR-006: every correction of a sale — made in the app or imported — with what it came to and what followed. */
+function SaleChanges() {
+  const t = useTranslations('corrections.saleChanges');
+  const ts = useTranslations('corrections.sale');
+  const format = useFormat();
+  const errorText = useErrorText();
+  const list = useInfiniteQuery({
+    queryKey: keys.saleCorrections,
+    initialPageParam: '',
+    queryFn: ({ pageParam }) => api<{ items: SaleCorrection[]; nextCursor: string | null }>(
+      `/corrections/sale-corrections?${new URLSearchParams({ limit: '50', ...(pageParam ? { cursor: pageParam } : {}) }).toString()}`,
+    ),
+    getNextPageParam: (last) => last.nextCursor ?? undefined,
+  });
+  const changes = list.data?.pages.flatMap((p) => p.items) ?? [];
+  return (
+    <>
+      <h2 className="text-base font-semibold text-stone-900">{t('title')}</h2>
+      <Card>
+        {list.error ? <div className="p-4"><Alert>{errorText(list.error)}</Alert></div> : null}
+        {list.data && changes.length === 0 ? <p className="p-5 text-sm text-stone-500">{t('empty')}</p> : null}
+        {changes.length > 0 ? (
+          <Table head={[t('number'), t('session'), t('sale'), t('store'), t('total'), t('followed'), t('reason'), t('by'), t('when')]}>
+            {changes.map((c) => (
+              <tr key={c.id} data-testid={`sale-correction-${c.number}`}>
+                <Cell className="tabular-nums">{c.number}</Cell>
+                <Cell className="tabular-nums">{c.session.number}</Cell>
+                <Cell>
+                  {c.sale ? <Link href={`/console/sales/${c.sale.id}`} className="text-brand-800 underline"><bdi dir="ltr">{c.sale.documentNumber ?? c.sale.id.slice(0, 8)}</bdi></Link> : null}
+                  {c.imported ? <span className="text-xs">{t('invoice', { serial: c.imported.serial, book: c.imported.book, row: c.imported.row })}</span> : null}
+                </Cell>
+                <Cell>{c.store?.name ?? '—'}</Cell>
+                <Cell className="whitespace-nowrap tabular-nums">
+                  <del className="text-stone-500">{format.money(c.total.before)}</del>
+                  <div className="font-medium">{c.total.after ? format.money(c.total.after) : t('removed')}</div>
+                </Cell>
+                <Cell>
+                  <div className="flex flex-wrap gap-1">
+                    {(['stock', 'document', 'account', 'cashInHand'] as const).filter((k) => c.applied[k]).map((k) => <Badge key={k} tone="neutral">{ts(`applied.${k}`)}</Badge>)}
+                  </div>
                 </Cell>
                 <Cell className="min-w-56 whitespace-pre-wrap">{c.reason}</Cell>
                 <Cell>{c.by}</Cell>

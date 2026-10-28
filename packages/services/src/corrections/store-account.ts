@@ -100,13 +100,35 @@ export async function listStoreCorrections(
   return { items: await viewsOf(db, page.map((r) => r.id)), nextCursor: rows.length > limit && last ? String(last.number) : null };
 }
 
+/**
+ * COR-006: the bill of a sale made in the app, corrected through the sale (`./sales`) — its amount or store, or
+ * removed with the sale. The same reversal and posting as any bill; the correction names the sale.
+ */
+export async function correctSaleBill(
+  tx: Tx, ctx: Ctx, saleId: string, entryId: string, change: StoreEntryChange, reason: string,
+): Promise<{ id: string; effect: StoreCorrectionEffect; postedEntryId: string | null }> {
+  return apply(tx, ctx, entryId, change, reason, { saleId });
+}
+
+/** COR-006: an imported invoice's bill, following its corrected lines (`./sales`). */
+export async function correctImportedBill(
+  tx: Tx, ctx: Ctx, entryId: string, change: StoreEntryChange, reason: string,
+): Promise<{ id: string; effect: StoreCorrectionEffect; postedEntryId: string | null }> {
+  return apply(tx, ctx, entryId, change, reason);
+}
+
 async function apply(
-  tx: Tx, ctx: Ctx, entryId: string, input: StoreCorrectionInput, reason: string,
-): Promise<{ id: string; effect: StoreCorrectionEffect }> {
+  tx: Tx, ctx: Ctx, entryId: string, input: StoreCorrectionInput, reason: string, opts: { readonly saleId?: string } = {},
+): Promise<{ id: string; effect: StoreCorrectionEffect; postedEntryId: string | null }> {
   const session = await requireCorrectionSession(tx, ctx);
   const [entry] = await tx.select().from(storeLedgerEntries).where(eq(storeLedgerEntries.id, entryId));
   if (!entry) throw new DomainError('NOT_FOUND', { entity: 'store_ledger_entry', id: entryId });
-  const kind = storeEntryKind(entry);
+  const kind = opts.saleId ? 'BILL' : storeEntryKind(entry);
+  // A bill a sale's correction posted is the sale's: it is corrected through the sale again, never from here.
+  if (!opts.saleId && entry.referenceType === 'CORRECTION') {
+    const [made] = await tx.select({ saleId: storeCorrections.saleId }).from(storeCorrections).where(eq(storeCorrections.id, entry.referenceId));
+    if (made?.saleId) throw new DomainError('CORRECT_THROUGH_SALE');
+  }
   const [corrected] = await tx.select({ number: storeCorrections.number }).from(storeCorrections).where(eq(storeCorrections.originalEntryId, entryId));
   if (corrected) throw new DomainError('ALREADY_CORRECTED', { number: corrected.number });
 
@@ -137,19 +159,20 @@ async function apply(
   const [row] = await mapUniqueViolations(tx.insert(storeCorrections).values({
     id, sessionId: session.id, kind, storeId: original.storeId, toStoreId: after && after.storeId !== original.storeId ? after.storeId : null,
     originalEntryId: entryId, originalPaymentId: payment?.id ?? null, before: original, after, reason, cashInHand: cashApplies,
-    branchId: ctx.branchId, createdBy: ctx.user.id,
+    saleId: opts.saleId ?? null, branchId: ctx.branchId, createdBy: ctx.user.id,
   }).returning({ number: storeCorrections.number }), { store_corrections_original_entry_unique: new DomainError('ALREADY_CORRECTED') });
   if (!row) throw new Error('store correction insert returned nothing');
 
   // Reversing and corrected entries keep the original's origin: an imported bill corrected is still imported (IMP-003).
   const posted = { origin: { origin: entry.origin, importBatchId: entry.importBatchId } };
+  let postedEntryId: string | null = null;
   if (kind === 'BILL') {
     if (after) {
       const dueOn = after.date === original.date && after.storeId === original.storeId ? entry.dueOn : await dueOnFor(tx, after.storeId, after.date);
-      await postStoreDebit(tx, ctx, {
+      ({ entryId: postedEntryId } = await postStoreDebit(tx, ctx, {
         storeId: after.storeId, entryType: entry.entryType === 'SALE' ? 'SALE' : 'ADJUSTMENT', amount: after.amount,
         referenceType: 'CORRECTION', referenceId: id, note: entry.note, dueOn, occurredAt: onDate(entry.occurredAt, original.date, after.date), ...posted,
-      });
+      }));
     }
     await placed(original.storeId, postStoreCredit(tx, ctx, {
       storeId: original.storeId, entryType: 'ADJUSTMENT', amount: original.amount, referenceType: 'CORRECTION_REVERSAL', referenceId: id,
@@ -209,9 +232,9 @@ async function apply(
   };
   await audit(tx, ctx, {
     action: 'corrections.store_entry_corrected', entityType: 'store_correction', entityId: id,
-    before: original, after: { values: after, kind, reason, session: session.number, cashInHand: cashApplies },
+    before: original, after: { values: after, kind, reason, session: session.number, cashInHand: cashApplies, sale: opts.saleId ?? null },
   });
-  return { id, effect };
+  return { id, effect, postedEntryId };
 }
 
 const zero = '0.00' as Money;

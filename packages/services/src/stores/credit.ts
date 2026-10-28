@@ -307,6 +307,8 @@ export type LedgerEntry = {
   readonly replacedBy: { readonly number: number; readonly reason: string; readonly removed: boolean; readonly movedTo: string | null } | null;
   /** COR-002: posted by a correction to reverse the entry it corrected. */
   readonly reversalOf: { readonly number: number } | null;
+  /** COR-006: the sale made in the app this bill is for — corrected through the sale, never from the account. */
+  readonly saleId: string | null;
   /** COR-002: the corrected entry — with what was there before, shown struck through beside it. */
   readonly correctionOf: {
     readonly number: number; readonly reason: string; readonly movedFrom: string | null;
@@ -354,6 +356,7 @@ export async function storeLedger(db: Executor, storeId: string, asOf?: Date): P
     const replaced = corrections.byOriginal.get(r.e.id);
     const reversal = r.e.referenceType === 'CORRECTION_REVERSAL' ? corrections.byId.get(r.e.referenceId) : undefined;
     const correction = corrections.byId.get(r.e.referenceType === 'CORRECTION' ? r.e.referenceId : (r.paymentCorrectionId ?? ''));
+    const saleId = r.e.referenceType === 'SALE' && debit ? r.e.referenceId : (r.e.referenceType === 'CORRECTION' ? (correction?.saleId ?? null) : null);
     return {
       id: r.e.id, occurredAt: r.e.occurredAt, entryType: r.e.entryType, amount: r.e.amount as Money, balance: toMoney(running),
       dueOn: r.e.dueOn, open: debit ? toMoney(dec(r.e.amount).minus(dec(r.settled))) : null, note: r.e.note,
@@ -361,7 +364,7 @@ export async function storeLedger(db: Executor, storeId: string, asOf?: Date): P
       voucher: r.voucherNumber && r.voucherPhotoId ? { number: r.voucherNumber, photoId: r.voucherPhotoId } : null,
       reference: { type: r.e.referenceType, id: r.e.referenceId },
       origin: r.e.origin, paymentMethod: r.method, imported: r.e.origin === 'IMPORT' ? (sources.get(r.e.id) ?? null) : null,
-      correctable: replaced || reversal ? null : correctableAs(r.e),
+      correctable: replaced || reversal || saleId ? null : correctableAs(r.e), saleId,
       replacedBy: replaced ? {
         number: replaced.number, reason: replaced.reason, removed: replaced.after === null,
         movedTo: replaced.toStoreId ? (corrections.storeNames.get(replaced.toStoreId) ?? null) : null,
@@ -421,6 +424,7 @@ function correctableAs(entry: { entryType: string; amount: string; referenceType
 
 type CorrectionRow = {
   readonly id: string; readonly number: number; readonly reason: string; readonly storeId: string; readonly toStoreId: string | null;
+  readonly saleId: string | null;
   readonly before: StoreEntryValues; readonly after: StoreEntryValues | null;
 };
 
@@ -429,6 +433,7 @@ async function correctionsAround(db: Executor, entryIds: readonly string[], corr
   const rows = entryIds.length === 0 ? [] : await db.select({
     id: storeCorrections.id, number: storeCorrections.number, reason: storeCorrections.reason, storeId: storeCorrections.storeId,
     toStoreId: storeCorrections.toStoreId, originalEntryId: storeCorrections.originalEntryId, before: storeCorrections.before, after: storeCorrections.after,
+    saleId: storeCorrections.saleId,
   }).from(storeCorrections)
     .where(and(
       or(inArray(storeCorrections.originalEntryId, [...entryIds]), correctionIds.length ? inArray(storeCorrections.id, [...correctionIds]) : undefined),
