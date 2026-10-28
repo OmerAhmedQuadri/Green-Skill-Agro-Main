@@ -19,6 +19,7 @@ import { keys } from '@/lib/query-keys';
 import { CreditPanel } from './CreditPanel';
 import { LedgerSummary } from './LedgerSummary';
 import { LedgerTable } from './LedgerTable';
+import { StatementsPanel } from './StatementsPanel';
 import { STATUS_TONE, type ImportedHistory, type LedgerEntry, type Store, type StoreOptions } from './types';
 
 type Can = { approve: boolean; editTerms: boolean; reassign: boolean; override: boolean; adjust: boolean; /** ADR-0059 */ correct: boolean };
@@ -213,6 +214,7 @@ export function StoreDetail({ id, can }: { id: string; can: Can }) {
         ) : null}
         <LedgerTable entries={ledger.data ?? []} onCorrect={sessionOpen ? (e) => { setCorrected(null); setCorrecting(e); } : undefined} />
       </Section>
+      {s.status !== 'AWAITING_REVERIFICATION' ? <Section title={t('statement.title')}><StatementsPanel storeId={id} /></Section> : null}
     </div>
   );
 }

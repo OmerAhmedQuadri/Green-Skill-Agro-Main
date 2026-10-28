@@ -16,6 +16,7 @@ import { keys } from '@/lib/query-keys';
 import { CreditPanel } from './CreditPanel';
 import { LedgerTable } from './LedgerTable';
 import { NO_PAYMENT, PaymentFields, paymentBody, type PaymentDraft } from './PaymentFields';
+import { StatementsPanel } from './StatementsPanel';
 import { STATUS_TONE, type LedgerEntry, type Payment, type Store, type StoreOptions } from './types';
 
 /**
@@ -126,6 +127,13 @@ export function FieldStoreScreen({ id }: { id: string }) {
         <div className="border-b border-stone-200 p-4 font-semibold">{t('ledger')}</div>
         <LedgerTable entries={ledger.data ?? []} compact area="field" />
       </Card>
+
+      {s.status !== 'AWAITING_REVERIFICATION' ? (
+        <Card>
+          <div className="border-b border-stone-200 p-4 font-semibold">{t('statement.title')}</div>
+          <StatementsPanel storeId={id} />
+        </Card>
+      ) : null}
     </div>
   );
 }

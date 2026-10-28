@@ -94,6 +94,8 @@ export const SETTINGS = {
   'storage.keep_deposit_slip': { kind: 'months', min: 1, max: 120, forever: true, default: 'FOREVER', permission: 'system.manage_storage', group: 'storage' },
   'storage.keep_transport_slip': { kind: 'months', min: 1, max: 120, forever: true, default: 6, permission: 'system.manage_storage', group: 'storage' },
   'storage.keep_payment_voucher': { kind: 'months', min: 1, max: 120, forever: true, default: 'FOREVER', permission: 'system.manage_storage', group: 'storage' },
+  // IMP-010: a store statement is a picture of the account on its day — it can be made again any time.
+  'storage.keep_store_statement': { kind: 'months', min: 1, max: 120, forever: true, default: 3, permission: 'system.manage_storage', group: 'storage' },
   // DOC-005: a copy of every delivery document is kept — forever unless the Super Admin decides otherwise.
   'storage.keep_delivery_document': { kind: 'months', min: 1, max: 120, forever: true, default: 'FOREVER', permission: 'system.manage_storage', group: 'storage' },
   'storage.budget_gb': { kind: 'integer', min: 1, max: 10000, default: 10, permission: 'system.manage_storage', group: 'storage' },

@@ -943,6 +943,7 @@
         "keep_deposit_slip": "مدة الاحتفاظ بإيصالات الإيداع والتسليم",
         "keep_transport_slip": "مدة الاحتفاظ ببيانات النقل",
         "keep_payment_voucher": "مدة الاحتفاظ بسندات القبض",
+        "keep_store_statement": "مدة الاحتفاظ بكشوف حسابات المتاجر",
         "keep_delivery_document": "مدة الاحتفاظ بسندات التسليم",
         "budget_gb": "ميزانية تخزين الملفات (غيغابايت)",
         "backup_retention_days": "مدة الاحتفاظ بالنسخ الاحتياطية (بالأيام)",
@@ -1088,6 +1089,7 @@
       "DEPOSIT_SLIP": "إيصالات الإيداع والتسليم",
       "TRANSPORT_SLIP": "بيانات النقل",
       "PAYMENT_VOUCHER": "سندات القبض",
+      "STORE_STATEMENT": "كشوف حسابات المتاجر",
       "DELIVERY_DOCUMENT": "سندات التسليم"
     },
     "columns": {
@@ -1189,7 +1191,8 @@
       "WRITE_OFF_EVIDENCE": "صورة شطب المخزون",
       "DEPOSIT_SLIP": "إيصال الإيداع أو التسليم",
       "TRANSPORT_SLIP": "بيان النقل",
-      "PAYMENT_VOUCHER": "سند القبض"
+      "PAYMENT_VOUCHER": "سند القبض",
+      "STORE_STATEMENT": "كشف حساب متجر"
     },
     "stored": "خُزِّن في",
     "taken": "التُقط في",
@@ -1904,7 +1907,20 @@
     "importedSource": "{book}، الصف {row} · النقل {batch}",
     "balanceShown": "الرصيد حسب الدفاتر: {amount}",
     "importedSourceSale": "{book}، الصف {row}، فاتورة {serial} · النقل {batch}",
-    "importedSourceVoucher": "{book}، الصف {row}، سند {number} · النقل {batch}"
+    "importedSourceVoucher": "{book}، الصف {row}، سند {number} · النقل {batch}",
+    "statement": {
+      "title": "كشوف الحساب",
+      "hint": "حساب المتجر كما هو الآن — كل القيود، مع تعليم المنقول من دفاتر غرين أغرو — ملف PDF تفتحه أو ترسله إلى المتجر.",
+      "request": "إصدار كشف حساب",
+      "line": "{number} · حتى {time}",
+      "preparing": "جارٍ الإعداد…",
+      "failed": "تعذّرت طباعته. أصدِر كشفًا جديدًا.",
+      "deleted": "حُذف وفق سياسة التخزين.",
+      "open": "فتح ملف PDF",
+      "share": "مشاركة",
+      "shareUnavailable": "لا يمكن لهذا الهاتف مشاركة الملفات من هنا. افتح ملف PDF وأرسله من هناك.",
+      "none": "لا كشوف بعد."
+    }
   },
   "sales": {
     "title": "المبيعات",

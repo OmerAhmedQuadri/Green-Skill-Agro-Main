@@ -943,6 +943,7 @@
         "keep_deposit_slip": "Keep deposit and handover slips for",
         "keep_transport_slip": "Keep transport slips for",
         "keep_payment_voucher": "Keep payment vouchers for",
+        "keep_store_statement": "Keep store statements for",
         "keep_delivery_document": "Keep delivery documents for",
         "budget_gb": "File storage budget (GB)",
         "backup_retention_days": "Keep backups for (days)",
@@ -1088,6 +1089,7 @@
       "DEPOSIT_SLIP": "Deposit and handover slips",
       "TRANSPORT_SLIP": "Transport slips",
       "PAYMENT_VOUCHER": "Payment vouchers",
+      "STORE_STATEMENT": "Store statements",
       "DELIVERY_DOCUMENT": "Delivery documents"
     },
     "columns": {
@@ -1189,7 +1191,8 @@
       "WRITE_OFF_EVIDENCE": "Write-off photo",
       "DEPOSIT_SLIP": "Deposit or handover slip",
       "TRANSPORT_SLIP": "Transport slip",
-      "PAYMENT_VOUCHER": "Payment voucher"
+      "PAYMENT_VOUCHER": "Payment voucher",
+      "STORE_STATEMENT": "Store statement"
     },
     "stored": "Stored",
     "taken": "Taken",
@@ -1904,7 +1907,20 @@
     "importedSource": "{book}, row {row} · import {batch}",
     "balanceShown": "Balance from the books: {amount}",
     "importedSourceSale": "{book}, row {row}, invoice {serial} · import {batch}",
-    "importedSourceVoucher": "{book}, row {row}, voucher {number} · import {batch}"
+    "importedSourceVoucher": "{book}, row {row}, voucher {number} · import {batch}",
+    "statement": {
+      "title": "Statements",
+      "hint": "The store's account as it stands right now — every entry, those from Green Agro's books labelled — as a PDF to open or send to the store.",
+      "request": "Make a statement",
+      "line": "{number} · as of {time}",
+      "preparing": "Preparing…",
+      "failed": "Could not be printed. Make a new one.",
+      "deleted": "Deleted under the storage policy.",
+      "open": "Open PDF",
+      "share": "Share",
+      "shareUnavailable": "This phone can't share files from here. Open the PDF and send it from there.",
+      "none": "No statements yet."
+    }
   },
   "sales": {
     "title": "Sales",

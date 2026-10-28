@@ -7,5 +7,8 @@ export {
   listStoreLedger, type Payment, type PaymentMethod, type PaymentInput, type VoucherRef, type LedgerEntry,
 } from './credit';
 export {
+  requestStoreStatement, listStoreStatements, storeStatementPdf, renderPendingStatements, type StoreStatement,
+} from './statement';
+export {
   listAwaitingTransfers, transfersAwaitingBy, decideTransfer, type AwaitingTransfer, type TransferDecision,
 } from './transfers';

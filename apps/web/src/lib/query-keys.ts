@@ -46,6 +46,7 @@ export const keys = {
   store: (id: string) => ['store', id] as const,
   storeLedger: (id: string) => ['store-ledger', id] as const,
   storeImported: (id: string) => ['store-imported', id] as const,
+  storeStatements: (id: string) => ['store-statements', id] as const,
   unassignedPayments: ['unassigned-payments'] as const,
   importWarnings: (resolved: boolean) => ['import-warnings', resolved] as const,
   storeOptions: ['store-options'] as const,
