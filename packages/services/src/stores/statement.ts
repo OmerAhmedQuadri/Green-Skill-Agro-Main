@@ -125,7 +125,7 @@ async function statementData(db: Executor, statement: typeof storeStatements.$in
   // CRD-004: past due as it was that day — due, plus the grace days, before it.
   const { pastDue } = creditStatus({
     status: store.status, mode: store.creditMode, limit: store.creditLimit as Money, graceDays: settings['credit.grace_days'], today: businessDate(statement.asOf),
-    overrideActive: false, committed: '0.00' as Money,
+    overrideActive: false, committed: '0.00' as Money, allowance: settings['credit.small_balance_allowance'] as Money,
     openDebits: ledger.flatMap((e) => (e.open !== null && e.dueOn ? [{ dueOn: e.dueOn, open: e.open }] : [])),
   });
   // What still stands: an entry a correction replaced and the entry that reversed it cancel out, and count nowhere.

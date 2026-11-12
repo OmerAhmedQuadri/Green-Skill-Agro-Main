@@ -97,6 +97,8 @@ export type CreditStatus = {
    * store's cycle — today itself for bill to bill, cleared before the next bill.
    */
   readonly dueIfOnCredit: string;
+  /** ADR-0047 (amended 2026-11-13): an unpaid balance at or under this never blocks — still owed, and shown. */
+  readonly allowance: Money;
 };
 
 /**
@@ -109,6 +111,10 @@ export type CreditStatus = {
  * ADR-0047: a bill-to-bill store holds one open bill at a time, so anything
  * unpaid — or an order still on its way — blocks the next. That says all
  * "past due" would, so it is the reason given instead.
+ *
+ * ADR-0047 (amended 2026-11-13): except a small balance. Owing no more than the
+ * allowance — halalas left from rounding — blocks nothing: not as an unpaid
+ * bill, not as past due, not over the limit. It stays owed, and shown.
  */
 export function creditStatus(input: {
   status: 'PENDING_APPROVAL' | 'ACTIVE' | 'REJECTED' | 'INACTIVE' | 'AWAITING_REVERIFICATION';
@@ -117,6 +123,7 @@ export function creditStatus(input: {
   limit: Money; openDebits: readonly { dueOn: string; open: Money }[]; graceDays: number; today: string; overrideActive: boolean;
   /** Dispatch orders to the store still waiting for delivery (ADR-0038). */ committed: Money;
   /** A custom cycle's days, and the day a weekly cycle closes (CRD-001). */ cycleDays?: number | null; weekClosesOn?: Weekday;
+  /** The small balance that never blocks (setting `credit.small_balance_allowance`). */ allowance: Money;
 }): CreditStatus {
   const outstanding = input.openDebits.reduce((sum, d) => sum.plus(dec(d.open)), new Dec(0));
   const pastDueDebits = input.openDebits.filter((d) => dec(d.open).gt(0) && addDays(d.dueOn, input.graceDays) < input.today);
@@ -128,13 +135,15 @@ export function creditStatus(input: {
   if (input.status === 'AWAITING_REVERIFICATION') reasons.push({ code: 'NOT_VERIFIED' });
   const creditReasons: BlockReason[] = [];
   if (input.mode === 'BILL_TO_BILL') {
-    if (outstanding.gt(0)) creditReasons.push({ code: 'UNPAID_BILL', amount: toMoney(outstanding) });
+    if (outstanding.gt(dec(input.allowance))) creditReasons.push({ code: 'UNPAID_BILL', amount: toMoney(outstanding) });
     if (dec(input.committed).gt(0)) creditReasons.push({ code: 'DISPATCH_PENDING', amount: input.committed });
-  } else if (pastDue.gt(0)) {
+  } else if (pastDue.gt(dec(input.allowance))) {
     const oldest = pastDueDebits.map((d) => d.dueOn).sort()[0] ?? input.today;
     creditReasons.push({ code: 'PAST_DUE', amount: toMoney(pastDue), oldestDueOn: oldest });
   }
-  if (outstanding.gt(dec(input.limit))) creditReasons.push({ code: 'OVER_LIMIT', outstanding: toMoney(outstanding), limit: input.limit });
+  if (outstanding.gt(dec(input.limit)) && outstanding.gt(dec(input.allowance))) {
+    creditReasons.push({ code: 'OVER_LIMIT', outstanding: toMoney(outstanding), limit: input.limit });
+  }
   const overridden = input.overrideActive && creditReasons.length > 0 && reasons.length === 0;
   const all = overridden ? reasons : [...reasons, ...creditReasons];
   const available = dec(input.limit).minus(outstanding);
@@ -143,5 +152,6 @@ export function creditStatus(input: {
     committed: input.committed,
     blocked: all.length > 0, reasons: [...reasons, ...creditReasons], overridden, overrideAvailable: input.overrideActive && reasons.length === 0,
     dueIfOnCredit: input.mode ? dueDateFor(input.mode, input.cycleDays ?? null, input.today, input.weekClosesOn) : input.today,
+    allowance: input.allowance,
   };
 }

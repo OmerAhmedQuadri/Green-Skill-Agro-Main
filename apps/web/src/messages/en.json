@@ -923,7 +923,8 @@
         "monthly_enabled": "Offer a monthly cycle",
         "custom_enabled": "Offer a custom cycle",
         "grace_days": "Days of grace after a cycle closes",
-        "week_closes_on": "A weekly cycle closes on"
+        "week_closes_on": "A weekly cycle closes on",
+        "small_balance_allowance": "A small balance that never blocks a sale (SAR)"
       },
       "documents": {
         "sending": "Sending the delivery document"
@@ -990,6 +991,9 @@
       },
       "vat": {
         "rate": "Prices include VAT. Delivery documents show how much of each price is VAT."
+      },
+      "credit": {
+        "small_balance_allowance": "A store owing this much or less can still be sold to — bill to bill, past due or at its limit. It stays owed, and the seller collects it later. 0 makes every halala count."
       }
     },
     "toggles": "Features",
@@ -1922,7 +1926,8 @@
       "share": "Share",
       "shareUnavailable": "This phone can't share files from here. Open the PDF and send it from there.",
       "none": "No statements yet."
-    }
+    },
+    "amountUnreadable": "Type the amount in riyals and halalas, like 0.60 or 125.50."
   },
   "sales": {
     "title": "Sales",

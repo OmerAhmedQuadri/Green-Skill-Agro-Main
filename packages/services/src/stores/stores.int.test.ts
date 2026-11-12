@@ -185,8 +185,19 @@ describe('credit (CRD-001..007, OQ-018)', () => {
     await adjustBalance(ctx, store.id, { amount: '0.01', reason: 'Over' });
     expect((await getCreditStatus(ctx, store.id)).reasons).toEqual([{ code: 'OVER_LIMIT', outstanding: '500.01', limit: '500.00' }]);
     const zero = await activeStore({ creditLimit: '0.00' });
-    await adjustBalance(zero.ctx, zero.store.id, { amount: '1.00', reason: 'Any debt' });
+    // ADR-0047 (amended 2026-11-13): halalas within the small-balance allowance (1.00 by default) block nothing.
+    await adjustBalance(zero.ctx, zero.store.id, { amount: '1.00', reason: 'Halalas left over' });
+    expect((await getCreditStatus(zero.ctx, zero.store.id)).blocked).toBe(false);
+    await adjustBalance(zero.ctx, zero.store.id, { amount: '0.01', reason: 'Any debt beyond them' });
     expect((await getCreditStatus(zero.ctx, zero.store.id)).blocked).toBe(true);
+  });
+
+  it('ADR-0047 (amended 2026-11-13): the small balance that never blocks is the Admin\'s setting — 0 makes every halala count', async () => {
+    const { ctx, store } = await activeStore({ creditMode: 'BILL_TO_BILL', creditLimit: '3000.00' });
+    await adjustBalance(ctx, store.id, { amount: '0.60', reason: 'Left from rounding' });
+    expect(await getCreditStatus(ctx, store.id)).toMatchObject({ blocked: false, outstanding: '0.60', allowance: '1.00' });
+    await updateSettings(await admin(), [{ key: 'credit.small_balance_allowance', value: '0.00' }]);
+    expect((await getCreditStatus(ctx, store.id)).reasons).toEqual([{ code: 'UNPAID_BILL', amount: '0.60' }]);
   });
 
   it('OQ-018: the grace setting gives days after the due date before a store is blocked', async () => {

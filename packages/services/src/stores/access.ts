@@ -91,6 +91,7 @@ export async function creditStatuses(
   const overridden = new Set(overrides.map((o) => o.storeId));
   return new Map(rows.map((r) => [r.id, creditStatus({
     status: r.status, mode: r.creditMode, limit: r.creditLimit as Money, graceDays: settings['credit.grace_days'], today,
+    allowance: settings['credit.small_balance_allowance'] as Money,
     cycleDays: r.creditCycleDays, weekClosesOn: settings['credit.week_closes_on'],
     overrideActive: overridden.has(r.id), openDebits: debits.filter((d) => d.storeId === r.id),
     committed: committed.get(r.id) ?? ('0.00' as Money),

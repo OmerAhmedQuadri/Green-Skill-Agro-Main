@@ -195,7 +195,8 @@ export function decideDiscount(
  *
  * ADR-0047: the limit binds every store, bill to bill included, and counts
  * what is paid with the sale — a limit of 0 means paying in full. Orders on
- * their way count against it, whichever channel the new sale comes by.
+ * their way count against it, whichever channel the new sale comes by. A small
+ * balance within the allowance is not counted against it (amended 2026-11-13).
  */
 export function assertSaleCredit(
   credit: CreditStatus, mode: CreditMode | null, total: Money,
@@ -213,11 +214,12 @@ export function assertSaleCredit(
   const reasons: BlockReason[] = credit.reasons.filter((r) => r.code !== 'DISPATCH_PENDING');
   if (mode === 'BILL_TO_BILL' && dec(committed).gt(0)) reasons.push({ code: 'DISPATCH_PENDING', amount: committed });
   const blocked = reasons.length > 0;
-  const overLimit = dec(credit.outstanding).plus(dec(committed)).plus(dec(total)).minus(paidNow).gt(dec(credit.limit));
+  const owed = dec(credit.outstanding).lte(dec(credit.allowance)) ? new Dec(0) : dec(credit.outstanding);
+  const overLimit = owed.plus(dec(committed)).plus(dec(total)).minus(paidNow).gt(dec(credit.limit));
   if (!blocked && !overLimit) return { usesOverride: false };
   if (!credit.overrideAvailable) {
     if (blocked) throw new DomainError('CREDIT_BLOCKED', { reasons });
-    const available = dec(credit.limit).minus(dec(credit.outstanding)).minus(dec(committed)).plus(paidNow);
+    const available = dec(credit.limit).minus(owed).minus(dec(committed)).plus(paidNow);
     throw new DomainError('CREDIT_LIMIT_EXCEEDED', { available: toMoney(available.gt(0) ? available : new Dec(0)), total });
   }
   return { usesOverride: true };
