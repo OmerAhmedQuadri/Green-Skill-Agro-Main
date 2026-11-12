@@ -241,8 +241,14 @@ export async function loadHistoryImport(
  * IMP-004: a whole batch undone — for a large corrected file from Green Agro, loaded again after. Only while nothing
  * of it is in an account and none of its stores is re-verified; its records stay, out of use, and its stores are
  * withdrawn with it. Super Admin only, with a reason.
+ *
+ * `force` withdraws a batch in use too — on staging, where sellers re-verified a few stores in testing before Green
+ * Agro's final books came. Its stores leave every list with what was done in them, and the audit names them. The
+ * history import's script refuses it on production, where a batch in use is corrected, never withdrawn.
  */
-export async function undoImportBatch(ctx: Ctx, number: number, reason: string): Promise<{ id: string; number: number }> {
+export async function undoImportBatch(
+  ctx: Ctx, number: number, reason: string, opts: { readonly force?: boolean } = {},
+): Promise<{ id: string; number: number; inUse: readonly string[] }> {
   authorize(ctx, 'system.correct_history');
   const why = reason.trim();
   if (!why) throw new DomainError('REASON_REQUIRED', { action: 'undo' });
@@ -252,13 +258,18 @@ export async function undoImportBatch(ctx: Ctx, number: number, reason: string):
     if (batch.status !== 'LOADED') throw new DomainError('INVALID_TRANSITION', { from: batch.status, action: 'undo' });
     const [posted] = await tx.select({ id: storeLedgerEntries.id }).from(storeLedgerEntries).where(eq(storeLedgerEntries.importBatchId, batch.id)).limit(1);
     const [paidIn] = await tx.select({ id: payments.id }).from(payments).where(eq(payments.importBatchId, batch.id)).limit(1);
-    const [verified] = await tx.select({ id: stores.id }).from(stores)
-      .where(and(eq(stores.importBatchId, batch.id), ne(stores.status, 'AWAITING_REVERIFICATION'))).limit(1);
-    if (posted || paidIn || verified) throw new DomainError('INVALID_TRANSITION', { from: 'LOADED', action: 'undo', reason: 'IN_USE' });
+    const verified = await tx.select({ code: stores.code }).from(stores)
+      .where(and(eq(stores.importBatchId, batch.id), ne(stores.status, 'AWAITING_REVERIFICATION')));
+    const inUse = verified.map((s) => s.code);
+    if ((posted || paidIn || inUse.length > 0) && !opts.force) throw new DomainError('INVALID_TRANSITION', { from: 'LOADED', action: 'undo', reason: 'IN_USE' });
     await tx.update(importBatches).set({
       status: 'UNDONE', undoneAt: ctx.now, undoneBy: ctx.user.id, undoReason: why, updatedAt: ctx.now, updatedBy: ctx.user.id, version: batch.version + 1,
     }).where(eq(importBatches.id, batch.id));
-    await audit(tx, ctx, { action: 'migration.import_batch_undone', entityType: 'import_batch', entityId: batch.id, after: { number, reason: why } });
-    return { id: batch.id, number };
+    const forced = Boolean(posted || paidIn || inUse.length > 0);
+    await audit(tx, ctx, {
+      action: 'migration.import_batch_undone', entityType: 'import_batch', entityId: batch.id,
+      after: { number, reason: why, ...(forced ? { forced: true, storesInUse: inUse } : {}) },
+    });
+    return { id: batch.id, number, inUse };
   });
 }

@@ -68,10 +68,16 @@ const undo = flag('undo');
 if (undo) {
   const number = Number(undo);
   const reason = flag('reason');
-  if (!Number.isInteger(number) || !reason || reason === 'yes') throw new Error('usage: --undo <batch number> --reason "…" --as <email>');
+  if (!Number.isInteger(number) || !reason || reason === 'yes') throw new Error('usage: --undo <batch number> --reason "…" --as <email> [--force]');
+  // A batch in use is withdrawn only where nothing is real: staging, or a laptop. On production it is corrected instead.
+  const force = flag('force') === 'yes';
+  if (force && (process.env.APP_INSTANCE === 'production' || process.env.NODE_ENV === 'production')) {
+    throw new Error('--force is refused on production: a batch in use there is corrected, never withdrawn');
+  }
   const { ctx } = await operatorCtx();
   if (!(await confirmed())) { console.log('stopped; nothing was written.'); await closeDb(); process.exit(1); }
-  await undoImportBatch(ctx, number, reason);
+  const undone = await undoImportBatch(ctx, number, reason, { force });
+  if (undone.inUse.length > 0) console.log(`withdrawn although in use: ${undone.inUse.join(', ')} — with what was done in them.`);
   console.log(`batch ${number} undone; its stores are withdrawn and its records out of use.`);
   await closeDb();
   process.exit(0);

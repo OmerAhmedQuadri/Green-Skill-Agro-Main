@@ -1,7 +1,7 @@
 import type { imports } from '@gsa/contracts';
 import type { DomainError } from '@gsa/core';
 import { schema } from '@gsa/db';
-import { eq, sql } from 'drizzle-orm';
+import { desc, eq, sql } from 'drizzle-orm';
 import { describe, expect, it } from 'vitest';
 import { aCatalogueBase } from '../../test/catalogue';
 import { anAccount, ctxFor, PASSWORD } from '../../test/factories';
@@ -182,6 +182,13 @@ describe("the history import: Green Agro's books, checked, loaded as a batch, un
       balance: { shown: '100.00', confirmation: 'AGREED' },
     });
     expect(await codeOf(undoImportBatch(owner, again.batch.number, 'Green Agro sent corrected books'))).toBe('INVALID_TRANSITION');
+    // On staging, forced: the store re-verified in testing leaves every list with the batch, and the audit names it.
+    const forced = await undoImportBatch(owner, again.batch.number, 'Green Agro sent their final books', { force: true });
+    expect(forced.inUse).toEqual([verified?.code]);
+    expect(await listStores(owner, { search: second.stores[1]?.name })).toEqual([]);
+    const [audited] = await getDb().select({ after: schema.auditLog.after }).from(schema.auditLog)
+      .where(eq(schema.auditLog.action, 'migration.import_batch_undone')).orderBy(desc(schema.auditLog.occurredAt)).limit(1);
+    expect(audited?.after).toMatchObject({ forced: true, storesInUse: [verified?.code] });
   });
 
   it('IMP-011: a return goes into the store\'s account at re-verification, against the invoice it names, labelled — and out of imported sales', async () => {
