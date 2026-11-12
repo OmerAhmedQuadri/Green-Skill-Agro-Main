@@ -91,7 +91,7 @@ describe('imported stores, re-verified by their sellers (ADR-0059)', () => {
       ['SALE', '200.00', '2026-10-10', 'IMPORT'],
       ['PAYMENT', '-100.00', null, 'IMPORT'],
     ]);
-    expect(rows[0]?.imported).toEqual({ batch: batch.number, book: BOOK, row: 20, serial: 101, voucherNumber: null });
+    expect(rows[0]?.imported).toEqual({ batch: batch.number, book: BOOK, row: 20, serial: 101, voucherNumber: null, returnNumber: null });
     expect(rows[1]?.imported).toMatchObject({ book: VOUCHERS, row: 5, voucherNumber: `00${voucher.cash}` }); // as written, less its spaces
     // Both payments settle the older bill first (ADR-0036).
     expect(rows.map((e) => e.open)).toEqual(['100.00', null, '200.00', null]);

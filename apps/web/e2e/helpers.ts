@@ -219,7 +219,7 @@ export async function aStoreByApi(
 
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
 
-/** A store imported from synthetic books for this seller (IMP-008): two invoices (501, 502) and a payment, 400.00 owing. */
+/** A store imported from synthetic books for this seller (IMP-008, IMP-011): two invoices (501, 502), a payment and a return, 350.00 owing. */
 export function anImportedStore(sellerEmail: string, name: string): { storeId: string; balance: string } {
   const out = execFileSync('pnpm', ['--filter', '@gsa/services', 'run', '--silent', 'e2e-imported-store', sellerEmail, name], { cwd: ROOT, encoding: 'utf8' });
   return JSON.parse(out.trim().split('\n').at(-1) ?? '{}') as { storeId: string; balance: string };

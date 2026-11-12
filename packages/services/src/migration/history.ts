@@ -7,7 +7,7 @@ import { eq } from 'drizzle-orm';
 import type { Ctx } from '../context';
 import { audit, nextInSeries, type Tx } from '../platform';
 
-const { importBatches, importedSales, importedSaleLines, importedPayments, priceLists, storeAssignments, stores, users } = schema;
+const { importBatches, importedSales, importedSaleLines, importedPayments, importedReturns, importedReturnLines, priceLists, storeAssignments, stores, users } = schema;
 
 /**
  * Imported history (M13, ADR-0059): Green Agro's sellers' invoice and payment books, recorded as written in the
@@ -130,6 +130,44 @@ export async function recordImportedPayment(tx: Tx, ctx: Ctx, batchId: string, i
     id, batchId, storeId: input.storeId, sellerId: input.sellerId, paidOn: isoDate(input.paidOn, 'paidOn'), amount,
     kind: input.kind, method: input.method, voucherNumber, invoiceSerial, ...written, branchId: ctx.branchId, createdBy: ctx.user.id,
   });
+  return { id };
+}
+
+export type ImportedReturnInput = Written & {
+  readonly storeId: string; readonly sellerId: string; readonly returnedOn: string; readonly number: string;
+  /** The invoice it returns, where the book names one in this batch. */ readonly importedSaleId: string | null;
+  readonly amount: string;
+  readonly lines: readonly {
+    readonly item: string; readonly pack?: string | null; readonly skuId?: string | null;
+    readonly packs: string; readonly unitPrice: string; readonly amount: string;
+  }[];
+};
+
+/**
+ * IMP-011 (ADR-0059, amended 2026-11-13): one sales return of a seller's book, with its lines as written — or none,
+ * where the book writes only its total.
+ */
+export async function recordImportedReturn(tx: Tx, ctx: Ctx, batchId: string, input: ImportedReturnInput): Promise<{ id: string }> {
+  const written = writtenAt(input);
+  const number = input.number.trim();
+  if (!number) throw new Error(`${input.book} row ${input.bookRow}: a return with no number`);
+  const amount = importedPaymentAmount(input.amount);
+  const lines = input.lines.map((l, i) => {
+    const packs = quantity(l.packs);
+    if (!dec(packs).gt(0)) throw new DomainError('INVALID_QUANTITY', { line: i + 1, value: l.packs });
+    if (!l.item.trim()) throw new Error(`${input.book} row ${input.bookRow}: return line ${i + 1} names no item`);
+    return { item: l.item.trim(), pack: l.pack?.trim() || null, skuId: l.skuId ?? null, packs, unitPrice: money(l.unitPrice), amount: money(l.amount) };
+  });
+  const id = newId();
+  await tx.insert(importedReturns).values({
+    id, batchId, storeId: input.storeId, sellerId: input.sellerId, returnedOn: isoDate(input.returnedOn, 'returnedOn'), number,
+    importedSaleId: input.importedSaleId, ...written, amount, branchId: ctx.branchId, createdBy: ctx.user.id,
+  });
+  if (lines.length > 0) {
+    await tx.insert(importedReturnLines).values(lines.map((l, i) => ({
+      importedReturnId: id, lineNo: i + 1, itemWritten: l.item, packWritten: l.pack, skuId: l.skuId, packs: l.packs, unitPrice: l.unitPrice, amount: l.amount,
+    })));
+  }
   return { id };
 }
 

@@ -3,12 +3,12 @@ import { schema } from '@gsa/db';
 import { eq } from 'drizzle-orm';
 import type { Ctx } from '../context';
 import { loadOverrides } from '../identity';
-import { openImportBatch, recordImportedPayment, recordImportedSale, recordImportedStore } from '../migration';
+import { openImportBatch, recordImportedPayment, recordImportedReturn, recordImportedSale, recordImportedStore } from '../migration';
 import { inTx } from '../platform';
 import { closeDb, getDb } from '../runtime';
 
-// For the end-to-end tests (M13, IMP-008, IMP-009): a store imported from synthetic books — two invoices, a payment and
-// a warning — for a seller to re-verify, as the history import (step h) will make them. Development and CI only (ADR-0058).
+// For the end-to-end tests (M13, IMP-008, IMP-009, IMP-011): a store imported from synthetic books — two invoices, a payment,
+// a return and a warning — for a seller to re-verify, as the history import (step h) makes them. Development and CI only (ADR-0058).
 // Usage: pnpm --filter @gsa/services run --silent e2e-imported-store <seller email> <store name>
 if (process.env.NODE_ENV === 'production' || process.env.APP_INSTANCE === 'production') throw new Error('Refusing to fake imported books on a production database');
 
@@ -34,12 +34,15 @@ const store = await inTx(ctx, async (tx) => {
   const batch = await openImportBatch(tx, ctx, { files: [{ name: `e2e books ${stamp}.xlsx`, sha256: 'e'.repeat(64), bytes: 1 }] });
   const imported = await recordImportedStore(tx, ctx, batch.id, { name, sellerId: seller.id });
   const written = { storeId: imported.id, sellerId: seller.id, book: 'E2E Invoices.xlsx', storeNameWritten: name };
-  await recordImportedSale(tx, ctx, batch.id, { ...written, soldOn: '2026-09-10', bookRow: 2, serial: 501,
+  const first = await recordImportedSale(tx, ctx, batch.id, { ...written, soldOn: '2026-09-10', bookRow: 2, serial: 501,
     lines: [{ item: 'Okra', packs: '10', unitPrice: '50.00', amount: '500.00' }] });
   await recordImportedSale(tx, ctx, batch.id, { ...written, soldOn: '2026-10-05', bookRow: 3, serial: 502,
     lines: [{ item: 'Okra', packs: '4', unitPrice: '50.00', amount: '200.00' }] });
   await recordImportedPayment(tx, ctx, batch.id, { ...written, book: 'E2E Vouchers.xlsx', bookRow: 2, paidOn: '2026-09-20', amount: '300.00',
     kind: 'VOUCHER', method: 'CASH', voucherNumber: `E2E-${stamp}` });
+  // IMP-011: one bag of invoice 501 came back.
+  await recordImportedReturn(tx, ctx, batch.id, { ...written, bookRow: 40, returnedOn: '2026-09-15', number: `SR-${stamp}`, importedSaleId: first.id,
+    amount: '50.00', lines: [{ item: 'Okra', packs: '1', unitPrice: '50.00', amount: '50.00' }] });
   // IMP-009: one thing the import could not settle, for the Super Admin.
   await tx.insert(schema.importWarnings).values({
     batchId: batch.id, kind: 'RETURN_NOT_IMPORTED', storeId: imported.id, params: { amount: '120.00', date: '2026-09-15' },
@@ -47,5 +50,5 @@ const store = await inTx(ctx, async (tx) => {
   });
   return imported;
 });
-console.log(JSON.stringify({ storeId: store.id, code: store.code, balance: '400.00' }));
+console.log(JSON.stringify({ storeId: store.id, code: store.code, balance: '350.00' }));
 await closeDb();

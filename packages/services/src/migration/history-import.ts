@@ -4,7 +4,7 @@ import { schema } from '@gsa/db';
 import { and, eq, inArray, ne } from 'drizzle-orm';
 import { authorize, type Ctx } from '../context';
 import { audit, inTx, type Executor } from '../platform';
-import { openImportBatch, recordImportedPayment, recordImportedSale, recordImportedStore, type ImportFile } from './history';
+import { openImportBatch, recordImportedPayment, recordImportedReturn, recordImportedSale, recordImportedStore, type ImportFile } from './history';
 
 const {
   importBatches, importWarnings, payments, products, skus, storeLedgerEntries, stores, users, varieties,
@@ -25,8 +25,9 @@ export type HistoryPlan = {
   readonly counts: {
     readonly stores: number; readonly sales: number; readonly lines: number; readonly linesInCatalogue: number;
     readonly payments: number; readonly paymentsWithNoStore: number; readonly warnings: Readonly<Partial<Record<ImportWarningKind, number>>>;
+    /** IMP-011 */ readonly returns: number;
   };
-  readonly billed: Money; readonly paid: Money;
+  readonly billed: Money; readonly paid: Money; readonly returned: Money;
   /** The seller each name in the books is, as given (`--seller Name=email`). */
   readonly sellers: ReadonlyMap<string, string>;
   /** Each product a line names, as the catalogue SKU it is — or null where none matches. */
@@ -42,7 +43,9 @@ export async function planHistoryImport(db: Executor, file: HistoryFile, sellerE
   const problems: string[] = [];
 
   // Sellers: every name the file uses is an active seller here.
-  const names = new Set([...file.stores.map((s) => s.seller), ...file.sales.map((s) => s.seller), ...file.payments.map((p) => p.seller)]);
+  const names = new Set([
+    ...file.stores.map((s) => s.seller), ...file.sales.map((s) => s.seller), ...file.payments.map((p) => p.seller), ...file.returns.map((r) => r.seller),
+  ]);
   const sellers = new Map<string, string>();
   const emails = [...names].flatMap((n) => { const e = sellerEmails.get(n); return e ? [e.toLowerCase()] : []; });
   const accounts = emails.length
@@ -87,6 +90,7 @@ export async function planHistoryImport(db: Executor, file: HistoryFile, sellerE
   const paymentRecords = new Set<string>();
   const byStore = new Map<string, { billed: ReturnType<typeof dec>; paid: ReturnType<typeof dec> }>();
   const of = (key: string) => byStore.get(key) ?? byStore.set(key, { billed: dec('0'), paid: dec('0') }).get(key) ?? { billed: dec('0'), paid: dec('0') };
+  const saleBySerial = new Map(file.sales.map((s) => [`${s.seller}#${s.serial}`, s]));
   for (const s of file.sales) {
     try { of(s.store).billed = of(s.store).billed.plus(dec(importedSaleFigures(s.lines.map((l) => money(l.amount)), money(s.discount ?? '0')).total)); } catch { /* reported above */ }
   }
@@ -105,9 +109,29 @@ export async function planHistoryImport(db: Executor, file: HistoryFile, sellerE
     paid = paid.plus(dec(p.amount));
     if (p.store !== null) of(p.store).paid = of(p.store).paid.plus(dec(p.amount));
   }
+  // IMP-011: returns — real dates and amounts, one number each, the invoice they name in the file and in their store.
+  const returnNumbers = new Set<string>();
+  let returned = dec('0');
+  for (const r of file.returns) {
+    const where = `${r.book} row ${r.bookRow}`;
+    unknownStore(r.store, where);
+    try { isoDate(r.returnedOn, 'returnedOn'); } catch { problems.push(`${where}: no such date ${r.returnedOn}`); }
+    if (!dec(r.amount).gt(0)) problems.push(`${where}: a return of nothing`);
+    const number = `${r.seller}#${r.number}`;
+    if (returnNumbers.has(number)) problems.push(`${where}: ${r.seller}'s return ${r.number} appears twice`);
+    returnNumbers.add(number);
+    if (r.invoiceSerial) {
+      const sale = saleBySerial.get(`${r.seller}#${r.invoiceSerial}`);
+      if (!sale) problems.push(`${where}: return ${r.number} names ${r.seller}'s invoice ${r.invoiceSerial}, not in the file`);
+      else if (sale.store !== r.store) problems.push(`${where}: return ${r.number} is for store "${r.store}", its invoice ${r.invoiceSerial} for "${sale.store}"`);
+    }
+    returned = returned.plus(dec(r.amount));
+    // What is returned is paid, as far as the store's account goes: it may not leave the store in credit either.
+    of(r.store).paid = of(r.store).paid.plus(dec(r.amount));
+  }
   for (const [key, figures] of byStore) {
     // The store would be in credit at re-verification (IMP-005): our tools hold such payments back as warnings.
-    if (figures.paid.gt(figures.billed)) problems.push(`store "${key}": paid ${figures.paid.toFixed(2)}, more than billed ${figures.billed.toFixed(2)}`);
+    if (figures.paid.gt(figures.billed)) problems.push(`store "${key}": paid and returned ${figures.paid.toFixed(2)}, more than billed ${figures.billed.toFixed(2)}`);
   }
 
   // Warnings: each about something in the file.
@@ -121,7 +145,7 @@ export async function planHistoryImport(db: Executor, file: HistoryFile, sellerE
 
   // Products: each a line names, matched to the catalogue by name, variety and pack weight.
   const wanted = new Map<string, NonNullable<HistoryFile['sales'][number]['lines'][number]['product']>>();
-  for (const s of file.sales) for (const l of s.lines) if (l.product) wanted.set(productKey(l.product), l.product);
+  for (const s of [...file.sales, ...file.returns]) for (const l of s.lines) if (l.product) wanted.set(productKey(l.product), l.product);
   const catalogue = wanted.size === 0 ? [] : await db.select({
     id: skus.id, product: products.nameEn, variety: varieties.nameEn, grams: skus.packWeightG,
   }).from(skus).innerJoin(products, eq(products.id, skus.productId)).leftJoin(varieties, eq(varieties.id, skus.varietyId));
@@ -140,8 +164,9 @@ export async function planHistoryImport(db: Executor, file: HistoryFile, sellerE
     counts: {
       stores: file.stores.length, sales: file.sales.length, lines, linesInCatalogue,
       payments: file.payments.length, paymentsWithNoStore: file.payments.filter((p) => p.store === null).length, warnings,
+      returns: file.returns.length,
     },
-    billed: toMoney(billed), paid: toMoney(paid), sellers, products: resolved,
+    billed: toMoney(billed), paid: toMoney(paid), returned: toMoney(returned), sellers, products: resolved,
   };
 }
 
@@ -151,7 +176,7 @@ export async function planHistoryImport(db: Executor, file: HistoryFile, sellerE
  */
 export async function loadHistoryImport(
   ctx: Ctx, file: HistoryFile, plan: HistoryPlan, files: readonly ImportFile[],
-): Promise<{ batch: { id: string; number: number }; stores: number; sales: number; payments: number; warnings: number }> {
+): Promise<{ batch: { id: string; number: number }; stores: number; sales: number; payments: number; returns: number; warnings: number }> {
   authorize(ctx, 'system.correct_history');
   if (plan.problems.length > 0) throw new Error(`the dry run found ${plan.problems.length} problem(s); nothing was loaded`);
   return inTx(ctx, async (tx) => {
@@ -160,6 +185,7 @@ export async function loadHistoryImport(
     const storeIds = new Map<string, string>();
     for (const s of file.stores) storeIds.set(s.key, (await recordImportedStore(tx, ctx, batch.id, { name: s.name, sellerId: seller(s.seller) })).id);
     const saleIds = new Map<string, string>();
+    const saleBySerial = new Map<string, string>();
     for (const s of file.sales) {
       const { id } = await recordImportedSale(tx, ctx, batch.id, {
         storeId: storeIds.get(s.store) ?? '', sellerId: seller(s.seller), soldOn: s.soldOn, serial: s.serial, discount: s.discount ?? '0.00',
@@ -170,6 +196,7 @@ export async function loadHistoryImport(
         })),
       });
       saleIds.set(recordKey(s), id);
+      saleBySerial.set(`${s.seller}#${s.serial}`, id);
     }
     const paymentIds = new Map<string, string>();
     for (const p of file.payments) {
@@ -180,6 +207,17 @@ export async function loadHistoryImport(
       });
       paymentIds.set(recordKey(p), id);
     }
+    for (const r of file.returns) {
+      await recordImportedReturn(tx, ctx, batch.id, {
+        storeId: storeIds.get(r.store) ?? '', sellerId: seller(r.seller), returnedOn: r.returnedOn, number: r.number,
+        importedSaleId: r.invoiceSerial ? (saleBySerial.get(`${r.seller}#${r.invoiceSerial}`) ?? null) : null, amount: r.amount,
+        book: r.book, bookRow: r.bookRow, storeNameWritten: r.storeNameWritten,
+        lines: r.lines.map((l) => ({
+          item: l.item, pack: l.pack ?? null, skuId: l.product ? (plan.products.get(productKey(l.product)) ?? null) : null,
+          packs: l.packs, unitPrice: l.unitPrice, amount: l.amount,
+        })),
+      });
+    }
     if (file.warnings.length > 0) {
       await tx.insert(importWarnings).values(file.warnings.map((w) => ({
         batchId: batch.id, kind: w.kind, params: w.params,
@@ -189,8 +227,12 @@ export async function loadHistoryImport(
         branchId: ctx.branchId, createdBy: ctx.user.id,
       })));
     }
-    const result = { batch, stores: file.stores.length, sales: file.sales.length, payments: file.payments.length, warnings: file.warnings.length };
-    await audit(tx, ctx, { action: 'migration.history_loaded', entityType: 'import_batch', entityId: batch.id, after: { ...result, billed: plan.billed, paid: plan.paid } });
+    const result = {
+      batch, stores: file.stores.length, sales: file.sales.length, payments: file.payments.length, returns: file.returns.length, warnings: file.warnings.length,
+    };
+    await audit(tx, ctx, {
+      action: 'migration.history_loaded', entityType: 'import_batch', entityId: batch.id, after: { ...result, billed: plan.billed, paid: plan.paid, returned: plan.returned },
+    });
     return result;
   });
 }

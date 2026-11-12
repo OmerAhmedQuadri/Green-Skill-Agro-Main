@@ -14,7 +14,8 @@ import { postStoreCredit, postStoreDebit } from './credit';
 import { checkedStoreDetails, duplicatesOf, type StoreDetailsInput } from './onboarding';
 
 const {
-  importBatches, importedPaymentAssignments, importedPayments, importedSales, payments, saleCorrections, storeLedgerEntries, storeReverifications, stores, users,
+  importBatches, importedPaymentAssignments, importedPayments, importedReturns, importedSales, payments, saleCorrections, storeLedgerEntries, storeReverifications,
+  stores, users,
 } = schema;
 
 /**
@@ -34,7 +35,12 @@ export type ImportedHistory = {
     readonly id: string; readonly paidOn: string; readonly amount: Money; readonly kind: ImportedPaymentKind; readonly method: 'CASH' | 'BANK_TRANSFER';
     readonly voucherNumber: string | null; readonly book: string; readonly seller: string;
   }[];
-  readonly billed: Money; readonly paid: Money; readonly balance: Money;
+  /** IMP-011: its sales returns, each naming the invoice it returns where the book does. */
+  readonly returns: readonly {
+    readonly id: string; readonly returnedOn: string; readonly number: string; readonly amount: Money; readonly invoiceSerial: number | null;
+    readonly book: string; readonly seller: string;
+  }[];
+  readonly billed: Money; readonly paid: Money; readonly returned: Money; readonly balance: Money;
 };
 
 /** IMP-005: what is waiting to go into a store's account — shown to the store at re-verification. */
@@ -90,7 +96,7 @@ export async function reverifyStore(ctx: Ctx, storeId: string, input: ReverifyIn
       action: 'stores.reverified', entityType: 'store', entityId: storeId,
       after: {
         name: columns.name, status, creditMode: columns.creditMode, creditLimit: columns.creditLimit, importedBalance: history.balance,
-        sales: history.sales.length, payments: history.payments.length, confirmation: said.confirmation, disputeNote: said.note,
+        sales: history.sales.length, payments: history.payments.length, returns: history.returns.length, confirmation: said.confirmation, disputeNote: said.note,
         duplicatesAcknowledged: duplicates.map((d) => d.storeId),
       },
     });
@@ -103,6 +109,9 @@ export async function reverifyStore(ctx: Ctx, storeId: string, input: ReverifyIn
  * on its own date plus the store's terms, then the payments by date, each settling the oldest due first. Both keep
  * their origin and batch (IMP-003). An imported payment gets a payment of its own (PI-…), with no voucher photo and no
  * cash in hand (IMP-006).
+ *
+ * IMP-011: its returns go in after the bills and before the payments, each a credit against the invoice it names
+ * first, then the oldest debts (as an app return's credit note does, ADR-0039). No stock moves.
  */
 export async function postImportedHistory(tx: Tx, ctx: Ctx, storeId: string): Promise<void> {
   const [store] = await tx.select({ mode: stores.creditMode, days: stores.creditCycleDays }).from(stores).where(eq(stores.id, storeId));
@@ -116,6 +125,19 @@ export async function postImportedHistory(tx: Tx, ctx: Ctx, storeId: string): Pr
       dueOn: dueDateFor(store.mode, store.days, sale.soldOn, weekClosesOn), occurredAt: midday(sale.soldOn),
       origin: { origin: 'IMPORT', importBatchId: batches.sales.get(sale.id) ?? null },
     });
+  }
+  const invoices = await invoiceBills(tx, storeId);
+  for (const back of history.returns) {
+    try {
+      await postStoreCredit(tx, ctx, {
+        storeId, entryType: 'CREDIT_NOTE', amount: back.amount, referenceType: 'IMPORTED_RETURN', referenceId: back.id, occurredAt: midday(back.returnedOn),
+        firstDebitId: back.invoiceSerial === null ? null : (invoices.get(back.id) ?? null),
+        origin: { origin: 'IMPORT', importBatchId: batches.returns.get(back.id) ?? null },
+      });
+    } catch (error) {
+      if (isDomainError(error) && error.code === 'PAYMENT_EXCEEDS_BALANCE') throw new DomainError('IMPORTED_HISTORY_IN_CREDIT', { storeId, ...error.details });
+      throw error;
+    }
   }
   for (const paid of history.payments) {
     const id = newId();
@@ -144,6 +166,32 @@ export async function postImportedHistory(tx: Tx, ctx: Ctx, storeId: string): Pr
 }
 
 const midday = (date: string) => new Date(businessDayStart(date).getTime() + 12 * 60 * 60 * 1000);
+
+/**
+ * IMP-011: for each of a store's imported returns, the bill of the invoice it names — the invoice as it stands now
+ * (COR-006 writes a corrected one), as posted. A return whose invoice's bill is not open just settles the oldest.
+ */
+async function invoiceBills(tx: Executor, storeId: string): Promise<Map<string, string>> {
+  const named = await tx.select({ id: importedReturns.id, saleId: importedReturns.importedSaleId }).from(importedReturns)
+    .where(and(eq(importedReturns.storeId, storeId), sql`${importedReturns.importedSaleId} is not null`));
+  if (named.length === 0) return new Map();
+  const sales = await tx.select({ id: importedSales.id, correctionId: importedSales.correctionId, replacedBy: importedSales.replacedBy })
+    .from(importedSales).where(eq(importedSales.storeId, storeId));
+  const byCorrection = new Map(sales.flatMap((s) => (s.correctionId ? [[s.correctionId, s] as const] : [])));
+  const byId = new Map(sales.map((s) => [s.id, s]));
+  const current = (id: string) => {
+    let at = byId.get(id);
+    while (at?.replacedBy) at = byCorrection.get(at.replacedBy);
+    return at?.id ?? id;
+  };
+  const bills = await tx.select({ id: storeLedgerEntries.id, saleId: storeLedgerEntries.referenceId }).from(storeLedgerEntries)
+    .where(and(eq(storeLedgerEntries.storeId, storeId), eq(storeLedgerEntries.referenceType, 'IMPORTED_SALE')));
+  const bill = new Map(bills.map((b) => [b.saleId, b.id]));
+  return new Map(named.flatMap((r) => {
+    const entry = r.saleId ? bill.get(current(r.saleId)) : undefined;
+    return entry ? [[r.id, entry] as const] : [];
+  }));
+}
 
 /**
  * A voucher number as kept (ADR-0047), unless it is not one or a payment that stands already has it — the books'
@@ -191,24 +239,43 @@ async function unposted(db: Executor, storeId: string): Promise<ImportedHistory 
       sql`not exists (select 1 from ${payments} where ${payments.importedPaymentId} = ${importedPayments.id})`,
     ))
     .orderBy(asc(importedPayments.paidOn), asc(importedPayments.bookRow));
+  const returnRows = await db.select({ r: importedReturns, seller: users.name, serial: importedSales.serial }).from(importedReturns)
+    .innerJoin(importBatches, eq(importBatches.id, importedReturns.batchId))
+    .innerJoin(users, eq(users.id, importedReturns.sellerId))
+    .leftJoin(importedSales, eq(importedSales.id, importedReturns.importedSaleId))
+    .where(and(
+      eq(importedReturns.storeId, storeId), eq(importBatches.status, 'LOADED'),
+      sql`not exists (select 1 from ${storeLedgerEntries} where ${storeLedgerEntries.referenceType} = 'IMPORTED_RETURN' and ${storeLedgerEntries.referenceId} = ${importedReturns.id})`,
+    ))
+    .orderBy(asc(importedReturns.returnedOn), asc(importedReturns.bookRow));
   const billed = saleRows.reduce((t, r) => t.plus(dec(r.s.total)), dec('0'));
   const paid = paymentRows.reduce((t, r) => t.plus(dec(r.p.amount)), dec('0'));
+  const returned = returnRows.reduce((t, r) => t.plus(dec(r.r.amount)), dec('0'));
   return {
     sales: saleRows.map((r) => ({ id: r.s.id, soldOn: r.s.soldOn, serial: r.s.serial, book: r.s.book, total: r.s.total as Money, seller: r.seller })),
     payments: paymentRows.map((r) => ({
       id: r.p.id, paidOn: r.p.paidOn, amount: r.p.amount as Money, kind: r.p.kind, method: r.p.method, voucherNumber: r.p.voucherNumber,
       book: r.p.book, bookRow: r.p.bookRow, seller: r.seller, sellerId: r.p.sellerId,
     })),
-    billed: toMoney(billed), paid: toMoney(paid), balance: toMoney(billed.minus(paid)),
+    returns: returnRows.map((r) => ({
+      id: r.r.id, returnedOn: r.r.returnedOn, number: r.r.number, amount: r.r.amount as Money, invoiceSerial: r.serial, book: r.r.book, seller: r.seller,
+    })),
+    billed: toMoney(billed), paid: toMoney(paid), returned: toMoney(returned), balance: toMoney(billed.minus(paid).minus(returned)),
   };
 }
 
 async function batchesOf(db: Executor, history: ImportedHistory) {
   const saleIds = history.sales.map((s) => s.id);
   const paymentIds = history.payments.map((p) => p.id);
+  const returnIds = history.returns.map((r) => r.id);
   const saleRows = saleIds.length
     ? await db.select({ id: importedSales.id, batchId: importedSales.batchId }).from(importedSales).where(inArray(importedSales.id, saleIds)) : [];
   const paymentRows = paymentIds.length
     ? await db.select({ id: importedPayments.id, batchId: importedPayments.batchId }).from(importedPayments).where(inArray(importedPayments.id, paymentIds)) : [];
-  return { sales: new Map(saleRows.map((r) => [r.id, r.batchId])), payments: new Map(paymentRows.map((r) => [r.id, r.batchId])) };
+  const returnRows = returnIds.length
+    ? await db.select({ id: importedReturns.id, batchId: importedReturns.batchId }).from(importedReturns).where(inArray(importedReturns.id, returnIds)) : [];
+  return {
+    sales: new Map(saleRows.map((r) => [r.id, r.batchId])), payments: new Map(paymentRows.map((r) => [r.id, r.batchId])),
+    returns: new Map(returnRows.map((r) => [r.id, r.batchId])),
+  };
 }

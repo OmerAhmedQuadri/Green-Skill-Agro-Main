@@ -9,7 +9,7 @@ import type { ImportedHistory } from './types';
 export function ImportedHistoryCard({ history }: { history: ImportedHistory }) {
   const t = useTranslations('stores');
   const format = useFormat();
-  const empty = history.sales.length === 0 && history.payments.length === 0;
+  const empty = history.sales.length === 0 && history.payments.length === 0 && history.returns.length === 0;
   return (
     <Card className="space-y-3 p-4 text-sm" data-testid="imported-history">
       <h2 className="font-semibold">{t('importedTitle')}</h2>
@@ -36,6 +36,21 @@ export function ImportedHistoryCard({ history }: { history: ImportedHistory }) {
                   <li key={p.id} className="flex justify-between gap-3 py-1.5">
                     <span>{p.voucherNumber ? t('importedPaymentVoucher', { date: format.date(p.paidOn), voucher: p.voucherNumber }) : t('importedPaymentNoVoucher', { date: format.date(p.paidOn) })}</span>
                     <span className="tabular-nums">{format.money(`-${p.amount}`)}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+          {/* IMP-011: what came back, against the invoice it names. */}
+          {history.returns.length > 0 ? (
+            <div>
+              <div className="text-xs font-medium uppercase tracking-wide text-stone-500">{t('importedReturns')}</div>
+              <ul className="divide-y divide-stone-100" data-testid="imported-returns">
+                {history.returns.map((r) => (
+                  <li key={r.id} className="flex justify-between gap-3 py-1.5">
+                    <span>{r.invoiceSerial === null ? t('importedReturn', { number: r.number, date: format.date(r.returnedOn) })
+                      : t('importedReturnOfInvoice', { number: r.number, date: format.date(r.returnedOn), serial: r.invoiceSerial })}</span>
+                    <span className="tabular-nums">{format.money(`-${r.amount}`)}</span>
                   </li>
                 ))}
               </ul>

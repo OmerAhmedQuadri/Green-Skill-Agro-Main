@@ -120,8 +120,9 @@ export const storeLedgerEntries = pgTable(
     index('store_ledger_entries_store_idx').on(t.storeId, t.occurredAt),
     index('store_ledger_entries_reference_idx').on(t.referenceType, t.referenceId),
     index('store_ledger_entries_import_batch_id_idx').on(t.importBatchId),
-    // IMP-005: an imported sale goes into the account once. Corrections of it reference the correction instead.
-    uniqueIndex('store_ledger_entries_imported_once').on(t.referenceType, t.referenceId).where(sql`${t.origin} = 'IMPORT' and ${t.referenceType} = 'IMPORTED_SALE'`),
+    // IMP-005, IMP-011: an imported sale or return goes into the account once. Corrections reference the correction instead.
+    uniqueIndex('store_ledger_entries_imported_once').on(t.referenceType, t.referenceId)
+      .where(sql`${t.origin} = 'IMPORT' and ${t.referenceType} in ('IMPORTED_SALE', 'IMPORTED_RETURN')`),
     check('store_ledger_import_batch', sql`(${t.origin} = 'IMPORT') = (${t.importBatchId} is not null)`),
     check('store_ledger_amount_nonzero', sql`${t.amount} <> 0`),
     check('store_ledger_sign', sql`(${t.entryType} = 'SALE' and ${t.amount} > 0) or (${t.entryType} in ('PAYMENT', 'CREDIT_NOTE') and ${t.amount} < 0) or ${t.entryType} = 'ADJUSTMENT'`),
