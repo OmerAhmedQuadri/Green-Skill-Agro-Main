@@ -76,6 +76,8 @@ export const SETTINGS = {
   'credit.monthly_enabled': { kind: 'boolean', default: true, permission: 'system.configure', group: 'credit' },
   'credit.custom_enabled': { kind: 'boolean', default: true, permission: 'system.configure', group: 'credit' },
   'credit.grace_days': { kind: 'integer', min: 0, max: 30, default: 0, permission: 'system.configure', group: 'credit' },
+  // ADR-0047 (amended 2026-11-13): an unpaid balance at or under this never blocks a sale — halalas left from rounding.
+  'credit.small_balance_allowance': { kind: 'money', min: '0.00', max: '100.00', default: '1.00', permission: 'system.configure', group: 'credit' },
   'credit.week_closes_on': {
     kind: 'choice', options: ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'], default: 'SATURDAY',
     permission: 'system.configure', group: 'credit',

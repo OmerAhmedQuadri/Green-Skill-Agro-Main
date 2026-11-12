@@ -96,13 +96,22 @@ for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
     await expect(phone.getByTestId('day-card')).toContainText(m.field.status.OPEN);
     await phone.goto(`/field/stores/${storeId}`);
     await phone.getByRole('button', { name: m.stores.collect }).click();
-    await phone.getByLabel(m.stores.amount).fill('300');
+    await phone.getByLabel(m.stores.amount).fill('299.40');
     // ADR-0047: the voucher handed to the owner — its number, and its photo.
     await phone.getByLabel(m.stores.voucherNumber).fill(`H-${locale}-${stamp}`);
     await takePhoto(phone, 'collect-voucher-photo', m);
     await phone.getByRole('button', { name: m.stores.recordPayment }).click();
+    // ADR-0047 (amended 2026-11-13): the 0.60 left blocks nothing — it stays owed.
     await expect(phone.getByTestId('credit-clear')).toBeVisible();
-    await expect(phone.getByTestId('ledger-PAYMENT')).toBeVisible();
+    await expect(phone.getByTestId('ledger-PAYMENT')).toHaveCount(1);
+    // The seller collects it as it is typed: ".6".
+    await phone.getByRole('button', { name: m.stores.collect }).click();
+    await phone.getByLabel(m.stores.amount).fill('.6');
+    await phone.getByLabel(m.stores.voucherNumber).fill(`H-${locale}-${stamp}-2`);
+    await takePhoto(phone, 'collect-voucher-photo', m);
+    await phone.getByRole('button', { name: m.stores.recordPayment }).click();
+    await expect(phone.getByTestId('ledger-PAYMENT')).toHaveCount(2);
+    await expect(phone.getByTestId('credit-clear')).toBeVisible();
 
     // CRD-006, CRD-007: past due again — a manager releases it for one sale today, with a reason.
     await admin.request.post(`/api/v1/stores/${storeId}/adjustments`, { headers: headers(origin), data: { amount: '120.00', reason: 'Second debt', dueOn: '2026-02-01' } });
