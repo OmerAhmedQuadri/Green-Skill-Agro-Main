@@ -7,7 +7,10 @@ import { authorize, type Ctx } from '../context';
 import type { Executor } from '../platform';
 import { getDb } from '../runtime';
 
-const { sales, saleLines, returns, returnLines, skus, products, categories, stores, users, vehicles, importedSales, importedSaleLines } = schema;
+const {
+  sales, saleLines, returns, returnLines, skus, products, categories, stores, users, vehicles, importedSales, importedSaleLines, importedReturns, importedReturnLines,
+  importBatches,
+} = schema;
 
 /**
  * ADR-0048: what a view of sales is cut by. Every field but the range is optional. The channel is where a sale came
@@ -65,7 +68,20 @@ function importedWhere(range: AnalyticsRange, f: AnalyticsFilter): SQL | undefin
   if (f.vehicleId || (f.channel && f.channel !== 'IMPORTED')) return sql`false`;
   return and(
     gte(importedSales.soldOn, range.from), lte(importedSales.soldOn, range.to), isNull(importedSales.replacedBy),
+    // IMP-004: a batch undone is out of use — its sales are not counted beside the batch loaded again.
+    sql`exists (select 1 from ${importBatches} where ${importBatches.id} = ${importedSales.batchId} and ${importBatches.status} = 'LOADED')`,
     f.sellerId ? eq(importedSales.sellerId, f.sellerId) : undefined, f.storeId ? eq(importedSales.storeId, f.storeId) : undefined,
+    f.productId ? eq(skus.productId, f.productId) : undefined, f.categoryId ? eq(products.categoryId, f.categoryId) : undefined,
+  );
+}
+
+/** IMP-011: imported returns in the range, cut as imported sales are — returned on the day the book writes. */
+function importedReturnedWhere(range: AnalyticsRange, f: AnalyticsFilter): SQL | undefined {
+  if (f.vehicleId || (f.channel && f.channel !== 'IMPORTED')) return sql`false`;
+  return and(
+    gte(importedReturns.returnedOn, range.from), lte(importedReturns.returnedOn, range.to),
+    sql`exists (select 1 from ${importBatches} where ${importBatches.id} = ${importedReturns.batchId} and ${importBatches.status} = 'LOADED')`,
+    f.sellerId ? eq(importedReturns.sellerId, f.sellerId) : undefined, f.storeId ? eq(importedReturns.storeId, f.storeId) : undefined,
     f.productId ? eq(skus.productId, f.productId) : undefined, f.categoryId ? eq(products.categoryId, f.categoryId) : undefined,
   );
 }
@@ -84,33 +100,43 @@ function returnedWhere(range: AnalyticsRange, f: AnalyticsFilter): SQL | undefin
   );
 }
 
-/** A way to cut the figures: the column on each side — what was sold, what came back, and what was imported. */
-type Cut = { readonly sold: SQL; readonly returned: SQL; readonly imported: SQL };
+/**
+ * A way to cut the figures: the column on each side — what was sold, what came back, what was imported, and what
+ * came back of it (IMP-011).
+ */
+type Cut = { readonly sold: SQL; readonly returned: SQL; readonly imported: SQL; readonly importedReturned: SQL };
 
 // Literals, not parameters: selected and grouped by, an expression must be the same text twice over.
 const UNMATCHED = sql.raw(`'${IMPORTED_UNMATCHED_KEY}'`);
 
 const CUTS = {
-  seller: { sold: sql`${sales.sellerId}`, returned: sql`${returns.sellerId}`, imported: sql`${importedSales.sellerId}` },
+  seller: { sold: sql`${sales.sellerId}`, returned: sql`${returns.sellerId}`, imported: sql`${importedSales.sellerId}`, importedReturned: sql`${importedReturns.sellerId}` },
   // SAL-019 (ADR-0052): open sales have no store, and one line of their own. They are never returned.
   store: {
     sold: sql`coalesce(${sales.storeId}::text, ${sql.raw(`'${OPEN_SALES_KEY}'`)})`, returned: sql`${returns.storeId}`,
-    imported: sql`${importedSales.storeId}`,
+    imported: sql`${importedSales.storeId}`, importedReturned: sql`${importedReturns.storeId}`,
   },
   // IMP-001: an imported line names a catalogue product only where one matched; the rest are one row of their own.
-  product: { sold: sql`${skus.productId}`, returned: sql`${skus.productId}`, imported: sql`coalesce(${skus.productId}::text, ${UNMATCHED})` },
+  product: {
+    sold: sql`${skus.productId}`, returned: sql`${skus.productId}`, imported: sql`coalesce(${skus.productId}::text, ${UNMATCHED})`,
+    importedReturned: sql`coalesce(${skus.productId}::text, ${UNMATCHED})`,
+  },
   category: {
     sold: sql`${products.categoryId}`, returned: sql`${products.categoryId}`, imported: sql`coalesce(${products.categoryId}::text, ${UNMATCHED})`,
+    importedReturned: sql`coalesce(${products.categoryId}::text, ${UNMATCHED})`,
   },
   // Postgres groups by no bare constant, so the imported key is an expression that is always the same.
-  channel: { sold: sql`${sales.channel}`, returned: sql`${sales.channel}`, imported: sql`(case when ${importedSales.id} is not null then 'IMPORTED' end)` },
+  channel: {
+    sold: sql`${sales.channel}`, returned: sql`${sales.channel}`, imported: sql`(case when ${importedSales.id} is not null then 'IMPORTED' end)`,
+    importedReturned: sql`(case when ${importedReturns.id} is not null then 'IMPORTED' end)`,
+  },
 } satisfies Record<string, Cut>;
 
 function periodCut(bucket: AnalyticsRange['bucket']): Cut {
   const format = sql.raw(bucket === 'DAY' ? `'YYYY-MM-DD'` : `'YYYY-MM'`);
   return {
     sold: sql`to_char(${riyadh(sales.completedAt)}, ${format})`, returned: sql`to_char(${riyadh(returns.occurredAt)}, ${format})`,
-    imported: sql`to_char(${importedSales.soldOn}, ${format})`,
+    imported: sql`to_char(${importedSales.soldOn}, ${format})`, importedReturned: sql`to_char(${importedReturns.returnedOn}, ${format})`,
   };
 }
 
@@ -152,13 +178,26 @@ async function figuresBy(db: Executor, range: AnalyticsRange, f: AnalyticsFilter
     .where(importedWhere(range, f))
     .groupBy(cut.imported);
 
+  // IMP-011: what came back of imported sales, on the day it came back; a return the book lists no lines for is one
+  // amount, of no catalogue product.
+  const importedReturned = await db.select({
+    key: sql<string>`${cut.importedReturned}::text`,
+    amount: sql<string>`coalesce(sum(coalesce(${importedReturnLines.amount}, ${importedReturns.amount})), 0)::numeric(14,2)::text`,
+    packs: sql<number>`coalesce(sum(${importedReturnLines.packs}), 0)::int`,
+  }).from(importedReturns)
+    .leftJoin(importedReturnLines, eq(importedReturnLines.importedReturnId, importedReturns.id))
+    .leftJoin(skus, eq(skus.id, importedReturnLines.skuId))
+    .leftJoin(products, eq(products.id, skus.productId))
+    .where(importedReturnedWhere(range, f))
+    .groupBy(cut.importedReturned);
+
   const out = new Map<string, { sold: Dec; returned: Dec; sales: number; packs: number }>();
   const entry = (key: string) => out.get(key) ?? { sold: new Dec(0), returned: new Dec(0), sales: 0, packs: 0 };
   for (const r of [...sold, ...imported]) {
     const e = entry(r.key);
     out.set(r.key, { ...e, sold: e.sold.plus(dec(r.amount)), sales: e.sales + Number(r.sales), packs: e.packs + Number(r.packs) });
   }
-  for (const r of returned) {
+  for (const r of [...returned, ...importedReturned]) {
     const e = entry(r.key);
     out.set(r.key, { ...e, returned: e.returned.plus(dec(r.amount)), packs: e.packs - Number(r.packs) });
   }

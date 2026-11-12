@@ -1927,7 +1927,11 @@
       "shareUnavailable": "لا يمكن لهذا الهاتف مشاركة الملفات من هنا. افتح ملف PDF وأرسله من هناك.",
       "none": "لا كشوف بعد."
     },
-    "amountUnreadable": "اكتب المبلغ بالريال والهللة، مثل 0.60 أو 125.50."
+    "amountUnreadable": "اكتب المبلغ بالريال والهللة، مثل 0.60 أو 125.50.",
+    "importedSourceReturn": "{book}، الصف {row}، مرتجع {number} · النقل {batch}",
+    "importedReturns": "المرتجعات",
+    "importedReturn": "مرتجع {number}، {date}",
+    "importedReturnOfInvoice": "مرتجع {number}، {date} · فاتورة {serial}"
   },
   "sales": {
     "title": "المبيعات",

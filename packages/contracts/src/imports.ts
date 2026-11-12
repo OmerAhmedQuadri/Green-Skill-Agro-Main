@@ -43,6 +43,23 @@ const Payment = z.object({
   ...Written,
 });
 
+/** IMP-011: a line of a sales return, as written. */
+const ReturnLine = z.object({
+  item: Text(300), pack: z.string().trim().max(100).nullable().optional(), product: Product.nullable().optional(),
+  packs: Packs, unitPrice: Amount, amount: Amount,
+});
+
+/** IMP-011 (ADR-0059, amended 2026-11-13): a sales return in a seller's book, naming the invoice it returns. */
+const Return = z.object({
+  store: Text(100), seller: Text(100), returnedOn: Day, number: Text(30),
+  /** The seller's invoice serial it returns, where the book names one. */
+  invoiceSerial: z.number().int().min(1).nullable().optional(),
+  /** What is credited: its lines' amounts, or the total the book writes where it lists no lines. */
+  amount: Amount,
+  lines: z.array(ReturnLine).max(200).default([]),
+  ...Written,
+});
+
 /** A record a warning is about: a store by its key, or a sale or payment by its book and row. */
 const Subject = z.object({ book: Text(200), bookRow: z.number().int().min(1) });
 
@@ -65,6 +82,8 @@ export const HistoryImportFile = z.object({
   stores: z.array(z.object({ key: Text(100), name: Text(300), seller: Text(100) })).max(5000),
   sales: z.array(Sale).max(50_000),
   payments: z.array(Payment).max(50_000),
+  /** IMP-011: none in a file made before returns were imported. */
+  returns: z.array(Return).max(5000).default([]),
   warnings: z.array(Warning).max(20_000),
 });
 export type HistoryImportFile = z.infer<typeof HistoryImportFile>;

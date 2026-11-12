@@ -16,7 +16,7 @@ import { loadStore, openDebits, readingAsManager } from './access';
 
 const {
   stores, storeLedgerEntries, storeCorrections, paymentAllocations, payments, creditOverrides, storeAssignments, users, importBatches, importedPayments,
-  importedSales,
+  importedSales, importedReturns,
 } = schema;
 
 const lockLedger = (tx: Executor, storeId: string) => tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`store-ledger:${storeId}`}, 0))`);
@@ -298,6 +298,7 @@ export type LedgerEntry = {
    */
   readonly imported: {
     readonly batch: number; readonly book: string | null; readonly row: number | null; readonly serial: number | null; readonly voucherNumber: string | null;
+    /** IMP-011: an imported return's number, as the book writes it. */ readonly returnNumber: string | null;
   } | null;
   /** A payment's method, for what correcting it can move (COR-005). */
   readonly paymentMethod: PaymentMethod | null;
@@ -390,6 +391,7 @@ async function importedSources(
   const imported = rows.filter((r) => r.entry.origin === 'IMPORT');
   if (imported.length === 0) return new Map();
   const saleIds = imported.flatMap((r) => (r.entry.referenceType === 'IMPORTED_SALE' ? [r.entry.referenceId] : []));
+  const returnIds = imported.flatMap((r) => (r.entry.referenceType === 'IMPORTED_RETURN' ? [r.entry.referenceId] : []));
   const paymentIds = imported.flatMap((r) => (r.importedPaymentId ? [r.importedPaymentId] : []));
   const batchIds = [...new Set(imported.flatMap((r) => (r.entry.importBatchId ? [r.entry.importBatchId] : [])))];
   const [sales, paid, batches] = [
@@ -399,16 +401,21 @@ async function importedSources(
       .from(importedPayments).where(inArray(importedPayments.id, paymentIds)) : [],
     batchIds.length ? await db.select({ id: importBatches.id, number: importBatches.number }).from(importBatches).where(inArray(importBatches.id, batchIds)) : [],
   ];
+  const returned = returnIds.length
+    ? await db.select({ id: importedReturns.id, book: importedReturns.book, row: importedReturns.bookRow, number: importedReturns.number })
+      .from(importedReturns).where(inArray(importedReturns.id, returnIds)) : [];
+  const returnById = new Map(returned.map((x) => [x.id, x]));
   const saleById = new Map(sales.map((x) => [x.id, x]));
   const paidById = new Map(paid.map((x) => [x.id, x]));
   const batchNumber = new Map(batches.map((b) => [b.id, b.number]));
   return new Map(imported.map((r) => {
     const sale = saleById.get(r.entry.referenceId);
     const payment = r.importedPaymentId ? paidById.get(r.importedPaymentId) : undefined;
+    const back = returnById.get(r.entry.referenceId);
     return [r.entry.id, {
       batch: batchNumber.get(r.entry.importBatchId ?? '') ?? 0,
-      book: sale?.book ?? payment?.book ?? null, row: sale?.row ?? payment?.row ?? null,
-      serial: sale?.serial ?? null, voucherNumber: payment?.voucher ?? null,
+      book: sale?.book ?? payment?.book ?? back?.book ?? null, row: sale?.row ?? payment?.row ?? back?.row ?? null,
+      serial: sale?.serial ?? null, voucherNumber: payment?.voucher ?? null, returnNumber: back?.number ?? null,
     }];
   }));
 }

@@ -1927,7 +1927,11 @@
       "shareUnavailable": "This phone can't share files from here. Open the PDF and send it from there.",
       "none": "No statements yet."
     },
-    "amountUnreadable": "Type the amount in riyals and halalas, like 0.60 or 125.50."
+    "amountUnreadable": "Type the amount in riyals and halalas, like 0.60 or 125.50.",
+    "importedSourceReturn": "{book}, row {row}, return {number} · import {batch}",
+    "importedReturns": "Returns",
+    "importedReturn": "Return {number}, {date}",
+    "importedReturnOfInvoice": "Return {number}, {date} · invoice {serial}"
   },
   "sales": {
     "title": "Sales",

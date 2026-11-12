@@ -185,7 +185,8 @@ function statementEntry(e: LedgerEntry, number: string | null): StatementEntry {
     debit: amount.gt(0) ? e.amount : null, credit: amount.lt(0) ? toMoney(amount.neg()) : null, balance: e.balance,
     what: what(e), detail: detailOf(e, number),
     imported: e.origin === 'IMPORT'
-      ? [e.imported?.book, e.imported?.row ? `row ${e.imported.row}` : null, e.imported?.serial ? `#${e.imported.serial}` : null].filter(Boolean).join(' · ')
+      ? [e.imported?.book, e.imported?.row ? `row ${e.imported.row}` : null, e.imported?.serial ? `#${e.imported.serial}` : null, e.imported?.returnNumber ?? null]
+        .filter(Boolean).join(' · ')
       : null,
     correction, replaced: Boolean(e.replacedBy || e.reversalOf),
   };

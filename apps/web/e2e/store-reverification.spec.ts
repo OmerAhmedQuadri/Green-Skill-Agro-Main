@@ -6,11 +6,11 @@ import { anImportedStore, freshSeller, sessionPage, shot, takePhoto } from './he
 /**
  * IMP-005, IMP-008, IMP-003, IMP-010, in English and Arabic: a store imported from the books awaits re-verification.
  * Its seller opens it, fills in what the books lack, shows the owner what the books say and records that the store
- * disputes it; the imported bills and payment go into its account, labelled, and a statement of it is printed for the
+ * disputes it; the imported bills, payment and return go into its account, labelled, and a statement of it is printed for the
  * store. The Super Admin keeps an import warning with a note.
  */
 for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
-  test(`Store re-verification (${locale}) — IMP-005, IMP-008, IMP-003, IMP-009, IMP-010: an imported store re-verified on the phone, disputed, its statement printed; a warning kept`, async ({ browser, baseURL }) => {
+  test(`Store re-verification (${locale}) — IMP-005, IMP-008, IMP-003, IMP-009, IMP-010, IMP-011: an imported store re-verified on the phone, disputed, its statement printed; a warning kept`, async ({ browser, baseURL }) => {
     test.setTimeout(240_000);
     const origin = baseURL ?? '';
     const stamp = String(Date.now()).slice(-6);
@@ -29,7 +29,9 @@ for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
 
     // What the books say, shown to the owner first.
     await expect(phone.getByTestId('imported-history')).toContainText('500.00');
-    await expect(phone.getByTestId('imported-balance')).toContainText('400.00');
+    // IMP-011: one bag of invoice 501 came back.
+    await expect(phone.getByTestId('imported-returns')).toContainText('501');
+    await expect(phone.getByTestId('imported-balance')).toContainText('350.00');
     await expect(phone.getByTestId('location')).not.toContainText(m.stores.locating, { timeout: 20_000 });
     await expect(phone.getByLabel(m.stores.name, { exact: true })).toHaveValue(name);
     await phone.getByLabel(m.stores.ownerName).fill('Saeed Al-Qahtani');
@@ -45,7 +47,7 @@ for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
     await phone.waitForURL(`**/field/stores/${storeId}`);
 
     // IMP-005, IMP-003: the books are in its account now, each entry saying where it was written.
-    await expect(phone.getByTestId('ledger-imported')).toHaveCount(3);
+    await expect(phone.getByTestId('ledger-imported')).toHaveCount(4);
     await expect(phone.getByTestId('ledger-imported').first()).toContainText(m.stores.importedBadge);
     await phone.screenshot({ path: shot(`store-reverified-${locale}`), fullPage: true });
 
@@ -64,7 +66,7 @@ for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
     // The console shows the re-verification and the store's words, and the statement the seller made.
     await admin.goto(`/console/stores/${storeId}`);
     await expect(admin.getByTestId('reverification')).toContainText(`e2e ${locale}: the owner says one more payment`);
-    await expect(admin.getByTestId('ledger-imported')).toHaveCount(3);
+    await expect(admin.getByTestId('ledger-imported')).toHaveCount(4);
     await expect(admin.getByTestId('statements').getByTestId('statement-open')).toHaveCount(1);
 
     // IMP-009: what the import could not settle waits on the Super Admin's dashboard, and is kept with a note.

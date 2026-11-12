@@ -116,6 +116,63 @@ export const importedSaleLines = pgTable(
 );
 
 /**
+ * IMP-011 (ADR-0059, amended 2026-11-13): a sales return in a seller's book, as written, naming the invoice it returns
+ * where the book does. Recorded, never posted at import: it goes into the store's account at re-verification as a
+ * credit (reference IMPORTED_RETURN) against that invoice first. No stock moves (IMP-006). Append-only.
+ */
+export const importedReturns = pgTable(
+  'imported_returns',
+  {
+    id: id(),
+    batchId: uuid('batch_id').notNull().references(() => importBatches.id),
+    storeId: uuid('store_id').notNull().references(() => stores.id),
+    sellerId: uuid('seller_id').notNull().references(() => users.id),
+    returnedOn: date('returned_on').notNull(),
+    /** As the book numbers it: SR0001, SR1001 … */
+    number: text('number').notNull(),
+    /** The invoice it returns, where the book names one in this batch. */
+    importedSaleId: uuid('imported_sale_id').references((): AnyPgColumn => importedSales.id),
+    book: text('book').notNull(),
+    bookRow: integer('book_row').notNull(),
+    storeNameWritten: text('store_name_written').notNull(),
+    amount: money('amount').notNull(),
+    branchId: uuid('branch_id').notNull().references(() => branches.id),
+    createdAt: createdAt(),
+    createdBy: uuid('created_by').notNull().references(() => users.id),
+  },
+  (t) => [
+    uniqueIndex('imported_returns_number_unique').on(t.batchId, t.sellerId, t.number),
+    index('imported_returns_store_id_idx').on(t.storeId),
+    index('imported_returns_seller_id_idx').on(t.sellerId),
+    index('imported_returns_imported_sale_id_idx').on(t.importedSaleId),
+    check('imported_returns_amount', sql`${t.amount} > 0`),
+    check('imported_returns_where', sql`${t.bookRow} > 0`),
+  ],
+);
+
+/** IMP-011: a line of an imported return, as written. Some returns list none, only their total. */
+export const importedReturnLines = pgTable(
+  'imported_return_lines',
+  {
+    id: id(),
+    importedReturnId: uuid('imported_return_id').notNull().references(() => importedReturns.id),
+    lineNo: integer('line_no').notNull(),
+    itemWritten: text('item_written').notNull(),
+    packWritten: text('pack_written'),
+    skuId: uuid('sku_id').references(() => skus.id),
+    packs: numeric('packs', { precision: 12, scale: 3 }).notNull(),
+    unitPrice: money('unit_price').notNull(),
+    amount: money('amount').notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    uniqueIndex('imported_return_lines_line_unique').on(t.importedReturnId, t.lineNo),
+    index('imported_return_lines_sku_id_idx').on(t.skuId),
+    check('imported_return_lines_figures', sql`${t.lineNo} > 0 and ${t.packs} > 0 and ${t.unitPrice} >= 0 and ${t.amount} >= 0`),
+  ],
+);
+
+/**
  * IMP-009 (ADR-0059): what the import could not settle, about one store, imported sale or imported payment, with the
  * figures that explain it. The Super Admin keeps it as it is, with a note, or marks it corrected in a correction
  * session — once; only those columns may change (migration 0035).

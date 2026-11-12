@@ -86,7 +86,7 @@ const file: HistoryFile = imports.HistoryImportFile.parse(JSON.parse(bytes.toStr
 const plan = await planHistoryImport(db, file, sellers);
 const reportPath = join(dirname(path), `${basename(path, '.json')}-dry-run.md`);
 writeFileSync(reportPath, report(file, plan, basename(path)));
-console.log(`read ${basename(path)}: ${plan.counts.stores} stores, ${plan.counts.sales} sales (${plan.counts.lines} lines), ${plan.counts.payments} payments, ${file.warnings.length} warnings`);
+console.log(`read ${basename(path)}: ${plan.counts.stores} stores, ${plan.counts.sales} sales (${plan.counts.lines} lines), ${plan.counts.payments} payments, ${plan.counts.returns} returns, ${file.warnings.length} warnings`);
 console.log(`${plan.problems.length} problem(s). Report written to ${reportPath}`);
 
 if (flag('load') !== 'yes') {
@@ -106,7 +106,7 @@ const files = [
   { name: basename(path), sha256: createHash('sha256').update(bytes).digest('hex'), bytes: statSync(path).size },
 ];
 const loaded = await loadHistoryImport(ctx, file, plan, files);
-console.log(`loaded as batch ${loaded.batch.number}: ${loaded.stores} stores await re-verification; ${loaded.sales} sales, ${loaded.payments} payments, ${loaded.warnings} warnings.`);
+console.log(`loaded as batch ${loaded.batch.number}: ${loaded.stores} stores await re-verification; ${loaded.sales} sales, ${loaded.payments} payments, ${loaded.returns} returns, ${loaded.warnings} warnings.`);
 await closeDb();
 
 function report(f: HistoryFile, p: HistoryPlan, name: string): string {
@@ -120,7 +120,8 @@ function report(f: HistoryFile, p: HistoryPlan, name: string): string {
     `- ${p.counts.stores} stores, awaiting re-verification`,
     `- ${p.counts.sales} sales with ${p.counts.lines} lines; ${p.counts.linesInCatalogue} lines name a catalogue product`,
     `- ${p.counts.payments} payments, ${p.counts.paymentsWithNoStore} of them with no store`,
-    `- billed ${p.billed}, paid ${p.paid}`, '',
+    `- ${p.counts.returns} returns`,
+    `- billed ${p.billed}, paid ${p.paid}, returned ${p.returned}`, '',
     '## Problems — nothing loads until these are settled', '',
     ...(p.problems.length ? p.problems.map((x) => `- ${x}`) : ['None.']), '',
     '## Warnings for the Super Admin', '',

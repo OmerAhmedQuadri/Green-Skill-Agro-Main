@@ -60,6 +60,7 @@ export function LedgerTable({ entries, compact = false, area = 'console', onCorr
                     <div className="text-xs text-stone-500">
                       {e.imported.serial ? t('importedSourceSale', { book: e.imported.book, row: e.imported.row ?? 0, serial: e.imported.serial, batch: e.imported.batch })
                         : e.imported.voucherNumber ? t('importedSourceVoucher', { book: e.imported.book, row: e.imported.row ?? 0, number: e.imported.voucherNumber, batch: e.imported.batch })
+                        : e.imported.returnNumber ? t('importedSourceReturn', { book: e.imported.book, row: e.imported.row ?? 0, number: e.imported.returnNumber, batch: e.imported.batch })
                         : t('importedSource', { book: e.imported.book, row: e.imported.row ?? 0, batch: e.imported.batch })}
                     </div>
                   ) : null}
