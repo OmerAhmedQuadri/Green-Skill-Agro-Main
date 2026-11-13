@@ -32,8 +32,11 @@ export function wholeNumber(value: string | null | undefined): number | null {
 /**
  * A decimal as a person types it — Arabic-Indic digits, the Arabic decimal
  * separator (٫), the Arabic thousands separator (٬) and spaces — in the plain
- * form the API expects, e.g. "١٢٫٥" → "12.5". The server still validates it.
+ * form the API expects, e.g. "١٢٫٥" → "12.5". A point with nothing before it
+ * or after it is read as people mean it: ".6" → "0.6", "12." → "12". The
+ * server still validates it.
  */
 export function decimalText(value: string | null | undefined): string {
-  return latinDigits(value ?? '').replace(/٫/g, '.').replace(/[٬\s]/g, '');
+  const plain = latinDigits(value ?? '').replace(/٫/g, '.').replace(/[٬\s]/g, '');
+  return plain.replace(/^\./, '0.').replace(/^(\d+)\.$/, '$1');
 }

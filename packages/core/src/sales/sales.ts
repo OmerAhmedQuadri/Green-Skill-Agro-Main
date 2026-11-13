@@ -6,7 +6,8 @@ import type { BlockReason, CreditMode, CreditStatus } from '../stores';
 import { packCount, type PackCount } from '../units';
 
 /** STATE-MACHINES §2. PENDING_DELIVERY arrives with warehouse dispatch (M7). */
-export const SALE_STATUSES = ['PENDING_DISCOUNT_APPROVAL', 'DISCOUNT_APPROVED', 'PENDING_DELIVERY', 'COMPLETED', 'CANCELLED'] as const;
+// REMOVED: a completed sale a correction took away whole (COR-006, ADR-0059) — it stays, out of every total.
+export const SALE_STATUSES = ['PENDING_DISCOUNT_APPROVAL', 'DISCOUNT_APPROVED', 'PENDING_DELIVERY', 'COMPLETED', 'CANCELLED', 'REMOVED'] as const;
 export type SaleStatus = (typeof SALE_STATUSES)[number];
 
 /** DATA-MODEL §5.4a: a sale in these states holds its batches on the vehicle (PRC-011). */
@@ -55,15 +56,17 @@ export type SaleCancelReason = (typeof SALE_CANCEL_REASONS)[number];
 export const DISCOUNT_REQUEST_STATUSES = ['PENDING', 'APPROVED', 'REDUCED', 'REJECTED', 'EXPIRED', 'WITHDRAWN'] as const;
 export type DiscountRequestStatus = (typeof DISCOUNT_REQUEST_STATUSES)[number];
 
-export type SaleAction = 'approve' | 'reject' | 'expire' | 'withdraw' | 'complete' | 'dispatch' | 'deliver' | 'cancel' | 'lose';
+export type SaleAction = 'approve' | 'reject' | 'expire' | 'withdraw' | 'complete' | 'dispatch' | 'deliver' | 'cancel' | 'lose' | 'remove';
 
 const SALE_TRANSITIONS: Record<SaleStatus, Partial<Record<SaleAction, SaleStatus>>> = {
   PENDING_DISCOUNT_APPROVAL: { approve: 'DISCOUNT_APPROVED', reject: 'CANCELLED', expire: 'CANCELLED', withdraw: 'CANCELLED' },
   // A vehicle sale completes; a dispatch sale goes to the warehouse (ADR-0038).
   DISCOUNT_APPROVED: { complete: 'COMPLETED', dispatch: 'PENDING_DELIVERY', expire: 'CANCELLED', withdraw: 'CANCELLED' },
   PENDING_DELIVERY: { deliver: 'COMPLETED', cancel: 'CANCELLED', lose: 'CANCELLED' },
-  COMPLETED: {},
+  // COR-006: only a Super Admin's correction, in a session, removes a completed sale.
+  COMPLETED: { remove: 'REMOVED' },
   CANCELLED: {},
+  REMOVED: {},
 };
 
 /**
@@ -192,16 +195,18 @@ export function decideDiscount(
  *
  * ADR-0047: the limit binds every store, bill to bill included, and counts
  * what is paid with the sale — a limit of 0 means paying in full. Orders on
- * their way count against it, whichever channel the new sale comes by.
+ * their way count against it, whichever channel the new sale comes by. A small
+ * balance within the allowance is not counted against it (amended 2026-11-13).
  */
 export function assertSaleCredit(
-  credit: CreditStatus, mode: CreditMode, total: Money,
+  credit: CreditStatus, mode: CreditMode | null, total: Money,
   opts: {
     /** ADR-0038: orders waiting for delivery, less any being confirmed now. All of them unless said. */ readonly committed?: Money | undefined;
     /** ADR-0047: what the store pays with this sale. */ readonly paidNow?: Money | undefined;
   } = {},
 ): { readonly usesOverride: boolean } {
-  const store = credit.reasons.filter((r) => r.code === 'NOT_APPROVED' || r.code === 'REJECTED' || r.code === 'INACTIVE');
+  // IMP-008: a store awaiting re-verification cannot trade, and no override lifts that.
+  const store = credit.reasons.filter((r) => r.code === 'NOT_APPROVED' || r.code === 'REJECTED' || r.code === 'INACTIVE' || r.code === 'NOT_VERIFIED');
   if (store.length > 0) throw new DomainError('STORE_NOT_ACTIVE', { reasons: store });
   const committed = opts.committed ?? credit.committed;
   const paidNow = dec(opts.paidNow ?? '0');
@@ -209,11 +214,12 @@ export function assertSaleCredit(
   const reasons: BlockReason[] = credit.reasons.filter((r) => r.code !== 'DISPATCH_PENDING');
   if (mode === 'BILL_TO_BILL' && dec(committed).gt(0)) reasons.push({ code: 'DISPATCH_PENDING', amount: committed });
   const blocked = reasons.length > 0;
-  const overLimit = dec(credit.outstanding).plus(dec(committed)).plus(dec(total)).minus(paidNow).gt(dec(credit.limit));
+  const owed = dec(credit.outstanding).lte(dec(credit.allowance)) ? new Dec(0) : dec(credit.outstanding);
+  const overLimit = owed.plus(dec(committed)).plus(dec(total)).minus(paidNow).gt(dec(credit.limit));
   if (!blocked && !overLimit) return { usesOverride: false };
   if (!credit.overrideAvailable) {
     if (blocked) throw new DomainError('CREDIT_BLOCKED', { reasons });
-    const available = dec(credit.limit).minus(dec(credit.outstanding)).minus(dec(committed)).plus(paidNow);
+    const available = dec(credit.limit).minus(owed).minus(dec(committed)).plus(paidNow);
     throw new DomainError('CREDIT_LIMIT_EXCEEDED', { available: toMoney(available.gt(0) ? available : new Dec(0)), total });
   }
   return { usesOverride: true };

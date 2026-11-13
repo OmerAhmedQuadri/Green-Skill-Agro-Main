@@ -47,3 +47,30 @@ export function importedPaymentAmount(value: string): Money {
   if (!dec(amount).gt(0)) throw new DomainError('INVALID_MONEY', { field: 'amount', value });
   return amount;
 }
+
+/**
+ * IMP-009 (ADR-0059): what the import could not settle, for the Super Admin — each about a store, an imported sale or
+ * an imported payment, with the figures that explain it. Written by our tools into the import file.
+ *   VOUCHER_MISSING                a payment with no voucher number
+ *   VOUCHER_NOT_IN_BOOKS           a sale paid by a voucher found in neither voucher book    { voucher }
+ *   NAME_JOINED_BY_GUESS           a store name joined to a store on spelling alone          { written }
+ *   PAYMENT_NO_STORE               a payment whose name matches no store                    { written }
+ *   PAYMENT_HELD_BACK              a payment held unassigned: it would take its store below nothing { store }
+ *   NAMES_MAY_BE_ONE_STORE         two stores whose names may be one                        { other }
+ *   LINE_DOES_NOT_ADD_UP           a line whose packs × price is not its amount              { line, computed }
+ *   LINE_NOT_IN_CATALOGUE          a line naming no catalogue product                       { line, item }
+ *   LINE_READ_AS_OTHER_PACK        a line priced like one product but read as another       { line, item }
+ *   DATE_DIFFERS_FROM_STATEMENT    a date the September statement gives otherwise           { statement }
+ *   RETURN_NOT_IMPORTED            a return on the statements, left for a correction         { amount, date }
+ *   BALANCE_DIFFERS_FROM_STATEMENT a store whose balance differs from its September statement { books, statement }
+ */
+export const IMPORT_WARNING_KINDS = [
+  'VOUCHER_MISSING', 'VOUCHER_NOT_IN_BOOKS', 'NAME_JOINED_BY_GUESS', 'PAYMENT_NO_STORE', 'PAYMENT_HELD_BACK', 'NAMES_MAY_BE_ONE_STORE',
+  'LINE_DOES_NOT_ADD_UP', 'LINE_NOT_IN_CATALOGUE', 'LINE_READ_AS_OTHER_PACK', 'DATE_DIFFERS_FROM_STATEMENT', 'RETURN_NOT_IMPORTED',
+  'BALANCE_DIFFERS_FROM_STATEMENT',
+] as const;
+export type ImportWarningKind = (typeof IMPORT_WARNING_KINDS)[number];
+
+/** IMP-009: a warning is kept as it is, with a note, or marked corrected — which needs a correction session. */
+export const IMPORT_WARNING_RESOLUTIONS = ['KEPT', 'CORRECTED'] as const;
+export type ImportWarningResolution = (typeof IMPORT_WARNING_RESOLUTIONS)[number];

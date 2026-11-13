@@ -114,8 +114,9 @@ describe('deciding a discount request (PRC-013)', () => {
 describe('credit at the point of sale (SAL-001, SAL-002, SAL-009, CRD-004..007, OQ-018)', () => {
   const status = (over: {
     open?: string; dueOn?: string; limit?: string; override?: boolean; store?: 'ACTIVE' | 'INACTIVE'; mode?: 'WEEKLY' | 'BILL_TO_BILL'; committed?: string;
+    allowance?: string;
   } = {}) => creditStatus({
-    status: over.store ?? 'ACTIVE', mode: over.mode ?? 'WEEKLY', limit: m(over.limit ?? '5000.00'), graceDays: 0, today: '2026-09-19',
+    status: over.store ?? 'ACTIVE', mode: over.mode ?? 'WEEKLY', limit: m(over.limit ?? '5000.00'), graceDays: 0, allowance: m(over.allowance ?? '0.00'), today: '2026-09-19',
     overrideActive: over.override ?? false, committed: m(over.committed ?? '0.00'),
     openDebits: over.open ? [{ dueOn: over.dueOn ?? '2026-09-26', open: m(over.open) }] : [],
   });
@@ -128,6 +129,15 @@ describe('credit at the point of sale (SAL-001, SAL-002, SAL-009, CRD-004..007, 
   it('ADR-0047: what is paid with the sale counts — 4,500 owed and a 2,000 sale fit a 5,000 limit once 1,500 is paid', () => {
     expect(assertSaleCredit(status({ open: '4500.00' }), 'WEEKLY', m('2000.00'), { paidNow: m('1500.00') })).toEqual({ usesOverride: false });
     expect(code(() => assertSaleCredit(status({ open: '4500.00' }), 'WEEKLY', m('2000.00'), { paidNow: m('1499.99') }))).toBe('CREDIT_LIMIT_EXCEEDED');
+  });
+
+  it('ADR-0047 (amended 2026-11-13): a small balance within the allowance blocks no sale — bill to bill, or at a limit of 0', () => {
+    const small = { mode: 'BILL_TO_BILL' as const, open: '0.60', allowance: '1.00' };
+    expect(assertSaleCredit(status(small), 'BILL_TO_BILL', m('500.00'))).toEqual({ usesOverride: false });
+    // A limit of 0 means paying in full — the new sale; the 0.60 left from before is not counted against it.
+    expect(assertSaleCredit(status({ ...small, limit: '0.00' }), 'BILL_TO_BILL', m('500.00'), { paidNow: m('500.00') })).toEqual({ usesOverride: false });
+    expect(code(() => assertSaleCredit(status({ ...small, open: '1.01' }), 'BILL_TO_BILL', m('500.00')))).toBe('CREDIT_BLOCKED');
+    expect(code(() => assertSaleCredit(status({ ...small, limit: '0.00' }), 'BILL_TO_BILL', m('500.00'), { paidNow: m('499.99') }))).toBe('CREDIT_LIMIT_EXCEEDED');
   });
 
   it('ADR-0047: bill to bill takes a new bill only once the last one is cleared — part-paid is not cleared', () => {

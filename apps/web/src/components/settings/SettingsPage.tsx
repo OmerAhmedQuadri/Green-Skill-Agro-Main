@@ -93,7 +93,7 @@ function GeneralSettings() {
 }
 
 /** The settings with a line of help under them. */
-const HINTED = ['company.vat_number', 'company.other_id', 'vat.rate'] as const satisfies readonly SettingKey[];
+const HINTED = ['company.vat_number', 'company.other_id', 'vat.rate', 'credit.small_balance_allowance'] as const satisfies readonly SettingKey[];
 const isHinted = (k: SettingKey): k is (typeof HINTED)[number] => (HINTED as readonly SettingKey[]).includes(k);
 
 function SettingField({ settingKey, value }: { settingKey: SettingKey; value: string | number | boolean | undefined }) {

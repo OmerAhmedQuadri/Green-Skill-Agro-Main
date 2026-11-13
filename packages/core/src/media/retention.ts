@@ -23,6 +23,7 @@ export const RETENTION_SETTING = {
   DEPOSIT_SLIP: 'storage.keep_deposit_slip',
   TRANSPORT_SLIP: 'storage.keep_transport_slip',
   PAYMENT_VOUCHER: 'storage.keep_payment_voucher',
+  STORE_STATEMENT: 'storage.keep_store_statement',
   DELIVERY_DOCUMENT: 'storage.keep_delivery_document',
 } as const satisfies Record<StoredKind, SettingKey>;
 

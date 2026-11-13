@@ -7,6 +7,8 @@ import { useState, type FormEvent } from 'react';
 import { Alert, Badge, Button, Field, Input, Select } from '@gsa/ui';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Facts, Section } from '@/components/common/Section';
+import { CorrectEntryPanel } from '@/components/corrections/CorrectEntryPanel';
+import { useCorrectionStatus } from '@/components/corrections/status';
 import { Cell, Table } from '@/components/common/Table';
 import type { Seller } from '@/components/vehicles/types';
 import { api } from '@/lib/api';
@@ -16,10 +18,12 @@ import { useCommand, useErrorText } from '@/lib/hooks';
 import { keys } from '@/lib/query-keys';
 import { CreditPanel } from './CreditPanel';
 import { LedgerSummary } from './LedgerSummary';
+import { ImportedInvoices } from '@/components/corrections/ImportedInvoices';
 import { LedgerTable } from './LedgerTable';
-import { STATUS_TONE, type LedgerEntry, type Store, type StoreOptions } from './types';
+import { StatementsPanel } from './StatementsPanel';
+import { STATUS_TONE, type ImportedHistory, type LedgerEntry, type Store, type StoreOptions } from './types';
 
-type Can = { approve: boolean; editTerms: boolean; reassign: boolean; override: boolean; adjust: boolean };
+type Can = { approve: boolean; editTerms: boolean; reassign: boolean; override: boolean; adjust: boolean; /** ADR-0059 */ correct: boolean };
 
 /**
  * One store for managers (STO-005..009, CRD-004..007): approve or reject it,
@@ -29,17 +33,28 @@ type Can = { approve: boolean; editTerms: boolean; reassign: boolean; override: 
 export function StoreDetail({ id, can }: { id: string; can: Can }) {
   const t = useTranslations('stores');
   const tc = useTranslations('common');
+  const tco = useTranslations('corrections');
   const format = useFormat();
   const errorText = useErrorText();
   const queryClient = useQueryClient();
   const store = useQuery({ queryKey: keys.store(id), queryFn: () => api<Store>(`/stores/${id}`) });
   const ledger = useQuery({ queryKey: keys.storeLedger(id), queryFn: () => api<LedgerEntry[]>(`/stores/${id}/ledger`) });
+  // IMP-005: what the books come to while the store awaits re-verification.
+  const imported = useQuery({
+    queryKey: keys.storeImported(id), queryFn: () => api<ImportedHistory>(`/stores/${id}/imported`),
+    enabled: store.data?.status === 'AWAITING_REVERIFICATION',
+  });
   const options = useQuery({ queryKey: keys.storeOptions, queryFn: () => api<StoreOptions>('/stores/options'), enabled: can.editTerms });
   const sellers = useQuery({ queryKey: keys.sellers, queryFn: () => api<Seller[]>('/sellers'), enabled: can.reassign });
   const refresh = () => { for (const k of [keys.store(id), keys.storeLedger(id), keys.stores()]) void queryClient.invalidateQueries({ queryKey: k }); };
   const act = useCommand(({ path, method, body }: { path: string; method: 'POST' | 'PATCH'; body: object }, key) =>
     api(`/stores/${id}${path}`, { method, body, idempotencyKey: key }), { onSuccess: refresh });
   const [rejecting, setRejecting] = useState(false);
+  // COR-005: a Super Admin corrects entries of the account while their correction session is open.
+  const correction = useCorrectionStatus();
+  const [correcting, setCorrecting] = useState<LedgerEntry | null>(null);
+  const [corrected, setCorrected] = useState<number | null>(null);
+  const sessionOpen = can.correct && correction.data?.mine?.state === 'OPEN';
 
   if (store.isPending) return <p className="text-sm text-stone-500">{tc('loading')}</p>;
   if (store.error) return <Alert>{errorText(store.error)}</Alert>;
@@ -48,9 +63,25 @@ export function StoreDetail({ id, can }: { id: string; can: Can }) {
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
-      <PageHeader title={s.name} subtitle={s.ownerName} back={{ href: '/console/stores', label: t('title') }}
-        actions={<Badge tone={STATUS_TONE[s.status]}>{t(`statuses.${s.status}`)}</Badge>} />
+      <PageHeader title={s.name} subtitle={s.ownerName ?? undefined} back={{ href: '/console/stores', label: t('title') }}
+        actions={<div className="flex gap-2">
+          {s.imported ? <Badge tone="neutral">{t('importedBadge')}</Badge> : null}
+          <Badge tone={STATUS_TONE[s.status]}>{t(`statuses.${s.status}`)}</Badge>
+        </div>} />
       {act.error ? <Alert>{errorText(act.error)}</Alert> : null}
+      {s.status === 'AWAITING_REVERIFICATION' ? (
+        <Alert tone="warning" data-testid="awaiting-reverification">{t('awaitingBalance', { amount: format.money(imported.data?.balance ?? '0.00') })}</Alert>
+      ) : null}
+      {s.reverification ? (
+        <Section title={t('reverifiedTitle')}>
+          <div className="space-y-1 p-5 text-sm" data-testid="reverification">
+            <p>{t('reverifiedLine', { name: s.reverification.by, date: format.dateTime(s.reverification.at), amount: format.money(s.reverification.importedBalance) })}</p>
+            {s.reverification.confirmation === 'DISPUTED'
+              ? <p className="font-medium text-red-800">{t('disputedLine', { note: s.reverification.disputeNote ?? '' })}</p>
+              : <p>{t('agreedLine')}</p>}
+          </div>
+        </Section>
+      ) : null}
 
       {s.status === 'PENDING_APPROVAL' && can.approve ? (
         <Section title={t('approval')} description={t('approvalHint')}>
@@ -91,10 +122,10 @@ export function StoreDetail({ id, can }: { id: string; can: Can }) {
           <Facts items={[
             { label: t('customerId'), value: <bdi dir="ltr" data-testid="customer-id">{s.code}</bdi> },
             { label: t('seller'), value: s.seller?.name ?? '—' },
-            { label: t('contactNumber'), value: <bdi dir="ltr">{s.contactNumber}</bdi> },
+            { label: t('contactNumber'), value: s.contactNumber ? <bdi dir="ltr">{s.contactNumber}</bdi> : '—' },
             { label: t('category'), value: s.category ?? '—' },
             { label: t('address'), value: s.address ?? '—' },
-            { label: t('location'), value: <a className="text-brand-800 hover:underline" target="_blank" rel="noreferrer" href={`https://www.google.com/maps?q=${s.location.lat},${s.location.lng}`}><bdi dir="ltr">{`${s.location.lat.toFixed(5)}, ${s.location.lng.toFixed(5)}`}</bdi></a> },
+            { label: t('location'), value: s.location ? <a className="text-brand-800 hover:underline" target="_blank" rel="noreferrer" href={`https://www.google.com/maps?q=${s.location.lat},${s.location.lng}`}><bdi dir="ltr">{`${s.location.lat.toFixed(5)}, ${s.location.lng.toFixed(5)}`}</bdi></a> : '—' },
             { label: t('storefront'), value: s.storefrontMediaId ? <a className="text-brand-800 hover:underline" target="_blank" rel="noreferrer" href={`/files/${s.storefrontMediaId}`}>{t('viewPhoto')}</a> : '—' },
             { label: t('crNumber'), value: s.crNumber ?? '—' },
             { label: t('vatNumber'), value: s.vatNumber ?? '—' },
@@ -110,7 +141,7 @@ export function StoreDetail({ id, can }: { id: string; can: Can }) {
             label: t('creditMode'),
             value: (
               <>
-                {s.creditMode === 'CUSTOM' ? t('customCycle', { days: s.creditCycleDays ?? 0 }) : t(`modes.${s.creditMode}`)}
+                {!s.creditMode ? '—' : s.creditMode === 'CUSTOM' ? t('customCycle', { days: s.creditCycleDays ?? 0 }) : t(`modes.${s.creditMode}`)}
                 {dec(s.credit.outstanding).gt(0) ? <div className="mt-1 text-xs text-stone-500">{t('cycleKeepsDueDates')}</div> : null}
               </>
             ),
@@ -174,10 +205,19 @@ export function StoreDetail({ id, can }: { id: string; can: Can }) {
         ) : null}
       </div>
 
+      {/* COR-006: the invoices from the books, correctable by a Super Admin in a session. */}
+      {s.imported && can.correct ? <Section title={tco('imported.title')}><ImportedInvoices storeId={id} sessionOpen={sessionOpen} /></Section> : null}
       <Section title={t('ledger')}>
         {ledger.data && ledger.data.length > 0 ? <LedgerSummary entries={ledger.data} credit={s.credit} /> : null}
-        <LedgerTable entries={ledger.data ?? []} />
+        {can.correct && !sessionOpen ? <p className="border-b border-stone-200 px-5 py-3 text-xs text-stone-500">{tco('entry.openSession')}</p> : null}
+        {corrected !== null ? <div className="p-4"><Alert tone="success">{tco('entry.done', { number: corrected })}</Alert></div> : null}
+        {sessionOpen && correcting ? (
+          <CorrectEntryPanel key={correcting.id} entry={correcting} storeId={id} onCancel={() => setCorrecting(null)}
+            onDone={(number) => { setCorrecting(null); setCorrected(number); refresh(); }} />
+        ) : null}
+        <LedgerTable entries={ledger.data ?? []} onCorrect={sessionOpen ? (e) => { setCorrected(null); setCorrecting(e); } : undefined} />
       </Section>
+      {s.status !== 'AWAITING_REVERIFICATION' ? <Section title={t('statement.title')}><StatementsPanel storeId={id} /></Section> : null}
     </div>
   );
 }

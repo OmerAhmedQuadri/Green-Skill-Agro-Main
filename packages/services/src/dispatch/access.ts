@@ -38,7 +38,7 @@ export type DispatchLine = {
 
 export type DispatchOrder = {
   readonly id: string; readonly number: string; readonly status: DispatchStatus; readonly version: number; readonly createdAt: Date;
-  readonly store: { readonly id: string; readonly name: string; readonly creditMode: CreditMode }; readonly seller: Person; readonly raisedBy: Person;
+  readonly store: { readonly id: string; readonly name: string; readonly creditMode: CreditMode | null }; readonly seller: Person; readonly raisedBy: Person;
   /** DSP-015: raised by a manager on the seller's behalf. */ readonly forSeller: boolean;
   readonly sale: { readonly id: string; readonly status: SaleStatus; readonly gross: Money; readonly discount: Money; readonly total: Money };
   readonly lines: readonly DispatchLine[]; readonly orderedTotal: Money;

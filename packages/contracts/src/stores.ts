@@ -17,6 +17,14 @@ export const OnboardStoreRequest = z.object({
   storefrontPhotoId: z.uuid(), sellerId: z.uuid().nullable().optional(), acknowledgeDuplicates: z.boolean().optional(),
 });
 
+/**
+ * IMP-008: re-verifying an imported store — what onboarding asks, and the balance from the books shown to the store,
+ * agreed or disputed in its words.
+ */
+export const ReverifyStoreRequest = OnboardStoreRequest.omit({ sellerId: true }).extend({
+  balance: z.object({ shown: MoneyString, confirmation: z.enum(['AGREED', 'DISPUTED']), disputeNote: OptionalText(500) }),
+});
+
 export const DuplicateCheckQuery = z.object({
   lat: z.coerce.number().min(-90).max(90), lng: z.coerce.number().min(-180).max(180), name: z.string().trim().min(1).max(160),
 });

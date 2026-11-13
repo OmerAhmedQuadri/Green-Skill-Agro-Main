@@ -18,6 +18,7 @@ const WHERE = {
   WRITE_OFFS: '/console/write-offs?status=SUBMITTED',
   PURCHASE_ORDERS: '/console/purchase-orders?status=PENDING_APPROVAL',
   CLOSING_VARIANCES: '/console/closing-stock?status=VARIANCE_FLAGGED',
+  IMPORT_WARNINGS: '/console/corrections#import-warnings',
 } as const satisfies Record<DecisionQueue, string>;
 
 /**

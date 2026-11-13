@@ -6,7 +6,7 @@ import { schema } from '@gsa/db';
 import { and, desc, eq, gt, isNull, lt } from 'drizzle-orm';
 import { authorize, authorizeAny, type Ctx } from '../context';
 import { isMyPassword } from '../identity';
-import { audit, hitRateLimit, inTx, mapUniqueViolations, pageLimit, type Tx } from '../platform';
+import { assertUnderRateLimit, audit, hitRateLimit, inTx, mapUniqueViolations, pageLimit, type Tx } from '../platform';
 import { getDb } from '../runtime';
 
 const { correctionSessions, users } = schema;
@@ -69,10 +69,13 @@ export async function correctionStatus(ctx: Ctx): Promise<CorrectionStatus> {
  */
 export async function openCorrectionSession(ctx: Ctx, input: { password: string; reason: string }): Promise<CorrectionSessionView> {
   authorize(ctx, 'system.correct_history');
-  await hitRateLimit(getDb(), `correction-session:${ctx.user.id}`, 5, 60_000, ctx.now);
+  // Five wrong passwords a minute, checked before the password is: only a wrong one counts.
+  const limit = `correction-session:${ctx.user.id}`;
+  await assertUnderRateLimit(getDb(), limit, 5, 60_000, ctx.now);
   if (!(await isMyPassword(ctx, input.password))) {
     // Kept although the opening is refused: the attempt itself is worth knowing about.
     await audit(getDb(), ctx, { action: 'corrections.session_refused', entityType: 'user', entityId: ctx.user.id, after: { why: 'WRONG_PASSWORD' } });
+    await hitRateLimit(getDb(), limit, 5, 60_000, ctx.now);
     throw new DomainError('WRONG_PASSWORD');
   }
   const reason = correctionReason(input.reason);

@@ -105,7 +105,7 @@ describe('credit cycles (CRD-001..007, OQ-018)', () => {
   });
 
   it('CRD-004, CRD-005: past due or over the limit blocks, each with its reason; grace delays past due', () => {
-    const base = { status: 'ACTIVE' as const, mode: 'WEEKLY' as const, committed: m('0.00'), limit: m('1000.00'), graceDays: 0, today: '2026-10-12', overrideActive: false };
+    const base = { status: 'ACTIVE' as const, mode: 'WEEKLY' as const, committed: m('0.00'), limit: m('1000.00'), graceDays: 0, today: '2026-10-12', overrideActive: false, allowance: m('0.00') };
     expect(creditStatus({ ...base, openDebits: [{ dueOn: '2026-10-17', open: m('400.00') }] }))
       .toMatchObject({ blocked: false, outstanding: '400.00', available: '600.00', reasons: [] });
     expect(creditStatus({ ...base, openDebits: [{ dueOn: '2026-10-10', open: m('400.00') }] }))
@@ -117,20 +117,36 @@ describe('credit cycles (CRD-001..007, OQ-018)', () => {
   });
 
   it('CRD-006, STO-009: an override lifts a credit block for the day, never an unapproved store', () => {
-    const owed = { mode: 'WEEKLY' as const, committed: m('0.00'), limit: m('100.00'), graceDays: 0, today: '2026-10-12', openDebits: [{ dueOn: '2026-10-01', open: m('50.00') }] };
+    const owed = { mode: 'WEEKLY' as const, committed: m('0.00'), limit: m('100.00'), graceDays: 0, allowance: m('0.00'), today: '2026-10-12', openDebits: [{ dueOn: '2026-10-01', open: m('50.00') }] };
     expect(creditStatus({ ...owed, status: 'ACTIVE', overrideActive: true })).toMatchObject({ blocked: false, overridden: true });
     expect(creditStatus({ ...owed, status: 'PENDING_APPROVAL', overrideActive: true })).toMatchObject({ blocked: true, overridden: false });
     expect(creditStatus({ ...owed, openDebits: [], status: 'PENDING_APPROVAL', overrideActive: false }).reasons).toEqual([{ code: 'NOT_APPROVED' }]);
   });
 
   it('ADR-0047: bill to bill is blocked by anything unpaid, or an order on its way — said as such, not as "past due"', () => {
-    const base = { status: 'ACTIVE' as const, mode: 'BILL_TO_BILL' as const, committed: m('0.00'), limit: m('1000.00'), graceDays: 0, today: '2026-10-12', overrideActive: false };
+    const base = { status: 'ACTIVE' as const, mode: 'BILL_TO_BILL' as const, committed: m('0.00'), limit: m('1000.00'), graceDays: 0, today: '2026-10-12', overrideActive: false, allowance: m('0.00') };
     expect(creditStatus({ ...base, openDebits: [] })).toMatchObject({ blocked: false, reasons: [] });
     // Bought last week and still unpaid: one reason, whatever its due date.
     expect(creditStatus({ ...base, openDebits: [{ dueOn: '2026-10-05', open: m('400.00') }] }))
       .toMatchObject({ blocked: true, pastDue: '400.00', reasons: [{ code: 'UNPAID_BILL', amount: '400.00' }] });
     expect(creditStatus({ ...base, committed: m('300.00'), openDebits: [] }))
       .toMatchObject({ blocked: true, committed: '300.00', reasons: [{ code: 'DISPATCH_PENDING', amount: '300.00' }] });
+  });
+});
+
+describe('a small balance (ADR-0047, amended 2026-11-13)', () => {
+  it('ADR-0047: owing no more than the allowance blocks nothing — not unpaid, not past due, not over the limit — and stays owed', () => {
+    const base = { status: 'ACTIVE' as const, committed: m('0.00'), graceDays: 0, today: '2026-10-12', overrideActive: false, allowance: m('1.00') };
+    const owing = (open: string) => [{ dueOn: '2026-10-01', open: m(open) }];
+    expect(creditStatus({ ...base, mode: 'BILL_TO_BILL', limit: m('3000.00'), openDebits: owing('0.60') }))
+      .toMatchObject({ blocked: false, reasons: [], outstanding: '0.60', pastDue: '0.60', allowance: '1.00' });
+    expect(creditStatus({ ...base, mode: 'WEEKLY', limit: m('3000.00'), openDebits: owing('1.00') })).toMatchObject({ blocked: false, pastDue: '1.00' });
+    expect(creditStatus({ ...base, mode: 'BILL_TO_BILL', limit: m('0.00'), openDebits: owing('0.60') }).blocked).toBe(false);
+    // One halala more, and the rule is the rule.
+    expect(creditStatus({ ...base, mode: 'BILL_TO_BILL', limit: m('3000.00'), openDebits: owing('1.01') }).reasons).toEqual([{ code: 'UNPAID_BILL', amount: '1.01' }]);
+    expect(creditStatus({ ...base, mode: 'WEEKLY', limit: m('3000.00'), openDebits: owing('1.01') }).reasons)
+      .toEqual([{ code: 'PAST_DUE', amount: '1.01', oldestDueOn: '2026-10-01' }]);
+    expect(creditStatus({ ...base, mode: 'BILL_TO_BILL', limit: m('3000.00'), allowance: m('0.00'), openDebits: owing('0.01') }).blocked).toBe(true);
   });
 });
 
@@ -150,7 +166,7 @@ describe('a voucher number (ADR-0047)', () => {
 
 describe('what credit today comes to (ADR-0055)', () => {
   const base = {
-    status: 'ACTIVE' as const, limit: '1000.00' as Money, openDebits: [], graceDays: 0, today: '2026-10-12', overrideActive: false, committed: '0.00' as Money,
+    status: 'ACTIVE' as const, limit: '1000.00' as Money, openDebits: [], graceDays: 0, allowance: '0.00' as Money, today: '2026-10-12', overrideActive: false, committed: '0.00' as Money,
   };
   it('CRD-001: a sale on credit today falls due by the store\'s cycle — today itself for bill to bill', () => {
     // 2026-10-12 is a Monday.

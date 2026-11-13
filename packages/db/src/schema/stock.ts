@@ -10,7 +10,7 @@ import { vehicles } from './vehicles';
 export const stockAccountKind = pgEnum('stock_account_kind', ['WAREHOUSE', 'VEHICLE', 'DISPATCHED', 'SUPPLIER', 'SOLD', 'WRITTEN_OFF']);
 export const stockReferenceType = pgEnum('stock_reference_type', [
   'GOODS_RECEIPT', 'SKU_CONVERSION', 'WRITE_OFF', 'VEHICLE_LOADOUT', 'VEHICLE_RETURN', 'SALE', 'DISPATCH_ORDER',
-  'LOST_ORDER_CLAIM', 'RETURN', 'DEFECTIVE_REPLACEMENT', 'VEHICLE_AUDIT', 'OPENING_BALANCE',
+  'LOST_ORDER_CLAIM', 'RETURN', 'DEFECTIVE_REPLACEMENT', 'VEHICLE_AUDIT', 'OPENING_BALANCE', 'SALE_CORRECTION',
 ]);
 
 /**

@@ -1,0 +1,87 @@
+import { expect, test } from '@playwright/test';
+import ar from '../src/messages/ar.json' with { type: 'json' };
+import en from '../src/messages/en.json' with { type: 'json' };
+import { anImportedStore, freshSeller, sessionPage, shot, takePhoto } from './helpers';
+
+/**
+ * IMP-005, IMP-008, IMP-003, IMP-010, in English and Arabic: a store imported from the books awaits re-verification.
+ * Its seller opens it, fills in what the books lack, shows the owner what the books say and records that the store
+ * disputes it; the imported bills, payment and return go into its account, labelled, and a statement of it is printed for the
+ * store. The Super Admin keeps an import warning with a note.
+ */
+for (const [locale, m] of [['en', en], ['ar', ar]] as const) {
+  test(`Store re-verification (${locale}) — IMP-005, IMP-008, IMP-003, IMP-009, IMP-010, IMP-011: an imported store re-verified on the phone, disputed, its statement printed; a warning kept`, async ({ browser, baseURL }) => {
+    test.setTimeout(240_000);
+    const origin = baseURL ?? '';
+    const stamp = String(Date.now()).slice(-6);
+    const admin = await sessionPage(browser, 'admin@dev.local', locale, origin);
+    const seller = await freshSeller(browser, admin, origin, locale, `G Seller ${locale} ${stamp}`);
+    const phone = seller.page;
+    const name = `Imported Seeds ${locale} ${stamp}`;
+    const { storeId } = anImportedStore(seller.email, name);
+    await phone.context().setGeolocation({ latitude: 18 + Math.random() * 10, longitude: 40 + Math.random() * 10, accuracy: 12 });
+
+    // IMP-008: awaiting re-verification — it cannot be sold to, and says how to begin.
+    await phone.goto(`/field/stores/${storeId}`);
+    await expect(phone.getByTestId('credit-blocked')).toContainText(m.stores.reasons.NOT_VERIFIED);
+    await phone.getByRole('link', { name: m.stores.reverifyAction }).click();
+    await phone.waitForURL(`**/field/stores/${storeId}/reverify`);
+
+    // What the books say, shown to the owner first.
+    await expect(phone.getByTestId('imported-history')).toContainText('500.00');
+    // IMP-011: one bag of invoice 501 came back.
+    await expect(phone.getByTestId('imported-returns')).toContainText('501');
+    await expect(phone.getByTestId('imported-balance')).toContainText('350.00');
+    await expect(phone.getByTestId('location')).not.toContainText(m.stores.locating, { timeout: 20_000 });
+    await expect(phone.getByLabel(m.stores.name, { exact: true })).toHaveValue(name);
+    await phone.getByLabel(m.stores.ownerName).fill('Saeed Al-Qahtani');
+    await phone.getByLabel(m.stores.contactNumber).fill('0501234567');
+    await takePhoto(phone, 'st-photo', m);
+    await phone.getByLabel(m.stores.creditMode).selectOption('WEEKLY');
+    await phone.getByLabel(m.stores.creditLimit).fill('1000');
+    const confirmation = phone.getByTestId('balance-confirmation');
+    await confirmation.getByLabel(m.stores.DISPUTED, { exact: true }).check();
+    await confirmation.getByLabel(m.stores.disputeNote).fill(`e2e ${locale}: the owner says one more payment of 100 was made in October`);
+    await phone.screenshot({ path: shot(`store-reverify-${locale}`), fullPage: true });
+    await phone.getByRole('button', { name: m.stores.reverify, exact: true }).click();
+    await phone.waitForURL(`**/field/stores/${storeId}`);
+
+    // IMP-005, IMP-003: the books are in its account now, each entry saying where it was written.
+    await expect(phone.getByTestId('ledger-imported')).toHaveCount(4);
+    await expect(phone.getByTestId('ledger-imported').first()).toContainText(m.stores.importedBadge);
+    await phone.screenshot({ path: shot(`store-reverified-${locale}`), fullPage: true });
+
+    // IMP-010: a statement of the account for the store — numbered at once, printed by the worker, opened as a PDF.
+    const statements = phone.getByTestId('statements');
+    await statements.getByRole('button', { name: m.stores.statement.request, exact: true }).click();
+    const statement = statements.getByTestId('statement').first();
+    await expect(statement).toContainText(/ST-\d{4}-\d{4}/);
+    const open = statement.getByTestId('statement-open');
+    await expect(open).toBeVisible({ timeout: 60_000 });
+    const pdf = await phone.request.get(`${origin}${(await open.getAttribute('href')) ?? ''}`);
+    expect(pdf.headers()['content-type']).toBe('application/pdf');
+    expect((await pdf.body()).subarray(0, 5).toString()).toBe('%PDF-');
+    await phone.screenshot({ path: shot(`store-statement-${locale}`), fullPage: true });
+
+    // The console shows the re-verification and the store's words, and the statement the seller made.
+    await admin.goto(`/console/stores/${storeId}`);
+    await expect(admin.getByTestId('reverification')).toContainText(`e2e ${locale}: the owner says one more payment`);
+    await expect(admin.getByTestId('ledger-imported')).toHaveCount(4);
+    await expect(admin.getByTestId('statements').getByTestId('statement-open')).toHaveCount(1);
+
+    // IMP-009: what the import could not settle waits on the Super Admin's dashboard, and is kept with a note.
+    const owner = await sessionPage(browser, 'superadmin@dev.local', locale, origin);
+    await owner.goto('/console/dashboard');
+    await owner.getByRole('link', { name: new RegExp(m.dashboard.waiting.queues.IMPORT_WARNINGS) }).click();
+    await owner.waitForURL('**/console/corrections**');
+    const warning = owner.getByTestId('import-warning-RETURN_NOT_IMPORTED').filter({ hasText: name });
+    await expect(warning).toContainText('120.00');
+    await warning.getByRole('button', { name: m.corrections.importWarnings.keep, exact: true }).click();
+    await warning.getByLabel(m.corrections.importWarnings.note).fill(`e2e ${locale}: Green Agro records the return as a correction`);
+    await warning.getByRole('button', { name: m.corrections.importWarnings.save, exact: true }).click();
+    await expect(owner.getByTestId('import-warning-RETURN_NOT_IMPORTED').filter({ hasText: name })).toHaveCount(0);
+    await owner.getByRole('button', { name: m.corrections.importWarnings.showResolved, exact: true }).click();
+    await expect(owner.getByTestId('import-warning-RETURN_NOT_IMPORTED').filter({ hasText: name })).toContainText(`e2e ${locale}: Green Agro records the return`);
+    await owner.screenshot({ path: shot(`import-warnings-${locale}`), fullPage: true });
+  });
+}

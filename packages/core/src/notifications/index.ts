@@ -17,6 +17,7 @@ export const NOTIFICATION_KINDS = [
   'TARGET_SET', 'TARGET_BEHIND_PACE', 'TARGET_MISSED', 'PERIOD_CLOSED',
   'OPEN_SALE_REQUESTED', 'OPEN_SALE_APPROVED', 'OPEN_SALE_REJECTED', 'OPEN_SALE_EXPIRED',
   'TRIP_CLOSED_ON_BEHALF',
+  'STORE_BALANCE_DISPUTED',
 ] as const;
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
 
@@ -77,6 +78,8 @@ export const DECISION_QUEUES = {
   WRITE_OFFS: 'inventory.approve_write_off',
   PURCHASE_ORDERS: 'procurement.approve_po',
   CLOSING_VARIANCES: 'inventory.audit_vehicle',
+  // IMP-009: what the history import could not settle, for the Super Admin.
+  IMPORT_WARNINGS: 'system.correct_history',
 } as const satisfies Record<string, PermissionCode>;
 export type DecisionQueue = keyof typeof DECISION_QUEUES;
 

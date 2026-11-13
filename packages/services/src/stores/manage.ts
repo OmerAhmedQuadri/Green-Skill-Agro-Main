@@ -8,7 +8,7 @@ import { endRequest, notify } from '../notifications';
 import { audit, inTx, likePattern, type Tx } from '../platform';
 import { getDb } from '../runtime';
 import { readSettings } from '../system';
-import { creditStatuses, loadStore, readingAsManager, seesAllStores, summaryOf, type Store, type StoreSummary } from './access';
+import { creditStatuses, loadStore, notWithdrawn, readingAsManager, seesAllStores, summaryOf, type Store, type StoreSummary } from './access';
 
 const { stores, storeAssignments, users, priceLists } = schema;
 const seller = aliasedTable(users, 'seller');
@@ -19,7 +19,7 @@ export async function listStores(
 ): Promise<StoreSummary[]> {
   authorizeAny(ctx, ['stores.onboard', 'stores.view_all']);
   const db = getDb();
-  const where: SQL[] = [];
+  const where: SQL[] = [notWithdrawn()];
   if (filter.status) where.push(eq(stores.status, filter.status));
   if (filter.search?.trim()) {
     const q = likePattern(filter.search.trim());

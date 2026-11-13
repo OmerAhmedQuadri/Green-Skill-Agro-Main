@@ -3,7 +3,11 @@ import { DomainError } from '../errors';
 
 // ---------------------------------------------------------------- states (STATE-MACHINES §4)
 
-export const STORE_STATUSES = ['PENDING_APPROVAL', 'ACTIVE', 'REJECTED', 'INACTIVE'] as const;
+/**
+ * AWAITING_REVERIFICATION (IMP-008, ADR-0059): imported from Green Agro's books with only a name and a seller; the
+ * seller re-verifies it — the onboarding details and its balance, shown to the store — before its first sale.
+ */
+export const STORE_STATUSES = ['PENDING_APPROVAL', 'ACTIVE', 'REJECTED', 'INACTIVE', 'AWAITING_REVERIFICATION'] as const;
 export type StoreStatus = (typeof STORE_STATUSES)[number];
 export type StoreAction = 'approve' | 'reject' | 'deactivate' | 'reactivate';
 
@@ -117,3 +121,16 @@ export function boundingBox(p: GeoPoint, radiusM: number): { minLat: number; max
  */
 export const CUSTOMER_CODE_PREFIX = { STORE: 'GSA-S', BUYER: 'GSA-C' } as const;
 export const customerCode = (kind: keyof typeof CUSTOMER_CODE_PREFIX, n: number): string => `${CUSTOMER_CODE_PREFIX[kind]}-${String(n).padStart(4, '0')}`;
+
+// ---------------------------------------------------------------- re-verification (IMP-008, ADR-0059)
+
+/** What the store said when the seller showed it its imported balance. A dispute is flagged for the Super Admin. */
+export const BALANCE_CONFIRMATIONS = ['AGREED', 'DISPUTED'] as const;
+export type BalanceConfirmation = (typeof BALANCE_CONFIRMATIONS)[number];
+
+/** IMP-008: a dispute needs the store's words; an agreement needs none. */
+export function balanceConfirmation(confirmation: BalanceConfirmation, note: string | null | undefined): { confirmation: BalanceConfirmation; note: string | null } {
+  const words = note?.trim() || null;
+  if (confirmation === 'DISPUTED' && !words) throw new DomainError('REASON_REQUIRED', { field: 'disputeNote' });
+  return { confirmation, note: confirmation === 'DISPUTED' ? words : null };
+}

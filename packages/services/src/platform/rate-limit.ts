@@ -1,6 +1,6 @@
 import { DomainError } from '@gsa/core';
 import { schema } from '@gsa/db';
-import { sql } from 'drizzle-orm';
+import { and, eq, gt, gte, sql } from 'drizzle-orm';
 import type { Executor } from './transaction';
 
 const { rateLimits } = schema;
@@ -26,4 +26,14 @@ export async function hitRateLimit(db: Executor, key: string, limit: number, win
   if ((row?.count ?? 0) > limit) {
     throw new DomainError('RATE_LIMITED', { retryAfterSeconds: Math.ceil(windowMs / 1000) });
   }
+}
+
+/**
+ * Refuses once `limit` hits have landed in the current window, without counting this one — for limits that count
+ * only failures, such as wrong passwords, so the check comes before the attempt and the hit after it fails.
+ */
+export async function assertUnderRateLimit(db: Executor, key: string, limit: number, windowMs: number, now: Date): Promise<void> {
+  const [row] = await db.select({ count: rateLimits.count }).from(rateLimits)
+    .where(and(eq(rateLimits.key, key), gt(rateLimits.windowStart, new Date(now.getTime() - windowMs)), gte(rateLimits.count, limit)));
+  if (row) throw new DomainError('RATE_LIMITED', { retryAfterSeconds: Math.ceil(windowMs / 1000) });
 }

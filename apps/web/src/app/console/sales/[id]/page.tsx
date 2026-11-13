@@ -9,5 +9,5 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   const { id } = await params;
   return <SaleDetail id={id} canDecide={ctx.permissions.has('sales.approve_discount')} canDecideOpenSale={ctx.permissions.has('sales.approve_open_sale')}
     canReturn={ctx.permissions.has('returns.process')}
-    canKeep={ctx.permissions.has('system.keep_files')} />;
+    canKeep={ctx.permissions.has('system.keep_files')} canCorrect={ctx.permissions.has('system.correct_history')} />;
 }

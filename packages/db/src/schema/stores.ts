@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
-import { check, date, index, integer, numeric, pgEnum, pgTable, primaryKey, text, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { check, date, index, integer, numeric, pgEnum, pgTable, primaryKey, text, uniqueIndex, uuid, type AnyPgColumn } from 'drizzle-orm/pg-core';
 import { createdAt, id, timestamptz } from './columns';
+import { storeCorrections } from './corrections';
 import { users } from './identity';
 import { importBatches } from './imports';
 import { mediaAssets } from './media';
@@ -9,7 +10,9 @@ import { branches } from './organisation';
 import { priceLists } from './pricing';
 
 // Mirror packages/core/src/stores.
-export const storeStatus = pgEnum('store_status', ['PENDING_APPROVAL', 'ACTIVE', 'REJECTED', 'INACTIVE']);
+export const storeStatus = pgEnum('store_status', ['PENDING_APPROVAL', 'ACTIVE', 'REJECTED', 'INACTIVE', 'AWAITING_REVERIFICATION']);
+export const balanceConfirmation = pgEnum('balance_confirmation', ['AGREED', 'DISPUTED']);
+export const storeStatementStatus = pgEnum('store_statement_status', ['PENDING', 'READY', 'FAILED']);
 export const creditMode = pgEnum('credit_mode', ['BILL_TO_BILL', 'WEEKLY', 'MONTHLY', 'CUSTOM']);
 export const storeLedgerEntryType = pgEnum('store_ledger_entry_type', ['SALE', 'PAYMENT', 'CREDIT_NOTE', 'ADJUSTMENT']);
 export const paymentMethod = pgEnum('payment_method', ['CASH', 'BANK_TRANSFER']);
@@ -31,16 +34,17 @@ export const stores = pgTable(
     /** DOC-009 (ADR-0053): GSA-S-0001…, the Customer ID its delivery documents carry. */
     code: text('code').notNull().unique(),
     name: text('name').notNull(),
-    ownerName: text('owner_name').notNull(),
-    contactNumber: text('contact_number').notNull(),
+    // IMP-008: owner, phone, location and terms are empty only while an imported store awaits re-verification.
+    ownerName: text('owner_name'),
+    contactNumber: text('contact_number'),
     category: text('category'),
-    latitude: numeric('latitude', { precision: 9, scale: 6 }).notNull(),   // STO-003, captured automatically
-    longitude: numeric('longitude', { precision: 9, scale: 6 }).notNull(),
+    latitude: numeric('latitude', { precision: 9, scale: 6 }),   // STO-003, captured automatically
+    longitude: numeric('longitude', { precision: 9, scale: 6 }),
     address: text('address'),
     crNumber: text('cr_number'),                // STO-004: all three optional
     vatNumber: text('vat_number'),
     nationalAddress: text('national_address'),
-    creditMode: creditMode('credit_mode').notNull(),
+    creditMode: creditMode('credit_mode'),
     creditCycleDays: integer('credit_cycle_days'),  // CUSTOM only
     creditLimit: money('credit_limit').notNull().default('0'),
     priceListId: uuid('price_list_id').notNull().references(() => priceLists.id),
@@ -49,11 +53,17 @@ export const stores = pgTable(
     decidedAt: timestamptz('decided_at'),
     decidedBy: uuid('decided_by').references(() => users.id),
     decisionReason: text('decision_reason'),
+    /** IMP-008: imported from Green Agro's books in this batch, rather than onboarded in the app. */
+    importBatchId: uuid('import_batch_id').references(() => importBatches.id),
     branchId: uuid('branch_id').notNull().references(() => branches.id),
     ...mutable(),
   },
   (t) => [
     index('stores_location_idx').on(t.latitude, t.longitude), // STO-008: the candidate box
+    index('stores_import_batch_id_idx').on(t.importBatchId),
+    // Written without naming AWAITING_REVERIFICATION, which this migration adds: every other status has the details.
+    check('stores_details', sql`${t.status} not in ('PENDING_APPROVAL', 'ACTIVE', 'REJECTED', 'INACTIVE') or (${t.ownerName} is not null
+      and ${t.contactNumber} is not null and ${t.latitude} is not null and ${t.longitude} is not null and ${t.creditMode} is not null)`),
     index('stores_status_idx').on(t.status),
     index('stores_price_list_id_idx').on(t.priceListId),
     index('stores_storefront_media_id_idx').on(t.storefrontMediaId),
@@ -110,8 +120,9 @@ export const storeLedgerEntries = pgTable(
     index('store_ledger_entries_store_idx').on(t.storeId, t.occurredAt),
     index('store_ledger_entries_reference_idx').on(t.referenceType, t.referenceId),
     index('store_ledger_entries_import_batch_id_idx').on(t.importBatchId),
-    // IMP-005: an imported record goes into the account once.
-    uniqueIndex('store_ledger_entries_imported_once').on(t.referenceType, t.referenceId).where(sql`${t.origin} = 'IMPORT'`),
+    // IMP-005, IMP-011: an imported sale or return goes into the account once. Corrections reference the correction instead.
+    uniqueIndex('store_ledger_entries_imported_once').on(t.referenceType, t.referenceId)
+      .where(sql`${t.origin} = 'IMPORT' and ${t.referenceType} in ('IMPORTED_SALE', 'IMPORTED_RETURN')`),
     check('store_ledger_import_batch', sql`(${t.origin} = 'IMPORT') = (${t.importBatchId} is not null)`),
     check('store_ledger_amount_nonzero', sql`${t.amount} <> 0`),
     check('store_ledger_sign', sql`(${t.entryType} = 'SALE' and ${t.amount} > 0) or (${t.entryType} in ('PAYMENT', 'CREDIT_NOTE') and ${t.amount} < 0) or ${t.entryType} = 'ADJUSTMENT'`),
@@ -147,18 +158,27 @@ export const payments = pgTable(
     origin: entryOrigin('origin').notNull().default('APP'),
     importBatchId: uuid('import_batch_id').references(() => importBatches.id),
     importedPaymentId: uuid('imported_payment_id').references(() => importedPayments.id),
+    /** COR-005 (ADR-0059): the correction that recorded this payment, correcting another. */
+    correctionId: uuid('correction_id').references((): AnyPgColumn => storeCorrections.id),
+    /**
+     * COR-005: the correction that replaced or removed this payment. Set once, and the only change the app may make
+     * to a payment (migration 0032); from then on it no longer stands, and its corrected payment does.
+     */
+    supersededBy: uuid('superseded_by').references((): AnyPgColumn => storeCorrections.id),
     branchId: uuid('branch_id').notNull().references(() => branches.id),
     createdAt: createdAt(),
   },
   (t) => [
     index('payments_store_id_idx').on(t.storeId),
     index('payments_import_batch_id_idx').on(t.importBatchId),
-    // IMP-005: an imported payment is posted once.
-    uniqueIndex('payments_imported_payment_unique').on(t.importedPaymentId).where(sql`${t.importedPaymentId} is not null`),
+    index('payments_correction_id_idx').on(t.correctionId),
+    index('payments_superseded_by_idx').on(t.supersededBy),
+    // IMP-005: an imported payment is posted once — its corrections replace it.
+    uniqueIndex('payments_imported_payment_unique').on(t.importedPaymentId).where(sql`${t.importedPaymentId} is not null and ${t.supersededBy} is null`),
     check('payments_import_source', sql`(${t.origin} = 'IMPORT') = (${t.importBatchId} is not null)
       and (${t.origin} = 'IMPORT') = (${t.importedPaymentId} is not null)`),
-    // A voucher number is used once in the whole business (ADR-0047).
-    uniqueIndex('payments_voucher_number_unique').on(t.voucherNumber).where(sql`${t.voucherNumber} is not null`),
+    // A voucher number is used once in the whole business (ADR-0047), among the payments that stand (COR-005).
+    uniqueIndex('payments_voucher_number_unique').on(t.voucherNumber).where(sql`${t.voucherNumber} is not null and ${t.supersededBy} is null`),
     index('payments_voucher_photo_id_idx').on(t.voucherPhotoId),
     index('payments_received_by_idx').on(t.receivedBy, t.receivedAt),
     index('payments_ledger_entry_id_idx').on(t.ledgerEntryId),
@@ -245,5 +265,61 @@ export const creditOverrides = pgTable(
   (t) => [
     uniqueIndex('credit_overrides_one_open').on(t.storeId, t.businessDate).where(sql`${t.usedAt} is null`),
     index('credit_overrides_store_id_idx').on(t.storeId),
+  ],
+);
+
+/**
+ * IMP-005, IMP-008 (ADR-0059): an imported store re-verified by its seller — the balance its books came to, shown to
+ * the store, and whether the store agreed. A dispute carries the store's words and is flagged for the Super Admin.
+ * Its imported sales and payments went into its account at this moment. Append-only.
+ */
+export const storeReverifications = pgTable(
+  'store_reverifications',
+  {
+    id: id(),
+    storeId: uuid('store_id').notNull().references(() => stores.id),
+    importedBalance: money('imported_balance').notNull(),
+    confirmation: balanceConfirmation('confirmation').notNull(),
+    disputeNote: text('dispute_note'),
+    reverifiedAt: timestamptz('reverified_at').notNull(),
+    reverifiedBy: uuid('reverified_by').notNull().references(() => users.id),
+    branchId: uuid('branch_id').notNull().references(() => branches.id),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    uniqueIndex('store_reverifications_store_unique').on(t.storeId),
+    index('store_reverifications_reverified_by_idx').on(t.reverifiedBy),
+    check('store_reverifications_dispute', sql`(${t.confirmation} = 'DISPUTED') = (${t.disputeNote} is not null)`),
+  ],
+);
+
+/**
+ * IMP-010 (ADR-0059): a store's statement — its account as it stood when it was asked for (`as_of`), every entry
+ * labelled, imported and app alike — printed to PDF by the worker as a stored file of kind STORE_STATEMENT, which the
+ * storage policy keeps for its period. Mutable while it is printed.
+ */
+export const storeStatements = pgTable(
+  'store_statements',
+  {
+    id: id(),
+    /** ST-YYYY-NNNN. */
+    number: text('number').notNull().unique(),
+    storeId: uuid('store_id').notNull().references(() => stores.id),
+    asOf: timestamptz('as_of').notNull(),
+    status: storeStatementStatus('status').notNull().default('PENDING'),
+    mediaId: uuid('media_id').references(() => mediaAssets.id),
+    attempts: integer('attempts').notNull().default(0),
+    nextAttemptAt: timestamptz('next_attempt_at').notNull().defaultNow(),
+    lastError: text('last_error'),
+    requestedBy: uuid('requested_by').notNull().references(() => users.id),
+    branchId: uuid('branch_id').notNull().references(() => branches.id),
+    ...mutable(),
+  },
+  (t) => [
+    index('store_statements_store_id_idx').on(t.storeId, t.asOf),
+    index('store_statements_media_id_idx').on(t.mediaId),
+    index('store_statements_requested_by_idx').on(t.requestedBy),
+    index('store_statements_due_idx').on(t.nextAttemptAt).where(sql`${t.status} = 'PENDING'`),
+    check('store_statements_ready', sql`(${t.status} = 'READY') = (${t.mediaId} is not null)`),
   ],
 );

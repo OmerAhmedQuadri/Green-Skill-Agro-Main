@@ -1,14 +1,21 @@
 import { sql } from 'drizzle-orm';
-import { check, date, index, integer, jsonb, numeric, pgEnum, pgTable, text, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { check, date, index, integer, jsonb, numeric, pgEnum, pgTable, text, uniqueIndex, uuid, type AnyPgColumn } from 'drizzle-orm/pg-core';
 import { skus } from './catalogue';
 import { createdAt, id, timestamptz } from './columns';
+import { correctionSessions, saleCorrections } from './corrections';
 import { users } from './identity';
 import { mutable } from './mutable';
 import { branches } from './organisation';
-import { stores } from './stores';
+import { importedPayments, stores } from './stores';
 
 // Mirror packages/core/src/imports.
 export const importBatchStatus = pgEnum('import_batch_status', ['LOADED', 'UNDONE']);
+export const importWarningKind = pgEnum('import_warning_kind', [
+  'VOUCHER_MISSING', 'VOUCHER_NOT_IN_BOOKS', 'NAME_JOINED_BY_GUESS', 'PAYMENT_NO_STORE', 'PAYMENT_HELD_BACK', 'NAMES_MAY_BE_ONE_STORE',
+  'LINE_DOES_NOT_ADD_UP', 'LINE_NOT_IN_CATALOGUE', 'LINE_READ_AS_OTHER_PACK', 'DATE_DIFFERS_FROM_STATEMENT', 'RETURN_NOT_IMPORTED',
+  'BALANCE_DIFFERS_FROM_STATEMENT',
+]);
+export const importWarningResolution = pgEnum('import_warning_resolution', ['KEPT', 'CORRECTED']);
 
 const money = (name: string) => numeric(name, { precision: 14, scale: 2 });
 
@@ -42,6 +49,10 @@ export const importBatches = pgTable(
 /**
  * IMP-001: one invoice of a seller's book, as written — recorded, never posted at import. Its debit goes into the
  * store's account when the seller re-verifies the store (IMP-005), referencing it as IMPORTED_SALE. Append-only.
+ *
+ * COR-006 (ADR-0059): a correction of its lines writes the corrected invoice as a new row (`correction_id`) and marks
+ * this one replaced (`replaced_by`, the one column the app may set, once — migration 0037). The invoice that stands
+ * is the one not replaced.
  */
 export const importedSales = pgTable(
   'imported_sales',
@@ -59,12 +70,17 @@ export const importedSales = pgTable(
     subtotal: money('subtotal').notNull(),
     discount: money('discount').notNull().default('0'),
     total: money('total').notNull(),
+    /** The correction that wrote this corrected invoice, and the one that replaced it. */
+    correctionId: uuid('correction_id').references((): AnyPgColumn => saleCorrections.id),
+    replacedBy: uuid('replaced_by').references((): AnyPgColumn => saleCorrections.id),
     branchId: uuid('branch_id').notNull().references(() => branches.id),
     createdAt: createdAt(),
     createdBy: uuid('created_by').notNull().references(() => users.id),
   },
   (t) => [
-    uniqueIndex('imported_sales_serial_unique').on(t.batchId, t.sellerId, t.serial),
+    uniqueIndex('imported_sales_serial_unique').on(t.batchId, t.sellerId, t.serial).where(sql`${t.replacedBy} is null`),
+    index('imported_sales_correction_id_idx').on(t.correctionId),
+    index('imported_sales_replaced_by_idx').on(t.replacedBy),
     index('imported_sales_store_id_idx').on(t.storeId),
     index('imported_sales_seller_id_idx').on(t.sellerId),
     check('imported_sales_discount', sql`${t.discount} >= 0`),
@@ -96,5 +112,102 @@ export const importedSaleLines = pgTable(
     uniqueIndex('imported_sale_lines_line_unique').on(t.importedSaleId, t.lineNo),
     index('imported_sale_lines_sku_id_idx').on(t.skuId),
     check('imported_sale_lines_figures', sql`${t.lineNo} > 0 and ${t.packs} > 0 and ${t.unitPrice} >= 0 and ${t.amount} >= 0`),
+  ],
+);
+
+/**
+ * IMP-011 (ADR-0059, amended 2026-11-13): a sales return in a seller's book, as written, naming the invoice it returns
+ * where the book does. Recorded, never posted at import: it goes into the store's account at re-verification as a
+ * credit (reference IMPORTED_RETURN) against that invoice first. No stock moves (IMP-006). Append-only.
+ */
+export const importedReturns = pgTable(
+  'imported_returns',
+  {
+    id: id(),
+    batchId: uuid('batch_id').notNull().references(() => importBatches.id),
+    storeId: uuid('store_id').notNull().references(() => stores.id),
+    sellerId: uuid('seller_id').notNull().references(() => users.id),
+    returnedOn: date('returned_on').notNull(),
+    /** As the book numbers it: SR0001, SR1001 … */
+    number: text('number').notNull(),
+    /** The invoice it returns, where the book names one in this batch. */
+    importedSaleId: uuid('imported_sale_id').references((): AnyPgColumn => importedSales.id),
+    book: text('book').notNull(),
+    bookRow: integer('book_row').notNull(),
+    storeNameWritten: text('store_name_written').notNull(),
+    amount: money('amount').notNull(),
+    branchId: uuid('branch_id').notNull().references(() => branches.id),
+    createdAt: createdAt(),
+    createdBy: uuid('created_by').notNull().references(() => users.id),
+  },
+  (t) => [
+    uniqueIndex('imported_returns_number_unique').on(t.batchId, t.sellerId, t.number),
+    index('imported_returns_store_id_idx').on(t.storeId),
+    index('imported_returns_seller_id_idx').on(t.sellerId),
+    index('imported_returns_imported_sale_id_idx').on(t.importedSaleId),
+    check('imported_returns_amount', sql`${t.amount} > 0`),
+    check('imported_returns_where', sql`${t.bookRow} > 0`),
+  ],
+);
+
+/** IMP-011: a line of an imported return, as written. Some returns list none, only their total. */
+export const importedReturnLines = pgTable(
+  'imported_return_lines',
+  {
+    id: id(),
+    importedReturnId: uuid('imported_return_id').notNull().references(() => importedReturns.id),
+    lineNo: integer('line_no').notNull(),
+    itemWritten: text('item_written').notNull(),
+    packWritten: text('pack_written'),
+    skuId: uuid('sku_id').references(() => skus.id),
+    packs: numeric('packs', { precision: 12, scale: 3 }).notNull(),
+    unitPrice: money('unit_price').notNull(),
+    amount: money('amount').notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    uniqueIndex('imported_return_lines_line_unique').on(t.importedReturnId, t.lineNo),
+    index('imported_return_lines_sku_id_idx').on(t.skuId),
+    check('imported_return_lines_figures', sql`${t.lineNo} > 0 and ${t.packs} > 0 and ${t.unitPrice} >= 0 and ${t.amount} >= 0`),
+  ],
+);
+
+/**
+ * IMP-009 (ADR-0059): what the import could not settle, about one store, imported sale or imported payment, with the
+ * figures that explain it. The Super Admin keeps it as it is, with a note, or marks it corrected in a correction
+ * session — once; only those columns may change (migration 0035).
+ */
+export const importWarnings = pgTable(
+  'import_warnings',
+  {
+    id: id(),
+    batchId: uuid('batch_id').notNull().references(() => importBatches.id),
+    kind: importWarningKind('kind').notNull(),
+    storeId: uuid('store_id').references(() => stores.id),
+    importedSaleId: uuid('imported_sale_id').references(() => importedSales.id),
+    importedPaymentId: uuid('imported_payment_id').references((): AnyPgColumn => importedPayments.id),
+    params: jsonb('params').notNull().default({}),
+    resolution: importWarningResolution('resolution'),
+    resolutionNote: text('resolution_note'),
+    /** The correction session a warning was marked corrected in. */
+    sessionId: uuid('session_id').references((): AnyPgColumn => correctionSessions.id),
+    resolvedAt: timestamptz('resolved_at'),
+    resolvedBy: uuid('resolved_by').references(() => users.id),
+    branchId: uuid('branch_id').notNull().references(() => branches.id),
+    createdAt: createdAt(),
+    createdBy: uuid('created_by').notNull().references(() => users.id),
+  },
+  (t) => [
+    index('import_warnings_batch_id_idx').on(t.batchId),
+    index('import_warnings_store_id_idx').on(t.storeId),
+    index('import_warnings_imported_sale_id_idx').on(t.importedSaleId),
+    index('import_warnings_imported_payment_id_idx').on(t.importedPaymentId),
+    index('import_warnings_session_id_idx').on(t.sessionId),
+    index('import_warnings_open_idx').on(t.batchId).where(sql`${t.resolution} is null`),
+    check('import_warnings_subject', sql`num_nonnulls(${t.storeId}, ${t.importedSaleId}, ${t.importedPaymentId}) = 1`),
+    check('import_warnings_resolved', sql`(${t.resolution} is null) = (${t.resolvedAt} is null)
+      and (${t.resolution} is null) = (${t.resolvedBy} is null)
+      and (${t.resolution} is null) = (length(btrim(coalesce(${t.resolutionNote}, ''))) = 0)`),
+    check('import_warnings_corrected', sql`coalesce(${t.resolution} = 'CORRECTED', false) = (${t.sessionId} is not null)`),
   ],
 );

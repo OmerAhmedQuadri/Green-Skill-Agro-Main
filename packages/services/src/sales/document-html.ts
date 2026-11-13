@@ -12,6 +12,8 @@ import { BRAND_MARK, sizeCode, type CountUnit, type CreditMode, type Money, type
 export type DocumentData = {
   /** ADR-0052: an open sale's paper is the simplified delivery record. */ readonly open: boolean;
   readonly number: string; readonly issuedAt: Date; readonly suppliedAt: Date;
+  /** COR-006: a corrected copy — its version, and when the copy it replaces was issued. */
+  readonly corrected: { readonly version: number; readonly replaces: Date } | null;
   /** DOC-007: the company, as the Admin entered it in Settings. */
   readonly seller: {
     readonly nameEn: string; readonly nameAr: string; readonly addressEn: string; readonly addressAr: string;
@@ -161,6 +163,8 @@ small { font-size: 6.5pt; font-weight: 400; }
 .qr svg { width: 29mm; height: 29mm; display: block; }
 .notice { margin: 0 0 4px; padding: 4px 8px; border: 1.5px solid #b91c1c; color: #b91c1c; font-weight: 700; text-align: center; font-size: 8.5pt; }
 .notice span { display: block; }
+.corrected { margin: 6px 0 4px; padding: 4px 8px; border: 1.5px solid #92400e; color: #92400e; font-weight: 700; text-align: center; font-size: 8.5pt; }
+.corrected span { display: block; }
 .bar { display: flex; justify-content: space-between; background: #ededed; border-top: 2px solid #8a9a2b; padding: 3px 6px; font-weight: 700; font-size: 11pt; color: #1b4332; margin-top: 10px; }
 .parties { display: flex; gap: 8px; }
 .party { flex: 1; font-size: 8.5pt; }
@@ -209,7 +213,7 @@ small { font-size: 6.5pt; font-weight: 400; }
   </div>
   <div class="meta">
     <table class="info">
-      ${infoRow('Document Number', latin(data.number), 'رقم السند')}
+      ${infoRow('Document Number', latin(data.corrected ? `${data.number} · v${data.corrected.version}` : data.number), 'رقم السند')}
       ${infoRow('Issue Date', latin(day(data.issuedAt)), 'تاريخ الإصدار')}
       ${infoRow('Date of Supply', latin(day(data.suppliedAt)), 'تاريخ التوريد')}
       ${infoRow('Sales Representative', `${escape(data.salesperson)}${data.vehicle ? ` · ${latin(data.vehicle)}` : ''}`, 'المندوب')}
@@ -218,6 +222,7 @@ small { font-size: 6.5pt; font-weight: 400; }
   </div>
 </td></tr></thead>
 <tbody><tr><td>
+  ${data.corrected ? `<div class="corrected" data-version="${data.corrected.version}"><span>Corrected — replaces the copy of ${escape(day(data.corrected.replaces))}.</span>${ar(`مُصحَّح — يحلّ محلّ النسخة الصادرة في ${day(data.corrected.replaces)}.`)}</div>` : ''}
   <div class="parties">${sellerBox(data.seller)}${buyerBox(data.buyer, data.open)}</div>
 
   ${bar('LINE ITEMS', 'توصيف السلعة أو الخدمة')}

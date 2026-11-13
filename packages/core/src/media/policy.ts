@@ -8,7 +8,7 @@ import { businessMonth } from '../time';
  * setting (ADR-0049, `retention.ts`).
  */
 export const MEDIA_KINDS = [
-  'SELFIE', 'ODOMETER', 'STOREFRONT', 'WRITE_OFF_EVIDENCE', 'DEPOSIT_SLIP', 'TRANSPORT_SLIP', 'PAYMENT_VOUCHER',
+  'SELFIE', 'ODOMETER', 'STOREFRONT', 'WRITE_OFF_EVIDENCE', 'DEPOSIT_SLIP', 'TRANSPORT_SLIP', 'PAYMENT_VOUCHER', 'STORE_STATEMENT',
 ] as const;
 export type MediaKind = (typeof MEDIA_KINDS)[number];
 
@@ -30,6 +30,8 @@ type Policy = {
   readonly liveCameraOnly: boolean;
   /** Object-key prefix, so a bucket lifecycle rule can target a kind (ADR-0020). */
   readonly prefix: string;
+  /** Made by the app itself, never uploaded: the upload API refuses it whoever asks. */
+  readonly generated?: boolean;
 };
 
 const PHOTO = ['image/jpeg'] as const;
@@ -45,6 +47,8 @@ export const MEDIA_POLICY: Readonly<Record<MediaKind, Policy>> = {
   TRANSPORT_SLIP:     { upload: 'sales.fulfil_dispatch', read: ['sales.fulfil_dispatch', 'sales.view_all'], contentTypes: PHOTO_OR_DOCUMENT, liveCameraOnly: false, prefix: 'transport-slip' },
   // ADR-0047: the voucher handed to the store, photographed as it is issued — never an old picture from the gallery.
   PAYMENT_VOUCHER:    { upload: 'sales.record', read: ['stores.view_all', 'cash.approve_settlement', 'cash.view_cash_in_hand'], contentTypes: PHOTO, liveCameraOnly: true, prefix: 'payment-voucher' },
+  // IMP-010: a store's statement, printed by the worker for whoever asked; the upload API never takes one.
+  STORE_STATEMENT:    { upload: 'system.manage_storage', read: ['stores.view_all'], contentTypes: ['application/pdf'], liveCameraOnly: false, prefix: 'statement', generated: true },
 };
 
 export function isMediaKind(value: string): value is MediaKind {

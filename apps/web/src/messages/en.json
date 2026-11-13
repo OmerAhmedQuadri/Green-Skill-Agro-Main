@@ -128,7 +128,8 @@
         "WRITE_OFFS": "Write-offs",
         "PURCHASE_ORDERS": "Purchase orders to approve",
         "CLOSING_VARIANCES": "Closing-stock differences to review",
-        "OPEN_SALES": "Open sales waiting for approval"
+        "OPEN_SALES": "Open sales waiting for approval",
+        "IMPORT_WARNINGS": "Import warnings to settle"
       }
     },
     "sales": {
@@ -473,7 +474,7 @@
       "view_audit_log": "View the audit log",
       "manage_storage": "How long files are kept, and storage use",
       "keep_files": "Keep a single file forever",
-      "correct_history": "Correct history, inside a correction session"
+      "correct_history": "Correct entries recorded wrongly, inside a correction session"
     },
     "catalogue": {
       "view": "View the catalogue",
@@ -519,7 +520,7 @@
       "edit_terms": "Change credit limit and price list",
       "reassign": "Reassign stores between sellers",
       "override_credit_block": "Override a credit block",
-      "adjust_balance": "Correct a store's balance, with a reason"
+      "adjust_balance": "Adjust a store's balance (opening balances, agreed changes), with a reason"
     },
     "sales": {
       "record": "Record sales",
@@ -706,7 +707,18 @@
     "OPEN_SALE_NEEDS_APPROVAL": "This open sale needs approval. Give a reason to ask for it.",
     "WRONG_PASSWORD": "That password isn't right.",
     "CORRECTION_SESSION_OPEN": "You already have a correction session. Close it first.",
-    "NO_CORRECTION_SESSION": "Open a correction session first. History can be corrected only inside one."
+    "NO_CORRECTION_SESSION": "Open a correction session first. History can be corrected only inside one.",
+    "CORRECT_THROUGH_SALE": "This bill is from a sale made in the app. Correct it through the sale.",
+    "NOT_CORRECTABLE": "This entry can't be corrected here.",
+    "NOTHING_TO_CORRECT": "Nothing has changed. Change a value, or remove the entry.",
+    "ALREADY_CORRECTED": "This entry has been corrected already. Correct the corrected entry instead.",
+    "CORRECTION_LEAVES_CREDIT": "The store has paid towards this and owes nothing else to put that money towards. Correct the payment first.",
+    "CORRECTION_EXCEEDS_CASH_IN_HAND": "The collector doesn't hold that much cash. Correct the store's account only, and settle the cash separately.",
+    "TRANSFER_NOT_DECIDED": "Check this bank transfer first (confirmed or not received), then correct it.",
+    "IMPORTED_BALANCE_CHANGED": "What the books say for this store has changed. Show the store the new balance.",
+    "IMPORTED_HISTORY_IN_CREDIT": "The books show this store paid more than it was billed. Ask the Super Admin to check them.",
+    "BELOW_RETURNED": "The store has returned {returned, plural, one {# pack} other {# packs}} of this line. It can't go below that.",
+    "SALE_HAS_RETURNS": "The store has returned part of this sale, so it can't be removed. Correct its lines instead."
   },
   "format": {
     "grams": "{value} g",
@@ -911,7 +923,8 @@
         "monthly_enabled": "Offer a monthly cycle",
         "custom_enabled": "Offer a custom cycle",
         "grace_days": "Days of grace after a cycle closes",
-        "week_closes_on": "A weekly cycle closes on"
+        "week_closes_on": "A weekly cycle closes on",
+        "small_balance_allowance": "A small balance that never blocks a sale (SAR)"
       },
       "documents": {
         "sending": "Sending the delivery document"
@@ -933,6 +946,7 @@
         "keep_deposit_slip": "Keep deposit and handover slips for",
         "keep_transport_slip": "Keep transport slips for",
         "keep_payment_voucher": "Keep payment vouchers for",
+        "keep_store_statement": "Keep store statements for",
         "keep_delivery_document": "Keep delivery documents for",
         "budget_gb": "File storage budget (GB)",
         "backup_retention_days": "Keep backups for (days)",
@@ -977,6 +991,9 @@
       },
       "vat": {
         "rate": "Prices include VAT. Delivery documents show how much of each price is VAT."
+      },
+      "credit": {
+        "small_balance_allowance": "A store owing this much or less can still be sold to — bill to bill, past due or at its limit. It stays owed, and the seller collects it later. 0 makes every halala count."
       }
     },
     "toggles": "Features",
@@ -1078,6 +1095,7 @@
       "DEPOSIT_SLIP": "Deposit and handover slips",
       "TRANSPORT_SLIP": "Transport slips",
       "PAYMENT_VOUCHER": "Payment vouchers",
+      "STORE_STATEMENT": "Store statements",
       "DELIVERY_DOCUMENT": "Delivery documents"
     },
     "columns": {
@@ -1179,7 +1197,8 @@
       "WRITE_OFF_EVIDENCE": "Write-off photo",
       "DEPOSIT_SLIP": "Deposit or handover slip",
       "TRANSPORT_SLIP": "Transport slip",
-      "PAYMENT_VOUCHER": "Payment voucher"
+      "PAYMENT_VOUCHER": "Payment voucher",
+      "STORE_STATEMENT": "Store statement"
     },
     "stored": "Stored",
     "taken": "Taken",
@@ -1498,7 +1517,8 @@
       "OPEN_SALE_APPROVED": "Your open sale of {total} SAR was approved — complete it, paid in full.",
       "OPEN_SALE_REJECTED": "Your open sale of {total} SAR was rejected.",
       "OPEN_SALE_EXPIRED": "Your pending open sale expired and its items were released.",
-      "TRIP_CLOSED_ON_BEHALF": "A manager took back vehicle {registration} and ended your trip at {odometer} km."
+      "TRIP_CLOSED_ON_BEHALF": "A manager took back vehicle {registration} and ended your trip at {odometer} km.",
+      "STORE_BALANCE_DISPUTED": "{name} disputes its balance from the books, {amount}: {note}"
     },
     "resolvedLine": "{outcome} · {time}",
     "resolved": {
@@ -1700,10 +1720,10 @@
   "stores": {
     "accountManager": "Account manager",
     "address": "Address",
-    "adjust": "Correct the balance",
+    "adjust": "Adjust the balance",
     "adjustAmount": "Amount (e.g. 250.00 or -50.00)",
     "adjustDueOn": "Due date",
-    "adjustHint": "A reason is required. A negative amount lowers what is owed. Opening balances go in here, with their due date.",
+    "adjustHint": "Adds a new entry that raises or lowers what the store owes: an opening balance, or a change agreed with the store. It doesn't change entries already on the account; a wrong entry is corrected by a Super Admin in a correction session. A negative amount lowers what is owed; a reason is required.",
     "adjustReason": "Reason",
     "amount": "Amount",
     "approval": "Approval",
@@ -1786,7 +1806,7 @@
     "owes": "Owes {amount}",
     "ownerName": "Owner's name",
     "pastDue": "Past due",
-    "postAdjustment": "Post correction",
+    "postAdjustment": "Post adjustment",
     "priceList": "Price list",
     "reasons": {
       "NOT_APPROVED": "Not approved yet",
@@ -1795,7 +1815,8 @@
       "PAST_DUE": "{amount} past due since {date}",
       "OVER_LIMIT": "Owes {outstanding}, over the limit of {limit}",
       "UNPAID_BILL": "An earlier bill of {amount} is unpaid — bill to bill takes no new bill until it is cleared",
-      "DISPATCH_PENDING": "An order of {amount} is still on its way from the warehouse — it is a bill of its own"
+      "DISPATCH_PENDING": "An order of {amount} is still on its way from the warehouse — it is a bill of its own",
+      "NOT_VERIFIED": "Imported from the books — its seller re-verifies it before its first sale"
     },
     "reassign": "Reassign",
     "reassignTo": "Reassign to",
@@ -1815,7 +1836,8 @@
       "PENDING_APPROVAL": "Waiting for approval",
       "ACTIVE": "Active",
       "REJECTED": "Rejected",
-      "INACTIVE": "Inactive"
+      "INACTIVE": "Inactive",
+      "AWAITING_REVERIFICATION": "Awaiting re-verification"
     },
     "stillOwed": "Still owed",
     "storefront": "Storefront photo",
@@ -1864,7 +1886,52 @@
       "fullHintExact": "The total, {total}.",
       "partTooMuch": "Part means less than the total, {total}. To pay it all, choose In full now.",
       "fullTooLittle": "In full means at least the total, {total}. To pay less, choose Part now."
-    }
+    },
+    "reverifyTitle": "Re-verify {name}",
+    "reverifyAction": "Re-verify this store",
+    "reverifyHint": "This store came from the books. Before its first sale, fill in its details and show the owner what the books say it owes.",
+    "importedTitle": "What the books say",
+    "importedBills": "Bills",
+    "importedPayments": "Payments",
+    "importedBill": "Invoice {serial}, {date}",
+    "importedPaymentVoucher": "{date}, voucher {voucher}",
+    "importedPaymentNoVoucher": "{date}, no voucher",
+    "importedBalance": "Balance from the books",
+    "importedNothing": "The books show nothing for this store.",
+    "balanceQuestion": "Does the store agree with this balance?",
+    "AGREED": "The store agrees",
+    "DISPUTED": "The store disputes it",
+    "disputeNote": "What the store says",
+    "disputeHint": "The Super Admin is told, and checks the books.",
+    "reverify": "Re-verify the store",
+    "reverifiedTitle": "Re-verified",
+    "reverifiedLine": "Re-verified by {name} on {date}; the books came to {amount}.",
+    "agreedLine": "The store agreed.",
+    "disputedLine": "The store disputed it: {note}",
+    "importedBadge": "Imported",
+    "awaitingBalance": "Awaiting re-verification — the books come to {amount}.",
+    "importedSource": "{book}, row {row} · import {batch}",
+    "balanceShown": "Balance from the books: {amount}",
+    "importedSourceSale": "{book}, row {row}, invoice {serial} · import {batch}",
+    "importedSourceVoucher": "{book}, row {row}, voucher {number} · import {batch}",
+    "statement": {
+      "title": "Statements",
+      "hint": "The store's account as it stands right now — every entry, those from Green Agro's books labelled — as a PDF to open or send to the store.",
+      "request": "Make a statement",
+      "line": "{number} · as of {time}",
+      "preparing": "Preparing…",
+      "failed": "Could not be printed. Make a new one.",
+      "deleted": "Deleted under the storage policy.",
+      "open": "Open PDF",
+      "share": "Share",
+      "shareUnavailable": "This phone can't share files from here. Open the PDF and send it from there.",
+      "none": "No statements yet."
+    },
+    "amountUnreadable": "Type the amount in riyals and halalas, like 0.60 or 125.50.",
+    "importedSourceReturn": "{book}, row {row}, return {number} · import {batch}",
+    "importedReturns": "Returns",
+    "importedReturn": "Return {number}, {date}",
+    "importedReturnOfInvoice": "Return {number}, {date} · invoice {serial}"
   },
   "sales": {
     "title": "Sales",
@@ -1965,7 +2032,8 @@
       "DISCOUNT_APPROVED": "Approved — to complete",
       "PENDING_DELIVERY": "Waiting for delivery",
       "COMPLETED": "Completed",
-      "CANCELLED": "Cancelled"
+      "CANCELLED": "Cancelled",
+      "REMOVED": "Removed by a correction"
     },
     "cancelReasons": {
       "REJECTED": "Rejected",
@@ -2034,7 +2102,8 @@
       "documentTitle": "Simplified delivery record",
       "whyWaiting": "Why it waits",
       "commentHint": "Needed to reject."
-    }
+    },
+    "documentVersion": "Corrected copy, version {version}"
   },
   "audit": {
     "title": "Audit log",
@@ -2646,10 +2715,10 @@
   },
   "corrections": {
     "title": "Corrections",
-    "subtitle": "Every correction session: who opened it, when, and why.",
+    "subtitle": "Every correction session and every change made in it: who, when, and why.",
     "settings": {
       "title": "Correct history",
-      "hint": "Off unless you open a correction session. Inside it, you alone can correct history, for one hour. Every change is logged against the reason you give.",
+      "hint": "Fixes what was recorded wrongly — a store's bill or payment, a sale made in the app, an invoice from the books — by reversing it and posting the corrected one; the original stays, struck through. It's off until you open a session: then only you can correct, for one hour, and every change is logged with your reason.",
       "off": "Off. Nobody can correct history now.",
       "open": "Open a correction session",
       "password": "Your password",
@@ -2700,6 +2769,216 @@
       },
       "added": "Added when closed:",
       "edited": "Edited when closed:"
+    },
+    "entry": {
+      "title": "Correct this {kind, select, BILL {bill} other {payment}}",
+      "amount": "Amount (SAR)",
+      "date": "Date",
+      "store": "Store",
+      "voucher": "Voucher number",
+      "remove": "Remove this entry",
+      "removeHint": "It stays on the account, struck through, with your reason.",
+      "cashInHand": "Also correct the collector's cash in hand",
+      "cashInHandHint": "Only if the cash they hold was recorded wrongly too.",
+      "reason": "Reason for this correction",
+      "reasonHint": "Say what was wrong and how you know. An unclear reason can cause problems later.",
+      "preview": "Show the effect",
+      "confirm": "Confirm the correction",
+      "cancel": "Cancel",
+      "effect": "What this changes",
+      "cash": "{name}'s cash in hand",
+      "done": "Corrected (correction {number}).",
+      "openSession": "To correct an entry, open a correction session in Settings.",
+      "correct": "Correct",
+      "owedNow": "Owed now",
+      "owedAfter": "Owed after",
+      "pastDueNow": "Past due now",
+      "pastDueAfter": "Past due after",
+      "hint": "Reverses this entry and posts the corrected one. The original stays on the account, struck through, with your reason."
+    },
+    "ledger": {
+      "replaced": "Replaced by correction {number}",
+      "removed": "Removed by correction {number}",
+      "moved": "Moved to {store} by correction {number}",
+      "reversal": "Reversal, correction {number}",
+      "corrected": "Correction {number}",
+      "movedFrom": "Moved from {store}",
+      "was": "Was"
+    },
+    "changes": {
+      "title": "Changes",
+      "sessions": "Sessions",
+      "number": "No.",
+      "session": "Session",
+      "store": "Store",
+      "what": "What",
+      "change": "Change",
+      "reason": "Reason",
+      "by": "By",
+      "when": "When",
+      "kinds": {
+        "BILL": "Bill",
+        "PAYMENT": "Payment"
+      },
+      "removed": "Removed",
+      "moved": "Moved to {store}",
+      "amount": "Amount",
+      "date": "Date",
+      "voucher": "Voucher",
+      "cashInHand": "Cash in hand corrected too",
+      "empty": "No corrections yet.",
+      "more": "Show more"
+    },
+    "unassigned": {
+      "title": "Payments nobody could place",
+      "hint": "From the voucher books, with a store name that matches no store. Attach each to its store in a correction session.",
+      "date": "Date",
+      "amount": "Amount",
+      "voucher": "Voucher",
+      "written": "Name written",
+      "seller": "Seller",
+      "book": "Book",
+      "attach": "Attach to a store",
+      "store": "Store",
+      "reason": "Reason",
+      "confirm": "Attach",
+      "cancel": "Cancel",
+      "empty": "None.",
+      "attached": "Attached.",
+      "needSession": "Open a correction session to attach them.",
+      "bookRow": "{book}, row {row}"
+    },
+    "importWarnings": {
+      "title": "Import warnings",
+      "hint": "What the import from the books could not settle. Keep each as it is, with a note — or correct it in a correction session, then mark it corrected and say how.",
+      "kinds": {
+        "VOUCHER_MISSING": "No voucher number.",
+        "VOUCHER_NOT_IN_BOOKS": "Paid at the sale by voucher {voucher}, which is in neither voucher book.",
+        "NAME_JOINED_BY_GUESS": "\"{written}\" was joined to this store on spelling alone.",
+        "PAYMENT_NO_STORE": "Written to \"{written}\", which matches no store.",
+        "PAYMENT_HELD_BACK": "Held back: it would leave {store} in credit. Attach it to its store, or keep it aside.",
+        "NAMES_MAY_BE_ONE_STORE": "May be the same store as {other}.",
+        "LINE_DOES_NOT_ADD_UP": "Line {line}: packs × price come to {computed}, not the amount written. Imported as written.",
+        "LINE_NOT_IN_CATALOGUE": "Line {line}, \"{item}\", names no catalogue product.",
+        "LINE_READ_AS_OTHER_PACK": "Line {line}, \"{item}\", was read as open pollinated but is priced like the F1.",
+        "DATE_DIFFERS_FROM_STATEMENT": "The September statement dates it {statement}.",
+        "RETURN_NOT_IMPORTED": "A return of {amount} on {date} on the September statement — not imported. Record it as a correction.",
+        "BALANCE_DIFFERS_FROM_STATEMENT": "The books come to {books}; the September statement says {statement}."
+      },
+      "sale": "{store}: invoice {serial} of {date}, {total} — {book}, row {row}",
+      "payment": "\"{written}\": {amount} on {date}, voucher {voucher} — {book}, row {row}",
+      "paymentNoVoucher": "\"{written}\": {amount} on {date}, no voucher — {book}, row {row}",
+      "keep": "Keep as it is",
+      "corrected": "Mark corrected",
+      "note": "Note",
+      "save": "Save",
+      "cancel": "Cancel",
+      "needSession": "Marking a warning corrected needs a correction session.",
+      "empty": "No open warnings.",
+      "showResolved": "Show resolved",
+      "showOpen": "Show open",
+      "KEPT": "Kept by {name}, {date}: {note}",
+      "CORRECTED": "Corrected by {name}, {date}: {note}"
+    },
+    "sale": {
+      "title": "Correct this sale",
+      "hint": "Change a line's packs or price, move the sale to another store, or remove it. The sale shows the corrected figures; what they were stays beside them.",
+      "item": "Item",
+      "packs": "Packs",
+      "price": "Price per pack (SAR)",
+      "store": "Store",
+      "remove": "Remove the whole sale",
+      "removeHint": "It stays, marked removed, and leaves every total.",
+      "follows": "What follows the correction",
+      "stock": "Stock",
+      "stockHint": "Packs go back to, or come out of, the batch and vehicle (or warehouse) they were sold from. Leave this off if the stock was counted right.",
+      "document": "Delivery document",
+      "documentHint": "A corrected copy is issued under the same number, as its next version.",
+      "account": "The store's account",
+      "accountHint": "The bill is reversed and posted again at the corrected amount. Moving the sale to another store always moves its bill.",
+      "cashInHand": "The seller's cash in hand",
+      "cashInHandHint": "For an open sale paid in cash: only if the cash taken was recorded wrongly too.",
+      "reason": "Reason for this correction",
+      "reasonHint": "Say what was wrong and how you know. An unclear reason can cause problems later.",
+      "preview": "Show the effect",
+      "confirm": "Confirm the correction",
+      "cancel": "Cancel",
+      "effect": "What this changes",
+      "total": "Sale total",
+      "removedTotal": "Removed",
+      "stockBack": "{code} · lot {lot}: {packs, plural, one {# pack} other {# packs}} back to {place}",
+      "stockOut": "{code} · lot {lot}: {packs, plural, one {# pack} other {# packs}} out of {place}",
+      "noLot": "none",
+      "stockStays": "Stock stays as it is.",
+      "documentVersion": "Delivery document {number}, version {version}",
+      "documentStays": "The delivery document stays as it is.",
+      "accountStays": "The store's account stays as it is.",
+      "cash": "{name}'s cash in hand",
+      "done": "Corrected (correction {number}).",
+      "openSession": "To correct this sale, open a correction session in Settings.",
+      "correct": "Correct this sale",
+      "history": "Corrections",
+      "historyLine": "Correction {number} · {by} · {time}",
+      "removed": "The sale was removed.",
+      "movedStore": "Store",
+      "line": "{code}",
+      "applied": {
+        "stock": "Stock",
+        "document": "Delivery document",
+        "account": "Account",
+        "cashInHand": "Cash in hand"
+      },
+      "followedBy": "Also corrected",
+      "nothingFollowed": "Only the sale's figures were corrected.",
+      "fieldNote": "Corrected by the office on {date}.",
+      "paymentCorrected": "Payment corrected later (correction {number}): {amount}",
+      "paymentRemoved": "Payment removed later (correction {number})."
+    },
+    "saleChanges": {
+      "title": "Sale changes",
+      "number": "No.",
+      "session": "Session",
+      "sale": "Sale",
+      "store": "Store",
+      "total": "Total",
+      "followed": "Also corrected",
+      "reason": "Reason",
+      "by": "By",
+      "when": "When",
+      "invoice": "Invoice {serial} · {book}, row {row}",
+      "removed": "Removed",
+      "empty": "No sale corrections yet.",
+      "more": "Show more"
+    },
+    "imported": {
+      "title": "Invoices from the books",
+      "hint": "Each invoice as it stands now. Correct one's lines in a correction session; its bill follows if it is in the account.",
+      "invoice": "Invoice {serial} · {date}",
+      "source": "{book}, row {row}",
+      "posted": "In the account",
+      "notPosted": "Not in the account yet",
+      "correct": "Correct",
+      "none": "No invoices from the books.",
+      "item": "Item as written",
+      "product": "Product",
+      "noProduct": "Not in the catalogue",
+      "packs": "Packs",
+      "price": "Price (SAR)",
+      "amount": "Amount (SAR)",
+      "amountHint": "What the store was charged; packs × price if left empty.",
+      "addLine": "Add a line",
+      "removeLine": "Remove this line",
+      "discount": "Discount (SAR)",
+      "reason": "Reason for this correction",
+      "reasonHint": "Say what was wrong and how you know. An unclear reason can cause problems later.",
+      "preview": "Show the effect",
+      "confirm": "Confirm the correction",
+      "cancel": "Cancel",
+      "effect": "What this changes",
+      "total": "Invoice total",
+      "notPostedEffect": "Not in the account yet: the seller shows the store the corrected invoice when re-verifying it.",
+      "done": "Corrected (correction {number}).",
+      "openSession": "To correct an invoice, open a correction session in Settings."
     }
   }
 }

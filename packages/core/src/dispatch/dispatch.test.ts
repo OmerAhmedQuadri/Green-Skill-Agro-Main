@@ -60,7 +60,7 @@ describe('receipt (DSP-009..013, OQ-019)', () => {
 describe('credit for a dispatch order (DSP-002, OQ-018)', () => {
   it('DSP-002: orders waiting for delivery count against the credit left', () => {
     const credit = creditStatus({
-      status: 'ACTIVE', mode: 'WEEKLY', committed: m('300.00'), limit: m('1000.00'), graceDays: 0, today: '2026-09-19', overrideActive: false,
+      status: 'ACTIVE', mode: 'WEEKLY', committed: m('300.00'), limit: m('1000.00'), graceDays: 0, allowance: m('0.00'), today: '2026-09-19', overrideActive: false,
       openDebits: [{ dueOn: '2026-09-26', open: m('300.00') }],
     });
     expect(assertSaleCredit(credit, 'WEEKLY', m('400.00'))).toEqual({ usesOverride: false });

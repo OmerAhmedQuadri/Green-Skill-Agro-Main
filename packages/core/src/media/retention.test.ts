@@ -10,11 +10,11 @@ const riyadh = (local: string) => new Date(`${local}+03:00`);
 const code = (fn: () => unknown) => { try { fn(); } catch (e) { return (e as DomainError).code; } return 'NO_ERROR'; };
 
 describe('storage retention (ADR-0049)', () => {
-  it('SYS-010: the approved defaults — selfies and odometer photos 3 months, write-offs and transport slips 6, the rest forever', () => {
+  it('SYS-010, IMP-010: the approved defaults — selfies, odometer photos and store statements 3 months, write-offs and transport slips 6, the rest forever', () => {
     const defaults = resolveSettings([]);
     expect(Object.fromEntries(STORED_KINDS.map((k) => [k, retentionOf(defaults, k)]))).toEqual({
       SELFIE: 3, ODOMETER: 3, STOREFRONT: 'FOREVER', WRITE_OFF_EVIDENCE: 6, DEPOSIT_SLIP: 'FOREVER',
-      TRANSPORT_SLIP: 6, PAYMENT_VOUCHER: 'FOREVER', DELIVERY_DOCUMENT: 'FOREVER',
+      TRANSPORT_SLIP: 6, PAYMENT_VOUCHER: 'FOREVER', STORE_STATEMENT: 3, DELIVERY_DOCUMENT: 'FOREVER',
     });
     expect(defaults['storage.budget_gb']).toBe(10);
   });

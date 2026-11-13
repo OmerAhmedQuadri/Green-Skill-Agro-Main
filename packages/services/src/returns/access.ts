@@ -1,5 +1,5 @@
 import {
-  DomainError, heldFromSale, packsHeld, quantity, type CountUnit, type HeldBatch, type Money, type PackSize, type ReturnCondition,
+  dec, DomainError, heldFromSale, packsHeld, quantity, type CountUnit, type HeldBatch, type Money, type PackSize, type ReturnCondition,
   type ReturnKind, type ReturnOutcome, type SkuUnits,
 } from '@gsa/core';
 import { schema } from '@gsa/db';
@@ -10,7 +10,7 @@ import { decodeCursor, encodeCursor, inOrder, pageLimit, type Executor } from '.
 import { getDb } from '../runtime';
 
 const {
-  returns, returnLines, returnReplacements, sales, saleLines, saleLineAllocations, stores, users, vehicles, warehouses,
+  returns, returnLines, returnReplacements, sales, saleLines, saleLineAllocations, saleCorrectionAllocations, stores, users, vehicles, warehouses,
   skus, products, varieties, productTypes, batches, deliveryDocuments,
 } = schema;
 
@@ -62,7 +62,7 @@ export async function loadReturn(db: Executor, ctx: Ctx, id: string): Promise<Re
   }).from(returns)
     .innerJoin(sales, eq(sales.id, returns.saleId)).innerJoin(stores, eq(stores.id, returns.storeId))
     .leftJoin(seller, eq(seller.id, returns.sellerId)).leftJoin(processor, eq(processor.id, returns.processedBy))
-    .leftJoin(deliveryDocuments, eq(deliveryDocuments.saleId, returns.saleId))
+    .leftJoin(deliveryDocuments, and(eq(deliveryDocuments.saleId, returns.saleId), eq(deliveryDocuments.version, 1)))
     .leftJoin(vehicles, eq(vehicles.id, returns.vehicleId)).leftJoin(warehouses, eq(warehouses.id, returns.warehouseId))
     .where(and(eq(returns.id, id), visibility(ctx)));
   if (!row) throw new DomainError('NOT_FOUND', { entity: 'return', id });
@@ -154,15 +154,25 @@ export async function listReturns(ctx: Ctx, filter: ReturnFilter): Promise<{ ite
  * each line, which price the next credit note.
  */
 export async function heldFromSaleOf(db: Executor, saleId: string, units: ReadonlyMap<string, SkuUnits>): Promise<{ held: HeldBatch[]; credited: Map<string, number> }> {
-  const [soldRows, returnedRows, replacedRows] = await inOrder([
+  const [allocatedRows, correctedRows, returnedRows, replacedRows] = await inOrder([
     db.select({ saleLineId: saleLineAllocations.saleLineId, batchId: saleLineAllocations.batchId, quantity: saleLineAllocations.quantity })
       .from(saleLineAllocations).innerJoin(saleLines, eq(saleLines.id, saleLineAllocations.saleLineId)).where(eq(saleLines.saleId, saleId)),
+    // COR-006: what a sale correction gave back or took out counts with what the sale took.
+    db.select({ saleLineId: saleCorrectionAllocations.saleLineId, batchId: saleCorrectionAllocations.batchId, quantity: saleCorrectionAllocations.quantity })
+      .from(saleCorrectionAllocations).innerJoin(saleLines, eq(saleLines.id, saleCorrectionAllocations.saleLineId)).where(eq(saleLines.saleId, saleId)),
     db.select({ saleLineId: returnLines.saleLineId, batchId: returnLines.batchId, packs: returnLines.packs, kind: returns.kind })
       .from(returnLines).innerJoin(returns, eq(returns.id, returnLines.returnId)).where(eq(returns.saleId, saleId)),
     db.select({ saleLineId: returnLines.saleLineId, batchId: returnReplacements.batchId, packs: returnReplacements.packs })
       .from(returnReplacements).innerJoin(returnLines, eq(returnLines.id, returnReplacements.returnLineId))
       .innerJoin(returns, eq(returns.id, returnLines.returnId)).where(eq(returns.saleId, saleId)),
   ]);
+  const net = new Map<string, { saleLineId: string; batchId: string; quantity: ReturnType<typeof dec> }>();
+  for (const r of [...allocatedRows, ...correctedRows]) {
+    const key = `${r.saleLineId}|${r.batchId}`;
+    const at = net.get(key) ?? { saleLineId: r.saleLineId, batchId: r.batchId, quantity: dec('0') };
+    net.set(key, { ...at, quantity: at.quantity.plus(dec(r.quantity)) });
+  }
+  const soldRows = [...net.values()].filter((r) => r.quantity.gt(0)).map((r) => ({ ...r, quantity: r.quantity.toFixed(3) }));
   const sold = soldRows.map((r) => {
     const u = units.get(r.saleLineId);
     if (!u) throw new Error('sale line units missing');

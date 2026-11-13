@@ -11,8 +11,11 @@ import { useFormat } from '@/lib/format';
 import { decimalText } from '@/lib/forms';
 import { useCommand, useErrorText } from '@/lib/hooks';
 import { keys } from '@/lib/query-keys';
+import { SaleCorrectionPanel } from '@/components/corrections/SaleCorrectionPanel';
+import { useCorrectionStatus } from '@/components/corrections/status';
 import { SaleReturns } from '@/components/returns/SaleReturns';
 import { DeliveryDocumentPanel } from './DeliveryDocumentPanel';
+import { SaleCorrections } from './SaleCorrections';
 import { partyOf } from './party';
 import { SaleLinesTable, trimPercent } from './SaleLinesTable';
 import { SALE_TONE, type Sale } from './types';
@@ -26,9 +29,12 @@ import { SALE_TONE, type Sale } from './types';
  * ADR-0052: an open sale shows its buyer and where it was made; its request
  * says why it waited, and is approved as it stands or rejected — by whoever
  * approves open sales.
+ *
+ * COR-006: its corrections, and — for a Super Admin in a correction session —
+ * correcting it.
  */
-export function SaleDetail({ id, canDecide: canDecideDiscount, canDecideOpenSale = false, canReturn = false, canKeep = false }: {
-  id: string; canDecide: boolean; canDecideOpenSale?: boolean; canReturn?: boolean; canKeep?: boolean;
+export function SaleDetail({ id, canDecide: canDecideDiscount, canDecideOpenSale = false, canReturn = false, canKeep = false, canCorrect = false }: {
+  id: string; canDecide: boolean; canDecideOpenSale?: boolean; canReturn?: boolean; canKeep?: boolean; canCorrect?: boolean;
 }) {
   const t = useTranslations('sales');
   const ts = useTranslations('stores');
@@ -38,6 +44,11 @@ export function SaleDetail({ id, canDecide: canDecideDiscount, canDecideOpenSale
   const queryClient = useQueryClient();
   const [given, setGiven] = useState<Record<string, string>>({});
   const [comment, setComment] = useState('');
+  const tco = useTranslations('corrections.sale');
+  const [correcting, setCorrecting] = useState(false);
+  const [corrected, setCorrected] = useState<number | null>(null);
+  const correction = useCorrectionStatus();
+  const sessionOpen = canCorrect && correction.data?.mine?.state === 'OPEN';
   const sale = useQuery({
     queryKey: keys.sale(id), queryFn: () => api<Sale>(`/sales/${id}`),
     refetchInterval: (q) => (q.state.data?.status === 'PENDING_DISCOUNT_APPROVAL' ? 10_000 : false),
@@ -99,6 +110,21 @@ export function SaleDetail({ id, canDecide: canDecideDiscount, canDecideOpenSale
 
       <Section title={t('lines')}><SaleLinesTable sale={s} showBatches /></Section>
 
+      {s.corrections.length > 0 || (canCorrect && s.status === 'COMPLETED') ? (
+        <Section title={tco('history')} actions={sessionOpen && s.status === 'COMPLETED' && !correcting
+          ? <Button size="sm" variant="secondary" onClick={() => { setCorrected(null); setCorrecting(true); }}>{tco('correct')}</Button> : null}>
+          {canCorrect && s.status === 'COMPLETED' && !sessionOpen ? <p className="border-b border-stone-200 px-5 py-3 text-xs text-stone-500">{tco('openSession')}</p> : null}
+          {corrected !== null ? <div className="p-4"><Alert tone="success">{tco('done', { number: corrected })}</Alert></div> : null}
+          {sessionOpen && correcting ? (
+            <SaleCorrectionPanel key={s.version} sale={s} onCancel={() => setCorrecting(false)} onDone={(number) => {
+              setCorrecting(false); setCorrected(number);
+              for (const k of [keys.sale(id), keys.sales()]) void queryClient.invalidateQueries({ queryKey: k });
+            }} />
+          ) : null}
+          {s.corrections.length > 0 ? <SaleCorrections sale={s} /> : null}
+        </Section>
+      ) : null}
+
       {/* SAL-018: an open sale is never returned. */}
       {s.status === 'COMPLETED' && s.store ? <Section title={tr('sectionTitle')}><div className="p-5"><SaleReturns saleId={s.id} surface="console" canReturn={canReturn} /></div></Section> : null}
 
@@ -119,7 +145,22 @@ export function SaleDetail({ id, canDecide: canDecideDiscount, canDecideOpenSale
                 value: <a href={`https://www.google.com/maps?q=${s.open.location.lat},${s.open.location.lng}`} target="_blank" rel="noreferrer" className="text-brand-800 underline">{t('open.onMap')}</a>,
               },
             ] : []),
-            { label: t('payment'), value: s.payment ? t('paidWith', { method: ts(`methods.${s.payment.method}`), amount: format.money(s.payment.amount) }) : s.status === 'COMPLETED' ? t('onAccount') : '—' },
+            {
+              label: t('payment'),
+              value: s.payment ? (
+                <span data-testid="sale-payment">
+                  {t('paidWith', { method: ts(`methods.${s.payment.method}`), amount: format.money(s.payment.amount) })}
+                  {/* COR-005: the payment as taken, and what a correction made of it later. */}
+                  {s.payment.correction ? (
+                    <span className="block text-xs text-amber-800">
+                      {s.payment.correction.amount
+                        ? tco('paymentCorrected', { number: s.payment.correction.number, amount: format.money(s.payment.correction.amount) })
+                        : tco('paymentRemoved', { number: s.payment.correction.number })}
+                    </span>
+                  ) : null}
+                </span>
+              ) : s.status === 'COMPLETED' ? t('onAccount') : '—',
+            },
             { label: t('override'), value: s.creditOverride ? t('overrideUsed', { name: s.creditOverride.grantedBy, reason: s.creditOverride.reason }) : '—' },
             { label: tStatus(null), value: s.cancelReason ? t(`cancelReasons.${s.cancelReason}`) : t(`statuses.${s.status}`) },
           ]} />

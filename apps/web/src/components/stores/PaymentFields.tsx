@@ -59,12 +59,14 @@ export function PaymentFields({ id, owed, value, onChange, fullAmount, amountHin
   const set = (patch: Partial<PaymentDraft>) => onChange((previous) => ({ ...previous, ...patch }));
   const typed = decimalText(value.amount);
   const tooMuch = MONEY.test(typed) && dec(typed).gt(dec(owed));
+  // Said, not just a button that stays grey: an amount the form cannot read.
+  const unreadable = typed !== '' && !MONEY.test(typed);
   return (
     <div className="space-y-3" data-testid={`${id}-payment`}>
       {fullAmount ? <p className="text-sm font-medium" data-testid={`${id}-full-amount`}>{t('paidInFullAmount', { amount: format.money(fullAmount) })}</p> : (
         <Field
           id={`${id}-amount`} label={t('amount')} hint={amountHint ?? t('owedHint', { amount: format.money(owed) })}
-          error={tooMuch ? t('moreThanOwed', { amount: format.money(owed) }) : amountError}
+          error={unreadable ? t('amountUnreadable') : tooMuch ? t('moreThanOwed', { amount: format.money(owed) }) : amountError}
         >
           <Input id={`${id}-amount`} inputMode="decimal" dir="ltr" value={value.amount} onChange={(e) => set({ amount: e.target.value })} />
         </Field>
